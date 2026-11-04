@@ -96,9 +96,12 @@ function blockRows(b: Block): [string, string][] {
   return rows
 }
 
-/** Keep user lines from starting a heading, a rule or a code fence. */
+/**
+ * Keep user lines from starting a heading, a rule, a code fence, an equation
+ * ($$), a figure (![), a table (|) or a note box (>).
+ */
 const safeLine = (l: string) =>
-  /^\s*(#|-{3}|={3}|`{3}|~{3})/.test(l) ? '\\' + l.trimStart() : l
+  /^\s*(#|-{3}|={3}|`{3}|~{3}|\$\$|!\[|\||>)/.test(l) ? '\\' + l.trimStart() : l
 
 function notesText(st: Design): string {
   const raw = (st as { notes?: unknown }).notes
@@ -136,6 +139,10 @@ function emiText(st: Design): string {
   ]
   if (r.rbwSum)
     head.push('- Harmonics closer than RBW/2 are added in amplitude.')
+  if (r.dropout.length)
+    head.push(
+      `- Out of regulation at ${cell(r.dropout.join('; '))} (Vout ≥ Vin·η): no ripple predicted there.`
+    )
   const rows = r.rows.map((x) => {
     const lims = `${limText(x.band.pk)} / ${limText(x.band.qp)} / ${limText(x.band.av)}`
     const range = `${fmtSI(x.band.fLo, 'Hz')} – ${fmtSI(x.band.fHi, 'Hz')}`
@@ -180,7 +187,7 @@ export function reportMarkdown(st: Design, opts: ReportOptions): string {
     ['kicker', 'Input Filter Design Notes'],
     [
       'specs',
-      `Input = ${fmtSI(cv.vinNom, 'V')}, ${fmtSI(cv.pout, 'W')} | fsw = ${fsw} | Filter = ${on.map((b) => b.name).join(', ') || 'none'}`,
+      `Input = ${fmtSI(cv.vinNom, 'V')}, ${fmtSI(cv.pout, 'W')} | fsw = ${fsw} | Filter = ${on.map((b) => b.name.replace(/\|/g, '/')).join(', ') || 'none'}`,
     ],
     [
       'note',
@@ -254,8 +261,8 @@ export function reportMarkdown(st: Design, opts: ReportOptions): string {
   }
   const fr = fmtSI(m.ripple.fr, 'Hz')
   res.push(
-    [`Attenuation at ${fr}`, `${db(m.ripple.hfr).toFixed(1)} dB`],
-    ['|H| at fsw', `${db(m.ripple.hfsw).toFixed(1)} dB`],
+    [`Attenuation at ${fr}`, `${(-db(m.ripple.hfr)).toFixed(1)} dB`],
+    ['|H| at fsw (converter side open)', `${db(m.ripple.hfsw).toFixed(1)} dB`],
     ['Source ripple current (rms)', fmtSI(m.ripple.isrc / Math.SQRT2, 'A')],
     ['Ripple voltage at converter pins (peak)', fmtSI(m.ripple.vout, 'V')],
     ['DC series R (incl. source)', fmtSI(m.dc.r, OHM)],

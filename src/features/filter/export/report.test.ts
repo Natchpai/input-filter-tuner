@@ -160,3 +160,36 @@ describe('reportMarkdown', () => {
     expect(reportMarkdown(st, OPTS)).toContain('Table: a|b')
   })
 })
+
+describe('report text from user input', () => {
+  it('a | in a block name does not split the cover specs', () => {
+    const st0 = d4()
+    const st = {
+      ...st0,
+      blocks: st0.blocks.map((b, i) => (i === 0 ? { ...b, name: 'L1|L2' } : b)),
+    }
+    const kv = parseKv(front(reportMarkdown(st, OPTS)))
+    expect(kv.specs).toContain('Filter = L1/L2')
+    expect(kv.specs.split('|')).toHaveLength(3)
+  })
+  it('note lines that start an equation, figure, table or note box are escaped', () => {
+    const lines = ['$$ budget TBD', '![x](a.png)', '| a | b |', '> quote']
+    const st = { ...d4(), notes: lines.join('\n') }
+    const out = reportMarkdown(st as Design, OPTS).split('\n')
+    for (const l of lines) {
+      expect(out).toContain('\\' + l)
+      expect(out).not.toContain(l)
+    }
+  })
+  it('attenuation is a positive dB; |H| stays a gain', () => {
+    const st = d4()
+    const m = metrics(st)
+    const md = reportMarkdown(st, OPTS)
+    expect(md).toContain(`| ${(-db(m.ripple.hfr)).toFixed(1)} dB |`)
+    expect(-db(m.ripple.hfr)).toBeGreaterThan(0)
+    // Table cells escape | as \|.
+    expect(md).toContain(
+      `H\\| at fsw (converter side open) | ${db(m.ripple.hfsw).toFixed(1)} dB |`
+    )
+  })
+})

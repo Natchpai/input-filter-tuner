@@ -109,7 +109,8 @@ export function ReportDialog({ S }: { S: Design }) {
         <DialogHeader>
           <DialogTitle>Design report</DialogTitle>
           <DialogDescription>
-            A zip with report.md and four SVG figures for the report archive.
+            A zip with report.md and the SVG figures (schematic, Zout, transfer,
+            Zin, and EMI when it is on) for the report archive.
           </DialogDescription>
         </DialogHeader>
         <div className='grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-sm'>

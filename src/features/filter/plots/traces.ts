@@ -49,12 +49,15 @@ export type PlotResult = {
   sweep?: { choices: { id: string; name: string }[]; current: string }
 }
 
-/** Plotly renders a few HTML tags in text; show user names as plain text. */
+/**
+ * Plotly renders a few HTML tags in text; show user names as plain text.
+ * Plotly decodes numeric entities but not &quot;, so `"` becomes &#34;.
+ */
 const esc = (s: string) =>
   s.replace(
     /[&<>"']/g,
     (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&#34;', "'": '&#39;' })[
         c
       ]!
   )

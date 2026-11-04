@@ -1,7 +1,8 @@
-// Design report as a zip: <folder>/report.md and the four figures, in the
-// light palette, ready for the report archive. Needs a DOM.
+// Design report as a zip: <folder>/report.md and the figures of
+// reportFigures() (EMI only when on), in the light palette, ready for the
+// report archive. Needs a DOM.
 import { strToU8, zipSync } from 'fflate'
-import { type Design, metrics, type TabKey } from '../engine'
+import { cornerMetrics, type Design, metrics, type TabKey } from '../engine'
 import { curveSets } from '../plots/curves'
 import { buildPlot } from '../plots/traces'
 import {
@@ -33,7 +34,8 @@ export async function reportZip(
 ): Promise<{ name: string; data: Uint8Array<ArrayBuffer> }> {
   const folder = reportFolder(st, opts.docNo)
   const colors = readLightColors()
-  const sets = curveSets(st)
+  const cm = cornerMetrics(st)
+  const sets = curveSets(st, cm.rows[cm.worst])
   const m = metrics(st)
   const files: Record<string, Uint8Array> = {
     'report.md': strToU8(reportMarkdown(st, opts)),

@@ -161,8 +161,8 @@ export function Results({ S, m, nom }: { S: Design; m: Metrics; nom: Sweep }) {
         )}
         <Kpi
           k={`Attenuation @ ${fr}`}
-          v={`${db(m.ripple.hfr).toFixed(1)} dB`}
-          s={`|H| at fsw ${db(m.ripple.hfsw).toFixed(1)} dB`}
+          v={`${(-db(m.ripple.hfr)).toFixed(1)} dB`}
+          s={`|H| open at fsw ${db(m.ripple.hfsw).toFixed(1)} dB`}
         />
         <Kpi
           k='Source ripple current'

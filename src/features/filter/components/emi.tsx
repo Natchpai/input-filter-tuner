@@ -143,6 +143,12 @@ function EmiBody({ st, data }: { st: Design; data: EmiResult }) {
             `margin ${dB(w.margin!)} dB (${w.corner})`
           : 'No harmonic falls inside a limit band.'}
       </p>
+      {data.dropout.length > 0 && (
+        <p id='emi-dropout' className='my-1 text-xs text-status-open'>
+          Out of regulation at {data.dropout.join('; ')} (Vout ≥ Vin·η): the
+          duty cycle is clamped to 1 and no ripple is predicted there.
+        </p>
+      )}
       <div id='emi-bands' className='overflow-x-auto'>
         <table className='w-full text-sm tabular-nums'>
           <thead>

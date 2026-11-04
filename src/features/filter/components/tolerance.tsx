@@ -21,14 +21,17 @@ const td = 'px-1.5 py-1 text-right whitespace-nowrap first:text-left'
 
 type Run = { key: string; ext: ExtremeRow[] | null; mc: McResult }
 
-/** Design key without the view-only fields. */
+/**
+ * Key of what the run depends on: the converter, source and blocks, plus
+ * f min and n (check range and grid). View settings do not count.
+ */
 function designKey(st: Design): string {
   return JSON.stringify({
-    ...st,
-    name: undefined,
-    notes: undefined,
-    emi: undefined,
-    plot: { ...st.plot, tab: undefined, sweepId: undefined },
+    conv: st.conv,
+    source: st.source,
+    blocks: st.blocks,
+    fmin: st.plot.fmin,
+    n: st.plot.n,
   })
 }
 
