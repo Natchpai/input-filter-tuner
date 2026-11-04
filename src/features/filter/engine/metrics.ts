@@ -1,21 +1,19 @@
 // Design metrics, the damping optimizer and parameter sweeps.
 import { abs, add, cx, db, div, mul, TAU, type Complex } from './complex'
-import { dcR, point, rnOf, zBlock } from './ladder'
+import { dcR, point, rnOf, vinLow, zBlock } from './ladder'
 import type { Block, Design } from './model'
 import { golden, imZero, peakZout, type Peak } from './peak'
 import { primary, type Section } from './sections'
 import { kindOf, SC1, setParam } from './types'
 
 /**
- * Frequency range for the margin and the Nyquist scan: f min up to f check.
- * Rn holds only up to f check. Never inverted.
+ * Frequency range for the margin and the Nyquist scan: from f min (at most
+ * 10 Hz) up to f check. Rn holds only up to f check. It does not follow the
+ * plot zoom, so the verdict cannot change with the view. Never inverted.
  */
 export function checkRange(st: Design): [number, number] {
-  const lo = st.plot.fmin
-  return [
-    lo,
-    Math.max(Math.min(st.conv.fcheck || st.conv.fsw, st.plot.fmax), lo * 1.01),
-  ]
+  const lo = Math.min(st.plot.fmin, 10)
+  return [lo, Math.max(st.conv.fcheck || st.conv.fsw, lo * 1.01)]
 }
 
 /** Which parameter is the damping resistor of a block, if any. */
@@ -134,7 +132,7 @@ export function metrics(st: Design): Metrics {
   const cv = st.conv
   const [fLo, fHi] = checkRange(st)
   const rn = {
-    min: rnOf(cv, cv.vinMin),
+    min: rnOf(cv, vinLow(cv)),
     nom: rnOf(cv, cv.vinNom),
     max: rnOf(cv, cv.vinMax),
   }
@@ -163,7 +161,7 @@ export function metrics(st: Design): Metrics {
   // DC
   let rdc = st.source.R
   for (const b of st.blocks) if (b.on && kindOf(b) === 'series') rdc += dcR(b)
-  const iin = cv.pout / (cv.eta * cv.vinMin)
+  const iin = cv.pout / (cv.eta * vinLow(cv))
   // Ripple
   const N = Math.max(1, Math.round(cv.phases || 1))
   const D = Math.min(1, Math.max(0, cv.vout / (cv.vinNom * cv.eta)))

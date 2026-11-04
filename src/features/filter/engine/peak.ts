@@ -93,7 +93,9 @@ export function peakZout(
       const fr = imZero(st, lf(i), lf(i + 1), s)
       take(fr)
       const w = (lb - la) / (n - 1)
-      refine(Math.log10(fr) - w, Math.log10(fr) + w)
+      // Clamped like the maxima above, so the peak stays inside [fLo, fHi].
+      const c = Math.log10(fr)
+      refine(Math.max(la, c - w), Math.min(lb, c + w))
     }
   }
   return best

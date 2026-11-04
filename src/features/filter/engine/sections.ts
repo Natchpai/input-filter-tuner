@@ -46,8 +46,13 @@ function sectionAt(bl: Block[], idx: number, s: Scale = SC1): Section | null {
  */
 export function primary(st: Design, s: Scale = SC1): Section | null {
   const bl = st.blocks.filter((b) => b.on)
-  for (let i = bl.length - 1; i >= 0; i--)
-    if (isLser(bl[i])) return sectionAt(bl, i, s)
+  // An inductive block with no cap after it (a bead at the converter) has
+  // no section; try the next one towards the source.
+  for (let i = bl.length - 1; i >= 0; i--) {
+    if (!isLser(bl[i])) continue
+    const sec = sectionAt(bl, i, s)
+    if (sec) return sec
+  }
   return null
 }
 

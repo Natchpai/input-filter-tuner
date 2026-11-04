@@ -142,6 +142,8 @@ export type EmiBandRow = {
   band: EmiBand
   /** Worst harmonic over the corners; null fields when none is in the band. */
   corner: string | null
+  /** Index of that corner in EmiResult.spectra. */
+  ci: number | null
   f: number | null
   /** Strictest limit at f, dBµV. */
   limit: number | null
@@ -163,6 +165,11 @@ export type EmiResult = {
   f0Max: number | null
   /** Some band adds several harmonics in one RBW. */
   rbwSum: boolean
+  /**
+   * Corners where Vout/(Vin·η) ≥ 1: the converter cannot regulate, the duty
+   * cycle is clamped to 1 and no ripple is predicted there.
+   */
+  dropout: string[]
   /** Spectrum per full-load Vin corner, and the index of the worst one. */
   spectra: { label: string; pts: EmiPoint[] }[]
   worstCorner: number
@@ -188,13 +195,14 @@ export function emiResult(st: Design): EmiResult {
     const row: EmiBandRow = {
       band,
       corner: null,
+      ci: null,
       f: null,
       limit: null,
       pred: null,
       margin: null,
       aReq: null,
     }
-    spectra.forEach((s) => {
+    spectra.forEach((s, ci) => {
       s.pts.forEach((p, i) => {
         if (p.f < band.fLo || p.f > band.fHi || p.c === 0) return
         if (step <= band.rbw / 2) rbwSum = true
@@ -209,6 +217,7 @@ export function emiResult(st: Design): EmiResult {
             limit: lim,
             pred,
             margin: m,
+            ci,
           })
         if (row.aReq === null || aReq > row.aReq) row.aReq = aReq
         if (aReq > 0) {
@@ -224,19 +233,17 @@ export function emiResult(st: Design): EmiResult {
     if (r.margin !== null && (worst < 0 || r.margin < rows[worst].margin!))
       worst = i
   })
-  if (worst >= 0) {
-    const lbl = rows[worst].corner
-    worstCorner = Math.max(
-      0,
-      spectra.findIndex((s) => s.label === lbl)
-    )
-  }
+  if (worst >= 0) worstCorner = rows[worst].ci ?? 0
+  const dropout = full
+    .filter((c) => st.conv.vout >= c.vin * st.conv.eta)
+    .map((c) => c.label)
   return {
     rows,
     pass: rows.every((r) => r.margin === null || r.margin >= 0),
     worst,
     f0Max,
     rbwSum,
+    dropout,
     spectra,
     worstCorner,
   }

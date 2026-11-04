@@ -72,8 +72,10 @@ export function corners(st: Design): Corner[] {
     (a, b) => a - b
   )
   const loads: { p: number; name: string }[] = []
-  if (loadDependent(st) && cv.pLight !== cv.pout)
-    loads.push({ p: cv.pLight, name: 'light' })
+  // Light load above full load counts as full load (as adopt() clamps it).
+  const pLight = Math.min(cv.pLight, cv.pout)
+  if (loadDependent(st) && pLight !== cv.pout)
+    loads.push({ p: pLight, name: 'light' })
   loads.push({ p: cv.pout, name: 'full' })
   const out: Corner[] = []
   for (const vin of vins)

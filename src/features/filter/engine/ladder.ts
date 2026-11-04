@@ -90,6 +90,10 @@ export function abcd(blocks: Block[], w: number, s: Scale): ABCD {
   return { A, B, C, D }
 }
 
+/** Lowest input voltage. The fields need not be typed in order. */
+export const vinLow = (conv: Conv) =>
+  Math.min(conv.vinMin, conv.vinNom, conv.vinMax)
+
 /** Converter input as a negative resistance: Rn = −Vin²·η/P. */
 export const rnOf = (conv: Conv, vin: number) =>
   -(vin * vin * conv.eta) / conv.pout
@@ -130,7 +134,7 @@ export function point(st: Design, f: number, s: Scale = SC1): Point {
   const Rn = cx(rnOf(st.conv, st.conv.vinNom))
   const Zin = div(add(mul(A, Rn), B), add(mul(C, Rn), D))
   const ZinOpen = div(A, C)
-  const RnMin = rnOf(st.conv, st.conv.vinMin)
+  const RnMin = rnOf(st.conv, vinLow(st.conv))
   const Tm = cx(Zout.re / RnMin, Zout.im / RnMin)
   return { Zout, Hopen, H, S21, Zin, ZinOpen, Tm }
 }

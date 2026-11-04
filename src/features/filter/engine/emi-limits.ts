@@ -4,6 +4,10 @@
 
 export type EmiStd = 'cispr25' | 'cispr32'
 
+/** Highest edge time, s, and highest EMI margin, dB, a design may hold. */
+export const EMI_TR_MAX = 1e-6
+export const EMI_MARGIN_MAX = 40
+
 /** A limit in dBµV: flat, or [at fLo, at fHi] falling linearly in log f. */
 export type Lim = number | [number, number]
 

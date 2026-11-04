@@ -144,5 +144,8 @@ export type Design = {
 
 export const MAX_NOTES = 2000
 
+/** Longest block name, characters. */
+export const MAX_BLOCK_NAME = 40
+
 /** Scale factors for L and C (tolerance curves). */
 export type Scale = { L: number; C: number }
