@@ -251,6 +251,24 @@ describe('several converters (M5)', () => {
     expect(Object.keys(kv).every((k) => ALLOWED.includes(k))).toBe(true)
   })
 
+  it('the margin cell pairs the margin with the limiting band’s |Rn|', () => {
+    // Aux counts only up to 2 kHz; the D1 peak (about 11 kHz) is in band 2.
+    const st0 = two()
+    const st = {
+      ...st0,
+      loads: st0.loads.map((l) => ({ ...l, fcheck: 2e3 })),
+    }
+    const m = metrics(st)
+    expect(m.limitBand).toBe(1)
+    const rn = Math.abs(m.bands[1].rn)
+    expect(rn).not.toBeCloseTo(Math.abs(m.rn.min), 3)
+    const lim = fmtSI(rn / 10 ** (st.conv.k / 20), 'Ω')
+    // A table cell: | is escaped.
+    expect(reportMarkdown(st, OPTS)).toContain(
+      `\\|Rn\\| ${fmtSI(rn, 'Ω')}, limit line ${lim}`
+    )
+  })
+
   it('EMI and time domain name every converter', () => {
     const st0 = two()
     const st = {
@@ -285,6 +303,25 @@ describe('report text from user input', () => {
       expect(out).toContain('\\' + l)
       expect(out).not.toContain(l)
     }
+  })
+  it('page breaks in notes and * or _ in names stay plain text', () => {
+    const st0 = d4()
+    const st = {
+      ...st0,
+      notes: ['\\pagebreak', '<!-- pagebreak -->'].join('\n'),
+      blocks: st0.blocks.map((b, i) =>
+        i === 0 ? { ...b, name: 'L*a_{x}*' } : b
+      ),
+    }
+    const out = reportMarkdown(st as Design, OPTS).split('\n')
+    expect(out).toContain('\\\\pagebreak')
+    expect(out).toContain('\\<!-- pagebreak -->')
+    expect(out).not.toContain('\\pagebreak')
+    expect(out).not.toContain('<!-- pagebreak -->')
+    // The body (inline markup); the cover specs are plain text.
+    const body = out.slice(out.indexOf('---', 1) + 1).join('\n')
+    expect(body).toContain('L\\*a\\_{x}\\*')
+    expect(body).not.toContain('L*a_{x}*')
   })
   it('attenuation is a positive dB; |H| stays a gain', () => {
     const st = d4()

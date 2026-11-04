@@ -81,8 +81,14 @@ const oneLine = (s: unknown) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-/** A table cell: one line, `|` escaped. */
-const cell = (s: unknown) => oneLine(s).replace(/\|/g, '\\|')
+/**
+ * User text inside a line: one line, with `*` and `_` escaped, so a name
+ * like "C*in" or "C_{x}" is not read as bold, italic or a subscript.
+ */
+const txt = (s: unknown) => oneLine(s).replace(/[*_]/g, '\\$&')
+
+/** A table cell: user text with `|` escaped. */
+const cell = (s: unknown) => txt(s).replace(/\|/g, '\\|')
 
 /**
  * Front matter value. The builder reads flat `key: value` lines, not YAML:
@@ -126,10 +132,14 @@ function blockRows(b: Block): [string, string][] {
 
 /**
  * Keep user lines from starting a heading, a rule, a code fence, an equation
- * ($$), a figure (![), a table (|) or a note box (>).
+ * ($$), a figure (![), a table (|), a note box (>) or a page break
+ * (a whole line `\pagebreak` or `<!-- pagebreak -->`).
  */
+const PAGEBREAK = /^\s*(\\pagebreak|<!--\s*pagebreak\s*-->)\s*$/
 const safeLine = (l: string) =>
-  /^\s*(#|-{3}|={3}|`{3}|~{3}|\$\$|!\[|\||>)/.test(l) ? '\\' + l.trimStart() : l
+  /^\s*(#|-{3}|={3}|`{3}|~{3}|\$\$|!\[|\||>)/.test(l) || PAGEBREAK.test(l)
+    ? '\\' + l.trimStart()
+    : l
 
 function notesText(st: Design): string {
   const raw = (st as { notes?: unknown }).notes
@@ -270,7 +280,7 @@ function convText(st: Design): string {
   const us = converters(st)
   if (us.length === 1) return `${st.conv.phases} phase(s)`
   return us
-    .map((u) => `${oneLine(u.name)} ${fmtSI(u.fsw, 'Hz')} × ${u.phases}`)
+    .map((u) => `${txt(u.name)} ${fmtSI(u.fsw, 'Hz')} × ${u.phases}`)
     .join(', ')
 }
 
@@ -312,7 +322,12 @@ export function reportMarkdown(
     .sort((a, b) => a - b)
     .map((f) => fmtSI(f, 'Hz'))
     .join(', ')
-  const kLim = fmtSI(Math.abs(m.rn.min) / 10 ** (cv.k / 20), OHM)
+  // The |Rn| the margin is taken against: the limiting band's with several
+  // bands, else the bus |Rn| at Vin min.
+  const rnLim = Math.abs(
+    m.bands.length > 1 ? m.bands[m.limitBand].rn : m.rn.min
+  )
+  const kLim = fmtSI(rnLim / 10 ** (cv.k / 20), OHM)
   const on = st.blocks.filter((b) => b.on)
   const margin = `${m.margin.toFixed(1)} dB`
   const verdict = m.unstableAt
@@ -398,7 +413,7 @@ export function reportMarkdown(
     ? on
         .map(
           (b) =>
-            `Table: ${oneLine(b.name)} (${TYPES[b.type].kind}, ${oneLine(TYPES[b.type].label)})\n` +
+            `Table: ${txt(b.name)} (${TYPES[b.type].kind}, ${oneLine(TYPES[b.type].label)})\n` +
             table(['Parameter', 'Value'], blockRows(b))
         )
         .join('\n\n')
@@ -411,7 +426,7 @@ export function reportMarkdown(
     ],
     [
       'Margin to |Rn| (Middlebrook)',
-      `${margin}, ${verdict}; |Rn| ${fmtSI(Math.abs(m.rn.min), OHM)}, limit line ${kLim}` +
+      `${margin}, ${verdict}; |Rn| ${fmtSI(rnLim, OHM)}, limit line ${kLim}` +
         (m.bands.length > 1
           ? `; limited by band ${bandRange(m.bands[m.limitBand])} (${m.bands[m.limitBand].names.join(', ')})`
           : ''),
