@@ -155,3 +155,23 @@ describe('undo with the EMI tab', () => {
     expect(undo(h, cur)!.st.plot.tab).toBe('zin')
   })
 })
+
+describe('undo with the Time domain tab', () => {
+  it('falls back to Zout when the restored design has it off', () => {
+    const a: Action = { t: 'tran', patch: { on: true } }
+    const on = reducer(base, a)
+    const h = record(emptyHistory(), base, on, a, 0)
+    const cur = reducer(on, { t: 'plot', patch: { tab: 'time' } })
+    const r = undo(h, cur)!
+    expect(r.st.tran.on).toBe(false)
+    expect(r.st.plot.tab).toBe('zout')
+  })
+  it('does not record a view change, and undo keeps the view', () => {
+    const r = run(base, [
+      [setC(20e-6), 0],
+      [{ t: 'plot', patch: { tview: 'ripple' } }, 10_000],
+    ])
+    expect(r.h.past).toHaveLength(1)
+    expect(undo(r.h, r.st)!.st.plot.tview).toBe('ripple')
+  })
+})

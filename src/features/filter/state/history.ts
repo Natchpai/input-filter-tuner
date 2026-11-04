@@ -1,5 +1,5 @@
 // Undo and redo. Pure: the clock comes in with each call, so tests are exact.
-import type { Design, PlotSettings } from '../engine'
+import { type Design, type PlotSettings, tabOf } from '../engine'
 import type { Action } from './reducer'
 
 export type History = {
@@ -22,7 +22,7 @@ export const emptyHistory = (): History => ({
 })
 
 /** View-only plot fields: never recorded, and kept as they are on undo. */
-const VIEW_KEYS: (keyof PlotSettings)[] = ['tab', 'sweepId']
+const VIEW_KEYS: (keyof PlotSettings)[] = ['tab', 'sweepId', 'tview']
 
 const viewOnly = (patch: Partial<PlotSettings>) =>
   Object.keys(patch).every((k) => VIEW_KEYS.includes(k as keyof PlotSettings))
@@ -45,7 +45,8 @@ function keyOf(a: Action): string | null {
     case 'plot':
       return `plot:${Object.keys(a.patch).sort().join(',')}`
     case 'emi':
-      return `emi:${Object.keys(a.patch).sort().join(',')}`
+    case 'tran':
+      return `${a.t}:${Object.keys(a.patch).sort().join(',')}`
     default:
       return null
   }
@@ -71,13 +72,18 @@ export function record(
 
 /**
  * `st` with the view fields of `cur`, so undo does not switch tabs. The EMI
- * tab exists only while EMI is on, so it falls back to Zout when `st` has
- * EMI off.
+ * and Time domain tabs exist only while their check is on, so they fall back
+ * to Zout when `st` has it off.
  */
-const keepView = (st: Design, cur: Design): Design => {
-  const tab = cur.plot.tab === 'emi' && !st.emi.on ? 'zout' : cur.plot.tab
-  return { ...st, plot: { ...st.plot, tab, sweepId: cur.plot.sweepId } }
-}
+const keepView = (st: Design, cur: Design): Design => ({
+  ...st,
+  plot: {
+    ...st.plot,
+    tab: tabOf(st, cur.plot.tab),
+    sweepId: cur.plot.sweepId,
+    tview: cur.plot.tview,
+  },
+})
 
 export function undo(h: History, cur: Design) {
   if (!h.past.length) return null

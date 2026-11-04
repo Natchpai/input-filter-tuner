@@ -7,13 +7,20 @@ import {
   type Design,
   div,
   grid,
+  hotPlugAt,
+  loadStepAt,
   mul,
   point,
   TAU,
 } from '../engine'
 import { baseState, mk } from '../state/defaults'
 import { buildPreset, PRESET_COUNT, PRESET_NAMES } from '../state/presets'
-import { spiceElements, spiceNetlist } from './netlist'
+import {
+  spiceElements,
+  spiceHotPlug,
+  spiceLoadStep,
+  spiceNetlist,
+} from './netlist'
 
 const OPTS = { date: '2026-11-04', link: 'https://example.com/#d=abc' }
 const LOADS = ['open', 'conv', 'res'] as const
@@ -311,5 +318,60 @@ describe('SPICE netlist', () => {
     expect(text).toContain('.ac dec 200 10 100000000')
     expect(text).toContain('R_h_load_R h_out 0 -23.04')
     expect(text).toContain('I_z_src 0 z_out AC 1')
+  })
+})
+
+describe('time-domain netlists (M4)', () => {
+  const d1 = () =>
+    buildPreset(PRESET_NAMES.findIndex((n) => n.startsWith('D1 · LC + Rd-Cd')))
+
+  /** Element lines of a .tran netlist: name a b value (V and B lines apart). */
+  const elems = (text: string) =>
+    text
+      .split('\n')
+      .filter((l) => l && !/^[*.VB]/.test(l))
+      .map((l) => {
+        const t = l.split(/\s+/)
+        expect(t).toHaveLength(4)
+        expect(Number.isFinite(+t[3])).toBe(true)
+        return t
+      })
+
+  it('hot-plug: step source, cable in the source path, .tran and .meas', () => {
+    const st = d1()
+    st.tran = { ...st.tran, lCable: 2e-6, rCable: 0.05 }
+    const row = hotPlugAt(st, 48)
+    const text = spiceHotPlug(st, row, OPTS)
+    expect(text).toContain('V_t_src t_vs 0 PWL(0 0 1e-12 48)')
+    expect(text).toMatch(/^\.tran 0 \S+ 0 \S+$/m)
+    expect(text).toContain('.meas TRAN vpk MAX V(t_out)')
+    expect(text).toContain('.meas TRAN imin MIN I(V_t_src)')
+    const els = elems(text)
+    expect(els.find((e) => e[0] === 'L_t_src_L')?.[3]).toBe('0.000002')
+    expect(els.find((e) => e[0] === 'R_t_src_R')?.[3]).toBe('0.05')
+    expect(text.trimEnd().endsWith('.end')).toBe(true)
+  })
+
+  it('load step: constant-power B source with both edges inside the run', () => {
+    const st = d1()
+    const row = loadStepAt(st, 48)
+    const text = spiceLoadStep(st, row, OPTS)
+    const b = text.split('\n').find((l) => l.startsWith('B_t_conv'))!
+    expect(b).toMatch(
+      /^B_t_conv t_out 0 I=if\(time<\S+,0,if\(time<\S+,100,0\)\)\/\(1\*max\(V\(t_out\),24\)\)$/
+    )
+    const [t1, t2] = [...b.matchAll(/time<([^,]+)/g)].map((m) => +m[1])
+    const tStop = +text.match(/^\.tran 0 (\S+)/m)![1]
+    expect(0 < t1 && t1 < t2 && t2 < tStop).toBe(true)
+    expect(text).toContain('V_t_src t_vs 0 48')
+    expect(text).toContain('.meas TRAN vmin MIN V(t_out)')
+    elems(text)
+  })
+
+  it('keeps user text on comment lines', () => {
+    const st = { ...d1(), name: 'bad\nV1 0 1 99\r.end' }
+    const text = spiceHotPlug(st, hotPlugAt(st, 48), OPTS)
+    expect(text).toContain('* Design: bad V1 0 1 99 .end')
+    expect(text.split('\n').filter((l) => l === '.end')).toHaveLength(1)
   })
 })

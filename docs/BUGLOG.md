@@ -43,8 +43,27 @@ or export code.
     harmonics and quietly passed. Report it (`dropout`).
 13. **One sign convention per quantity.** "Attenuation" was negative in
     Results and positive in Corners. Attenuation is positive; |H| is a gain.
+14. **Check a numeric step, do not trust a guess.** The time step from the
+    resonance peaks missed an overdamped fast pole (2 % error). Halve the
+    step until the result holds still.
+15. **Do not report a number set by parts you do not model.** With no
+    source L, the hot-plug inrush came from ps spikes through ESL and Cb and
+    moved 25 % with the step. Report it only when a cable L limits it.
 
 ## Entries
+
+### 2026-11-04: time domain (M4), found while building
+
+- Inrush with Lsrc = 0 changed 25 % with the step (D4, Pi). Now null
+  unless the total source L > 0; a hot-plug cable (`tran.lCable`, default
+  1 µH) gives every preset a value. Test "Rs-C, no cable L" in
+  `engine/transient.test.ts`.
+- An overdamped Rs-Ls-C missed its inrush peak by 2 %: no resonance peak
+  set the step. Now `converge()` halves the step until the peaks agree.
+  Test "overdamped Rs-Ls-C".
+- The load-step plot thinning dropped the 0− sample, so the current seemed
+  to ramp before the step. Each bucket now keeps its first and last sample
+  and the lead-in point stays out of the thinning.
 
 ### 2026-11-04: review of engine, state and UI (23 fixes)
 

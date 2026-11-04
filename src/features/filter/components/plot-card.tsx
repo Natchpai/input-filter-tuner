@@ -3,12 +3,12 @@ import { ImageDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import type { Design, Metrics } from '../engine'
+import { type Design, type Metrics, tabOf, type TranResult } from '../engine'
 import { dataUrlBytes, plotImage, readLightColors } from '../export/svg'
 import type { CurveSets } from '../plots/curves'
 import { PlotlyChart } from '../plots/plotly-chart'
 import type { PlotColors } from '../plots/theme-colors'
-import { buildPlot, type Snapshot, TABS } from '../plots/traces'
+import { buildPlot, type Snapshot, TABS, TRAN_VIEWS } from '../plots/traces'
 import { download, fileName } from '../state/persist'
 import { dispatch } from '../state/store'
 import { ToolCard } from './tool-card'
@@ -21,25 +21,29 @@ export function PlotCard({
   m,
   snapshots,
   colors,
+  tran,
 }: {
   S: Design
   sets: CurveSets
   m: Metrics
   snapshots: Snapshot[]
   colors: PlotColors
+  /** Time-domain result from the worker; null until the first run ends. */
+  tran: TranResult | null
 }) {
   const [loadError, setLoadError] = useState<string | null>(null)
+  const tab = tabOf(S)
   const plot = useMemo(
-    () => buildPlot(S, sets, m, snapshots, colors),
-    [S, sets, m, snapshots, colors]
+    () => buildPlot(S, sets, m, snapshots, colors, tran),
+    [S, sets, m, snapshots, colors, tran]
   )
   // Saved figures always use the light palette, whatever the page theme.
   const savePlot = async (format: 'svg' | 'png') => {
     try {
-      const fig = buildPlot(S, sets, m, snapshots, readLightColors()).main
+      const fig = buildPlot(S, sets, m, snapshots, readLightColors(), tran).main
       const url = await plotImage(fig, format, 1000, 560)
       download(
-        fileName(S, `${S.plot.tab}.${format}`),
+        fileName(S, `${tab}.${format}`),
         dataUrlBytes(url),
         format === 'svg' ? 'image/svg+xml' : 'image/png'
       )
@@ -51,7 +55,7 @@ export function PlotCard({
     <ToolCard>
       <div className='mb-2 flex flex-wrap gap-1'>
         <div id='tabs' role='tablist' className='flex flex-wrap gap-1'>
-          {TABS.filter(([k]) => k !== 'emi' || S.emi.on).map(([k, l]) => (
+          {TABS.filter(([k]) => tabOf(S, k) === k).map(([k, l]) => (
             <Button
               key={k}
               size='sm'
@@ -66,6 +70,22 @@ export function PlotCard({
             </Button>
           ))}
         </div>
+        {tab === 'time' && (
+          <div id='tviews' className='flex flex-wrap gap-1'>
+            {TRAN_VIEWS.map(([k, l]) => (
+              <Button
+                key={k}
+                size='sm'
+                data-v={k}
+                aria-pressed={S.plot.tview === k}
+                variant={S.plot.tview === k ? 'default' : 'outline'}
+                onClick={() => dispatch({ t: 'plot', patch: { tview: k } })}
+              >
+                {l}
+              </Button>
+            ))}
+          </div>
+        )}
         <span className='flex-1' />
         {(['svg', 'png'] as const).map((f) => (
           <Button

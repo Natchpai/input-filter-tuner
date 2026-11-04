@@ -8,6 +8,7 @@ import {
   type EmiSettings,
   type PlotSettings,
   type Source,
+  type TranSettings,
   TYPES,
 } from '../engine'
 
@@ -59,6 +60,7 @@ export const PLOT_DEFAULTS: PlotSettings = {
   dC: -40,
   tab: 'zout',
   sweepId: null,
+  tview: 'hot',
 }
 
 export const EMI_DEFAULTS: EmiSettings = {
@@ -70,13 +72,20 @@ export const EMI_DEFAULTS: EmiSettings = {
   margin: 6,
 }
 
+export const TRAN_DEFAULTS: TranSettings = {
+  on: false,
+  lCable: 1e-6,
+  rCable: 0,
+}
+
 export function baseState(
   name: string,
   conv: Partial<Conv>,
   source: Partial<Source>,
   blocks: Block[],
   plot: Partial<PlotSettings> = {},
-  emi: Partial<EmiSettings> = {}
+  emi: Partial<EmiSettings> = {},
+  tran: Partial<TranSettings> = {}
 ): Design {
   return {
     v: 1,
@@ -86,5 +95,6 @@ export function baseState(
     blocks,
     plot: { ...PLOT_DEFAULTS, ...plot },
     emi: { ...EMI_DEFAULTS, ...emi },
+    tran: { ...TRAN_DEFAULTS, ...tran },
   }
 }

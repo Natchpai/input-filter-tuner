@@ -355,3 +355,44 @@ test('plot range and block count are capped', () => {
   const many = Array.from({ length: 200 }, () => ({ type: 'res', r: 1 }))
   expect(adopt({ conv: {}, blocks: many }).blocks).toHaveLength(64)
 })
+
+test('tran: defaults when absent; numbers clamped; only known keys', () => {
+  const d = (tran: unknown) => adopt({ conv: {}, blocks: [], tran }).tran
+  expect(d(undefined)).toEqual({ on: false, lCable: 1e-6, rCable: 0 })
+  expect(d({ on: true, lCable: 2e-6, rCable: 0.05 })).toEqual({
+    on: true,
+    lCable: 2e-6,
+    rCable: 0.05,
+  })
+  expect(d({ lCable: 1 }).lCable).toBe(100e-6)
+  expect(d({ lCable: -1 }).lCable).toBe(0)
+  expect(d({ rCable: 99 }).rCable).toBe(10)
+  expect(d({ rCable: '0.1' }).rCable).toBe(0.1)
+  for (const v of [NaN, 'abc', {}, [], null, '', bad, { toString: 1 }])
+    expect(d({ lCable: v, rCable: v })).toMatchObject({
+      lCable: 1e-6,
+      rCable: 0,
+    })
+  for (const on of ['true', 1, null, {}]) expect(d({ on }).on).toBe(false)
+  expect(Object.keys(d({ x: 1, __proto__: { y: 1 } })).sort()).toEqual([
+    'lCable',
+    'on',
+    'rCable',
+  ])
+})
+
+test('tran round-trips through JSON; the Time tab and view need it on', () => {
+  const st = buildPreset(1)
+  st.tran = { on: true, lCable: 3e-6, rCable: 0.02 }
+  st.plot = { ...st.plot, tab: 'time', tview: 'step' }
+  const back = adopt(JSON.parse(JSON.stringify(st)))
+  expect(back.tran).toEqual(st.tran)
+  expect(back.plot.tab).toBe('time')
+  expect(back.plot.tview).toBe('step')
+  const off = adopt({ ...JSON.parse(JSON.stringify(st)), tran: { on: false } })
+  expect(off.plot.tab).toBe('zout')
+  for (const tview of ['x', bad, 1, null, '__proto__'])
+    expect(adopt({ conv: {}, blocks: [], plot: { tview } }).plot.tview).toBe(
+      'hot'
+    )
+})

@@ -98,7 +98,11 @@ export type Conv = {
 
 export type Source = { R: number; L: number }
 
-export type TabKey = 'zout' | 'xfer' | 'zin' | 'tm' | 'elem' | 'sweep' | 'emi'
+export type TabKey =
+  'zout' | 'xfer' | 'zin' | 'tm' | 'elem' | 'sweep' | 'emi' | 'time'
+
+/** Which waveform the Time domain tab shows (M4). */
+export type TranView = 'hot' | 'step' | 'ripple'
 
 export type PlotSettings = {
   fmin: number
@@ -114,6 +118,8 @@ export type PlotSettings = {
   dC: number
   tab: TabKey
   sweepId: string | null
+  /** View setting of the Time domain tab; not recorded in undo. */
+  tview: TranView
 }
 
 /** Conducted EMI settings (M2). `cls` is one of EMI_STDS[std].classes. */
@@ -130,6 +136,15 @@ export type EmiSettings = {
   margin: number
 }
 
+/** Time-domain settings (M4). */
+export type TranSettings = {
+  /** The time-domain check is shown (card body, tab, report). Off by default. */
+  on: boolean
+  /** Cable after Rsrc + Lsrc, hot-plug only: L in H, R in Ω. */
+  lCable: number
+  rCable: number
+}
+
 export type Design = {
   v: number
   name: string
@@ -138,8 +153,19 @@ export type Design = {
   blocks: Block[]
   plot: PlotSettings
   emi: EmiSettings
+  tran: TranSettings
   /** Free-text design notes, at most MAX_NOTES characters. */
   notes?: string
+}
+
+/**
+ * The tab to show. The EMI and Time domain tabs exist only while their check
+ * is on; otherwise Zout. Every path that sets or restores a tab uses this.
+ */
+export function tabOf(st: Design, tab: TabKey = st.plot.tab): TabKey {
+  if (tab === 'emi' && !st.emi.on) return 'zout'
+  if (tab === 'time' && !st.tran.on) return 'zout'
+  return tab
 }
 
 export const MAX_NOTES = 2000

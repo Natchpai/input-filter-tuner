@@ -103,3 +103,22 @@ test('dup keeps block names within 40 characters', () => {
   const short = reducer(base, { t: 'dup', id: b0.id, newId: 'ny' })
   expect(short.blocks.find((b) => b.id === 'ny')!.name).toBe(b0.name + "'")
 })
+
+test('tran: cable values clamped like adopt(); off on the Time tab → Zout', () => {
+  const r = (patch: Partial<typeof base.tran>) =>
+    reducer(base, { t: 'tran', patch }).tran
+  expect(r({ lCable: 1 }).lCable).toBe(100e-6)
+  expect(r({ lCable: -1 }).lCable).toBe(0)
+  expect(r({ rCable: 50 }).rCable).toBe(10)
+  expect(r({ rCable: 0.1 }).rCable).toBe(0.1)
+  const on = reducer(base, { t: 'tran', patch: { on: true } })
+  const onTab = reducer(on, { t: 'plot', patch: { tab: 'time' } })
+  const off = reducer(onTab, { t: 'tran', patch: { on: false } })
+  expect(off.plot.tab).toBe('zout')
+  const zin = reducer(reducer(on, { t: 'plot', patch: { tab: 'zin' } }), {
+    t: 'tran',
+    patch: { on: false },
+  })
+  expect(zin.plot.tab).toBe('zin')
+  expect(base.tran.on).toBe(false) // not mutated
+})

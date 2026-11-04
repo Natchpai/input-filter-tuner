@@ -618,6 +618,24 @@ try:
         w.wait_for_selector("#rp-author", timeout=5000)
         ok(w.input_value("#rp-author") == "Test Author", "report author is remembered")
         w.keyboard.press("Escape")
+        # With the time domain on: three more figures and two LTspice netlists
+        settle(w, 300)
+        w.check("#tran-on")
+        settle(w, 300)
+        w.click("#bReport")
+        w.wait_for_selector("#rp-author", timeout=5000)
+        with w.expect_download() as dl:
+            w.click("#bReportGo")
+        with zipfile.ZipFile(dl.value.path()) as z:
+            files = sorted(n.split("/")[-1] for n in z.namelist() if not n.endswith("/"))
+            md = z.read("NP-DR-TEST/report.md").decode("utf-8")
+            hot = z.read("NP-DR-TEST/fig_hotplug.svg").decode("utf-8") if "fig_hotplug.svg" in files else ""
+            for n in ["fig_hotplug.svg", "fig_loadstep.svg", "fig_ripple.svg"]:
+                if n in files:
+                    (SHOTS / n).write_text(z.read("NP-DR-TEST/" + n).decode("utf-8"), encoding="utf-8")
+        want = {"fig_hotplug.svg", "fig_loadstep.svg", "fig_ripple.svg", "spice_hotplug.cir", "spice_loadstep.cir"}
+        ok(want <= set(files) and "## 4. Time domain" in md and hot.lstrip().startswith("<svg") and "var(--" not in hot,
+           f"report zip with time domain: section 4, three figures, two netlists {files}")
         w.close()
 
         # ---- M2: conducted EMI ----
@@ -712,6 +730,88 @@ try:
                 e.locator("#pl1").screenshot(path=str(SHOTS / f"m2_emi_tab_{vw}_{theme.lower()}.png"))
                 e.close()
 
+        # ---- M4: time domain ----
+        def tran_ready(pg):
+            pg.wait_for_function(
+                "() => (document.querySelector('#tran-summary')?.textContent || '').startsWith('Hot-plug')"
+                " && !document.querySelector('#tran-summary').textContent.includes('Updating')",
+                timeout=20000)
+
+        t4 = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(t4, "m4: ")
+        t4.goto(URL)
+        ready(t4)
+        ok(t4.locator("#tran-rows").count() == 0 and not t4.is_checked("#tran-on")
+           and t4.locator("#tabs button[data-t=time]").count() == 0, "Time card off by default, no Time tab")
+        tnames = t4.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
+        missing = []
+        for i, n in enumerate(tnames):
+            t4.select_option("#preset", str(i))
+            settle(t4, 200)
+            t4.check("#tran-on")
+            tran_ready(t4)
+            txt = t4.inner_text("#tran-summary")
+            if not ("V peak" in txt and "inrush" in txt and "not set" not in txt):
+                missing.append(n[:20])
+        ok(not missing, f"Time card: V peak and inrush on all {len(tnames)} presets {missing}")
+        t4.select_option("#preset", str(next(i for i, n in enumerate(tnames) if n.startswith("D1 · LC + Rd-Cd"))))
+        settle(t4, 200)
+        t4.check("#tran-on")
+        tran_ready(t4)
+        ok("54.6 V" in t4.inner_text("#tran-summary"), f"D1 Rd-Cd hot-plug peak 54.6 V: '{t4.inner_text('#tran-summary')[:50]}'")
+        t4.click("#tabs button[data-t=time]")
+        settle(t4, 300)
+        drawn = {}
+        for v in ["hot", "step", "ripple"]:
+            t4.click(f"#tviews button[data-v={v}]")
+            settle(t4, 300)
+            drawn[v] = t4.eval_on_selector("#pl1", "d => (d.data || []).length")
+        ok(all(n >= 2 for n in drawn.values()), f"Time tab draws every view {drawn}")
+        t4.uncheck("#tran-on")
+        settle(t4, 300)
+        sel = t4.eval_on_selector("#tabs button[aria-selected=true]", "b => b.dataset.t")
+        ok(sel == "zout" and t4.locator("#tabs button[data-t=time]").count() == 0
+           and t4.locator("#tran-rows").count() == 0, f"Time off on the Time tab goes to {sel}, tab hidden")
+        t4.close()
+        # A #d= link with time-domain settings survives the load and a reload
+        tlink = dict(elink, name="Time link", emi={"on": False},
+                     tran={"on": True, "lCable": 2e-6, "rCable": 0.05},
+                     plot={"tab": "time", "tview": "step"})
+        t4 = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(t4, "m4 link: ")
+        t4.goto(URL + "#d=" + base64.b64encode(json.dumps(tlink).encode()).decode())
+        ready(t4)
+        tran_ready(t4)
+        keep = lambda: (t4.is_checked("#tran-on") and t4.input_value("#tran-rc") in ("50m", "0.05")
+                        and t4.eval_on_selector("#tabs button[aria-selected=true]", "b => b.dataset.t") == "time"
+                        and t4.get_attribute("#tviews button[data-v=step]", "aria-pressed") == "true")
+        ok(keep(), f"#d= link keeps tran, the Time tab and the step view (Rc '{t4.input_value('#tran-rc')}')")
+        t4.reload()
+        ready(t4)
+        tran_ready(t4)
+        ok(keep(), "time-domain settings survive a reload")
+        t4.close()
+        for theme in ["Dark", "Light"]:
+            for vw in [1440, 390]:
+                t4 = browser.new_page(viewport={"width": vw, "height": 1000})
+                watch(t4, "m4 shots: ")
+                t4.goto(URL)
+                ready(t4)
+                if theme == "Light":
+                    set_theme(t4, "Light")
+                t4.locator("#time").screenshot(path=str(SHOTS / f"m4_time_off_{vw}_{theme.lower()}.png"))
+                t4.check("#tran-on")
+                tran_ready(t4)
+                t4.click("#tabs button[data-t=time]")
+                settle(t4, 400)
+                no_hscroll(t4, vw, f"m4 {theme.lower()} {vw} px")
+                t4.locator("#time").screenshot(path=str(SHOTS / f"m4_time_card_{vw}_{theme.lower()}.png"))
+                for v in ["hot", "step", "ripple"]:
+                    t4.click(f"#tviews button[data-v={v}]")
+                    settle(t4, 300)
+                    t4.locator("#pl1").screenshot(path=str(SHOTS / f"m4_time_{v}_{vw}_{theme.lower()}.png"))
+                t4.close()
+
         # Layout: 1440 and 390 px, dark and light, no horizontal scroll
         for theme in ["Dark", "Light"]:
             for w, h in [(1440, 1000), (390, 900)]:
@@ -752,6 +852,10 @@ try:
         settle(s, 300)
         r = tol_run(s, "100")
         ok(len(r) == 1 and "0.48 to 0.99" in r[0], f"single file: tolerance run in the worker {r}")
+        # The time-domain worker is inline too.
+        s.check("#tran-on")
+        tran_ready(s)
+        ok("V peak" in s.inner_text("#tran-summary"), "single file: time-domain run in the worker")
         s.close()
 
         browser.close()

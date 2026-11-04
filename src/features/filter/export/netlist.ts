@@ -1,221 +1,26 @@
 // SPICE netlist export: the filter as a .cir file with two copies, one for H
 // and one for Zout. Pure, no DOM access. The mapping follows zBlock in
 // engine/ladder.ts element for element.
-import { type Block, type Design, effC, kindOf, rnOf } from '../engine'
+import {
+  atCorner,
+  type Design,
+  type HotPlugRow,
+  kindOf,
+  type LoadStepRow,
+  rnOf,
+  withCable,
+} from '../engine'
+import {
+  blockNet,
+  Builder,
+  type CircuitCopy,
+  type CircuitElement,
+  el,
+  ser,
+  tokens,
+} from '../engine/circuit'
 
-export type SpiceKind = 'R' | 'L' | 'C' | 'I' | 'V'
-
-export type SpiceElement = {
-  name: string
-  kind: SpiceKind
-  a: string
-  b: string
-  /** R in Ω, L in H, C in F; the DC value (0) for V and I. */
-  value: number
-  /** AC magnitude of a V or I source. */
-  ac?: number
-}
-
-/** One copy of the filter and the node that holds the result. */
-export type SpiceCopy = { elements: SpiceElement[]; out: string }
-
-// A two-terminal network, built from a block before it is placed.
-type Net =
-  | { t: 'short' }
-  | { t: 'open' }
-  | { t: 'el'; kind: 'R' | 'L' | 'C'; part: string; v: number }
-  | { t: 'ser' | 'par'; parts: Net[] }
-
-const SHORT: Net = { t: 'short' }
-const OPEN: Net = { t: 'open' }
-
-/** R or L of 0 is a short, C of 0 (or a bad number) is left out. */
-function el(kind: 'R' | 'L' | 'C', part: string, v: number): Net {
-  if (!Number.isFinite(v)) return OPEN
-  if (v === 0) return kind === 'C' ? OPEN : SHORT
-  return { t: 'el', kind, part, v }
-}
-
-function ser(...parts: Net[]): Net {
-  const keep: Net[] = []
-  for (const p of parts) {
-    if (p.t === 'open') return OPEN
-    if (p.t === 'short') continue
-    if (p.t === 'ser') keep.push(...p.parts)
-    else keep.push(p)
-  }
-  if (keep.length === 0) return SHORT
-  return keep.length === 1 ? keep[0] : { t: 'ser', parts: keep }
-}
-
-function par(...parts: Net[]): Net {
-  const keep: Net[] = []
-  for (const p of parts) {
-    if (p.t === 'short') return SHORT
-    if (p.t === 'open') continue
-    if (p.t === 'par') keep.push(...p.parts)
-    else keep.push(p)
-  }
-  if (keep.length === 0) return OPEN
-  return keep.length === 1 ? keep[0] : { t: 'par', parts: keep }
-}
-
-/** The block as a network. Same terms as zBlock (scale 1). */
-function blockNet(b: Block): Net {
-  switch (b.type) {
-    case 'ind': {
-      const core = par(
-        ser(el('R', 'dcr', b.dcr), el('L', 'L', b.L)),
-        b.cp > 0 ? el('C', 'cp', b.cp) : OPEN
-      )
-      if (b.dmode === 'R') return par(core, el('R', 'dR', b.dR))
-      if (b.dmode === 'RLpar')
-        return par(core, ser(el('R', 'dR', b.dR), el('L', 'dL', b.dL)))
-      if (b.dmode === 'RLser')
-        return ser(core, par(el('R', 'dR', b.dR), el('L', 'dL', b.dL)))
-      return core
-    }
-    case 'bead2':
-      return ser(
-        el('R', 'rdc', b.rdc),
-        par(el('L', 'lb', b.lb), el('R', 'rb', b.rb))
-      )
-    case 'bead4':
-      return ser(
-        el('R', 'rs', b.rs),
-        par(
-          el('L', 'lb', b.lb),
-          el('R', 'rp', b.rp),
-          b.cb > 0 ? el('C', 'cb', b.cb) : OPEN
-        )
-      )
-    case 'res':
-      return ser(el('R', 'r', b.r), el('L', 'l', b.l))
-    case 'cap': {
-      const n = Math.max(1, b.n)
-      return ser(
-        el('R', 'esr', b.esr / n),
-        el('L', 'esl', b.esl / n),
-        el('C', 'c', n * effC(b))
-      )
-    }
-    case 'rc':
-      return ser(
-        el('R', 'rd', b.rd),
-        el('R', 'esr', b.esr),
-        el('L', 'esl', b.esl),
-        el('C', 'cd', b.cd)
-      )
-  }
-}
-
-/** Letters, digits and `_` only; SPICE names are not case sensitive. */
-function tokens(blocks: Block[]): string[] {
-  const used = new Set(['src', 'load', 'gmin'])
-  return blocks.map((b, i) => {
-    const base =
-      String(b.name ?? '')
-        .replace(/[^A-Za-z0-9_]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .slice(0, 24) || `b${i + 1}`
-    let t = base
-    for (let k = 2; used.has(t.toLowerCase()); k++) t = `${base}_${k}`
-    used.add(t.toLowerCase())
-    return t
-  })
-}
-
-/** Places networks between nodes and merges nodes joined by a short. */
-class Builder {
-  private els: SpiceElement[] = []
-  private parent = new Map<string, string>()
-  private count = 0
-  constructor(
-    private pre: string,
-    private out: string
-  ) {}
-
-  node(): string {
-    return `${this.pre}n${++this.count}`
-  }
-
-  private find(n: string): string {
-    let r = n
-    while (this.parent.has(r)) r = this.parent.get(r)!
-    return r
-  }
-
-  // Ground wins, then the output node, then any other named node.
-  private rank(n: string) {
-    if (n === '0') return 3
-    if (n === this.out) return 2
-    return /^[a-z]_n\d+$/.test(n) ? 0 : 1
-  }
-
-  join(a: string, b: string) {
-    const ra = this.find(a),
-      rb = this.find(b)
-    if (ra === rb) return
-    if (this.rank(ra) >= this.rank(rb)) this.parent.set(rb, ra)
-    else this.parent.set(ra, rb)
-  }
-
-  add(e: SpiceElement) {
-    this.els.push(e)
-  }
-
-  place(net: Net, a: string, b: string, tag: string) {
-    switch (net.t) {
-      case 'short':
-        this.join(a, b)
-        return
-      case 'open':
-        return
-      case 'par':
-        for (const p of net.parts) this.place(p, a, b, tag)
-        return
-      case 'ser': {
-        let n = a
-        net.parts.forEach((p, i) => {
-          const m = i === net.parts.length - 1 ? b : this.node()
-          this.place(p, n, m, tag)
-          n = m
-        })
-        return
-      }
-      case 'el':
-        this.add({
-          name: `${net.kind}_${this.pre}${tag}_${net.part}`,
-          kind: net.kind,
-          a,
-          b,
-          value: net.v,
-        })
-    }
-  }
-
-  done(): SpiceCopy {
-    // Internal nodes left after merging are numbered 1, 2, ... in order.
-    const names = new Map<string, string>()
-    const name = (n: string) => {
-      const r = this.find(n)
-      if (this.rank(r) > 0) return r
-      if (!names.has(r)) names.set(r, `${this.pre}n${names.size + 1}`)
-      return names.get(r)!
-    }
-    const elements: SpiceElement[] = []
-    for (const e of this.els) {
-      const a = name(e.a),
-        b = name(e.b)
-      // Only possible when a short to ground covers the element.
-      if (a === b) continue
-      elements.push({ ...e, a, b })
-    }
-    return { elements, out: this.find(this.out) }
-  }
-}
-
-function copy(st: Design, which: 'h' | 'z', tok: string[]): SpiceCopy {
+function copy(st: Design, which: 'h' | 'z', tok: string[]): CircuitCopy {
   const pre = `${which}_`
   const out = `${pre}out`
   const bld = new Builder(pre, out)
@@ -261,7 +66,7 @@ function loadR(st: Design): number | null {
 }
 
 /** Both copies of the filter: `h` gives H = V(h_out), `z` gives Zout. */
-export function spiceElements(st: Design): { h: SpiceCopy; z: SpiceCopy } {
+export function spiceElements(st: Design): { h: CircuitCopy; z: CircuitCopy } {
   const tok = tokens(st.blocks)
   return { h: copy(st, 'h', tok), z: copy(st, 'z', tok) }
 }
@@ -281,7 +86,7 @@ function clean(s: unknown, max = Infinity): string {
     .slice(0, max)
 }
 
-function line(e: SpiceElement): string {
+function line(e: CircuitElement): string {
   if (e.kind === 'V' || e.kind === 'I')
     return `${e.name} ${e.a} ${e.b} AC ${spiceNum(e.ac ?? 0)}`
   return `${e.name} ${e.a} ${e.b} ${spiceNum(e.value)}`
@@ -326,4 +131,119 @@ export function spiceNetlist(
   else out.push(`.meas AC zpk MAX mag(V(${z.out}))`)
   out.push('.end', '')
   return out.join('\n')
+}
+
+// ------------------------------------------------------------ time domain
+
+/** The filter behind a source node t_vs, converter node t_out (M4). */
+function tranCopy(d: Design): CircuitCopy {
+  const tok = tokens(d.blocks)
+  const bld = new Builder('t_', 't_out')
+  let rail = bld.node()
+  bld.place(
+    ser(el('R', 'R', d.source.R), el('L', 'L', d.source.L)),
+    't_vs',
+    rail,
+    'src'
+  )
+  d.blocks.forEach((b, i) => {
+    if (!b.on) return
+    const net = blockNet(b)
+    if (kindOf(b) === 'series') {
+      const next = bld.node()
+      bld.place(net, rail, next, tok[i])
+      rail = next
+    } else bld.place(net, rail, '0', tok[i])
+  })
+  bld.join(rail, 't_out')
+  return bld.done()
+}
+
+function header(
+  st: Design,
+  title: string,
+  opts: { date: string; link: string }
+) {
+  return [
+    `* Input Filter Tuner: ${title}`,
+    `* Design: ${clean(st.name, 200)}`,
+    `* Date: ${clean(opts.date, 100)}`,
+    `* Link: ${clean(opts.link)}`,
+    '*',
+  ]
+}
+
+/**
+ * Hot-plug as a .tran netlist at the row's Vin: the source steps 0 → Vin in
+ * 1 ps behind Rsrc + Lsrc and the cable, converter open. The .meas lines
+ * give the peak converter-node voltage and the source current (I(V) is
+ * negative while the source delivers).
+ */
+export function spiceHotPlug(
+  st: Design,
+  row: HotPlugRow,
+  opts: { date: string; link: string }
+): string {
+  const vin = row.vin
+  const d = withCable(atCorner(st, { vin, pLoad: 0, i: 0, label: '' }))
+  const c = tranCopy(d)
+  const tStop = row.wave.t[row.wave.t.length - 1]
+  return [
+    ...header(st, 'hot-plug transient', opts),
+    `* Vin = ${spiceNum(vin)} V, cable ${spiceNum(st.tran.lCable)} H, ${spiceNum(st.tran.rCable)} ohm.`,
+    `* Tool result: V peak ${spiceNum(row.vPeak)} V, I peak ${row.iPeak === null ? 'not set (no L)' : spiceNum(row.iPeak) + ' A'}.`,
+    '',
+    `V_t_src t_vs 0 PWL(0 0 1e-12 ${spiceNum(vin)})`,
+    ...c.elements.map(line),
+    '',
+    `.tran 0 ${spiceNum(tStop)} 0 ${spiceNum(row.dt)}`,
+    `.meas TRAN vpk MAX V(${c.out})`,
+    '.meas TRAN imin MIN I(V_t_src)',
+    '.end',
+    '',
+  ].join('\n')
+}
+
+/**
+ * Load step as a .tran netlist at the row's Vin: a constant-power B source
+ * I = P/(eta·max(V, Vin/2)) steps P_light → P_full at t1 and back at t2.
+ * .meas: the light-load voltage, the lowest V after t1, the highest after t2.
+ */
+export function spiceLoadStep(
+  st: Design,
+  row: LoadStepRow,
+  opts: { date: string; link: string }
+): string {
+  const cv = st.conv
+  const vin = row.vin
+  const d = atCorner(st, {
+    vin,
+    pLoad: cv.pout,
+    i: cv.pout / (cv.eta * vin),
+    label: '',
+  })
+  const c = tranCopy(d)
+  const pFull = cv.pout
+  const pLight = Math.min(Math.max(0, cv.pLight), pFull)
+  const t1 = 0.1 * row.tDown
+  const t2 = t1 + row.tDown
+  const tStop = t1 + row.wave.t[row.wave.t.length - 1]
+  const n = (v: number) => spiceNum(v)
+  const p = `if(time<${n(t1)},${n(pLight)},if(time<${n(t2)},${n(pFull)},${n(pLight)}))`
+  return [
+    ...header(st, 'load-step transient', opts),
+    `* Vin = ${n(vin)} V, P ${n(pLight)} W -> ${n(pFull)} W at t1 = ${n(t1)} s, back at t2 = ${n(t2)} s.`,
+    `* Tool result: V min ${n(row.vMin)} V, V max ${n(row.vMax)} V.`,
+    '',
+    `V_t_src t_vs 0 ${n(vin)}`,
+    ...c.elements.map(line),
+    `B_t_conv ${c.out} 0 I=${p}/(${n(cv.eta)}*max(V(${c.out}),${n(0.5 * vin)}))`,
+    '',
+    `.tran 0 ${n(tStop)} 0 ${n(row.dt)}`,
+    `.meas TRAN vlight FIND V(${c.out}) AT ${n(t1 / 2)}`,
+    `.meas TRAN vmin MIN V(${c.out}) FROM ${n(t1)} TO ${n(t2)}`,
+    `.meas TRAN vmax MAX V(${c.out}) FROM ${n(t2)} TO ${n(tStop)}`,
+    '.end',
+    '',
+  ].join('\n')
 }

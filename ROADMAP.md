@@ -4,7 +4,7 @@ Proposed improvements, grouped into milestones. Each milestone stands alone,
 so you can pick any of them in any order. Effort is S (under a day),
 M (1 to 3 days) or L (more than 3 days).
 
-Order by value to a filter design review: **M4 → M3**, and the rest as
+Order by value to a filter design review: **M3** next, and the rest as
 needed.
 
 Status key: `[ ]` not started, `[x]` done.
@@ -31,6 +31,11 @@ Details are in the plan docs and the git history.
   LISN, predicted dBµV against the limits per band, the worst harmonic and
   its margin, the attenuation needed and the LC corner hint; EMI card, EMI
   tab and report section.
+- **M4. Time domain** (2026-11-04, `docs/M4-plan.md`). Hot-plug overshoot,
+  inrush and I²t with a cable, constant-power load step with droop and
+  stability flag, source ripple waveform; MNA with trapezoidal steps in a
+  worker, Time card, Time tab, report section and LTspice netlists.
+  Matches LTspice within 2 % on D1 Rd-Cd and D4.
 
 Still open from done milestones:
 - [ ] Remove `legacy/` and `scripts/legacy-fixture.mjs` (M0), when the user
@@ -64,26 +69,6 @@ the requirements.
 
 **Done when:** given only the requirements, the tool proposes an E-series
 design that meets the margin and the attenuation target.
-
----
-
-## M4. Time domain
-
-**Why:** hot-plug overshoot and inrush current often decide the input
-capacitor's voltage rating and the fuse. The frequency plots don't show them.
-
-- [ ] **Hot-plug step (M).** Apply a step on Vin with the cable L and R, and
-  show the overshoot at the converter pins and the inrush current peak.
-- [ ] **Load step (M).** Apply a converter current step, Iin from P/Vin, and
-  show the input-bus droop and ringing.
-- [ ] **Source ripple waveform (S).** Show the time-domain input current at
-  the source over a few switching periods.
-- [ ] **Method (M).** Use a state-space model of the ladder, solved with
-  fixed-step trapezoidal integration. Cross-check against the frequency
-  response, and against LTspice for one preset.
-
-**Done when:** the hot-plug overshoot and inrush peak are reported for each
-preset, and match LTspice within 5 % on one test case.
 
 ---
 

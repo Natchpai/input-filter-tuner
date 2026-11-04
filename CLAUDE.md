@@ -14,8 +14,9 @@ and its tests) is kept until the user says to remove it, together with
 
 M6 is done (`docs/M6-plan.md`); its LTspice run on D4 is still open.
 M1a and M1b are done (`docs/M1-plan.md`). M2 is done (`docs/M2-plan.md`)
-except the user's check of the EMI limit tables. The next milestone per
-`ROADMAP.md` is M4; plan it in detail before any code.
+except the user's check of the EMI limit tables. M4 is done
+(`docs/M4-plan.md`). The next milestone per `ROADMAP.md` is M3; plan it in
+detail before any code.
 
 ## Git
 
@@ -109,6 +110,27 @@ and get approval before changing the fixture.
   - The limit tables are ASSUMED until the user checks them against the
     standards (`references/emi-limits.md`). There is no report ground truth
     for EMI.
+- Time domain (`engine/transient.ts`, `docs/M4-plan.md`):
+  - An option, off by default (`tran.on`), same rules as EMI. Runs in
+    `workers/transient.worker.ts` through `components/use-tran.ts`; its key
+    leaves out the plot settings. `tabOf()` in `engine/model.ts` is the one
+    place that hides the EMI and Time tabs.
+  - Circuit: the element graph of `engine/circuit.ts` (shared with the
+    SPICE export). MNA, trapezoidal steps, one tiny backward-Euler step for
+    the 0+ point and two backward-Euler half steps after each step change.
+    The step is halved until the peaks agree within 0.1 % (`converge`).
+  - Hot-plug: at each Vin, ideal step through Rsrc + Lsrc plus the cable
+    (`tran.lCable`, `tran.rCable`, hot-plug only), converter open, C(V) at
+    that Vin, L(I) at 0 A. Inrush and I²t are null when the total source L
+    is 0: then parasitic spikes set them.
+  - Load step: at each Vin with full-load corner values, constant power
+    I = P/(η·max(V, Vin/2)), P light → P full at 0, back once settled.
+    Droop = V light − V min. Unstable: V leaves [−Vin, 4·Vin] or still
+    swings at half its peak after 200 k steps.
+  - Ripple: Fourier sum of the signed trapezoid (`harmonicSigned`, edge time
+    `emi.tr`) through Hopen at Vin nom, full load.
+  - There is no report ground truth; `export/ltspice.test.ts` compares with
+    LTspice when `LTSPICE` points to LTspice.exe.
 
 ## Look (template rules)
 

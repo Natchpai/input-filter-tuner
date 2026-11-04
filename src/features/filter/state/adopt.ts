@@ -4,6 +4,8 @@
 import {
   BLOCK_TYPES,
   type Block,
+  CABLE_L_MAX,
+  CABLE_R_MAX,
   type BlockType,
   type Curve,
   DAMP,
@@ -16,7 +18,9 @@ import {
   MAX_NOTES,
   MAX_TOL,
   type TabKey,
+  tabOf,
   TOL_KEYS,
+  type TranView,
   TYPES,
 } from '../engine'
 import { baseState, mk } from './defaults'
@@ -29,7 +33,10 @@ export const TAB_KEYS: TabKey[] = [
   'elem',
   'sweep',
   'emi',
+  'time',
 ]
+
+const TRAN_VIEWS: TranView[] = ['hot', 'step', 'ripple']
 
 type Obj = Record<string, unknown>
 
@@ -145,6 +152,7 @@ export function adopt(obj: unknown): Design {
   if (op.load === 'open' || op.load === 'conv' || op.load === 'res')
     pl.load = op.load
   if (TAB_KEYS.includes(op.tab as TabKey)) pl.tab = op.tab as TabKey
+  if (TRAN_VIEWS.includes(op.tview as TranView)) pl.tview = op.tview as TranView
   // EMI settings: enums by whitelist, the class checked against the standard.
   const em = base.emi,
     oe: Obj = isObj(obj.emi) ? obj.emi : {}
@@ -155,12 +163,20 @@ export function adopt(obj: unknown): Design {
     em.cls = cl.includes(String(oe.cls)) ? String(oe.cls) : cl[cl.length - 1]
   }
   if (typeof oe.on === 'boolean') em.on = oe.on
-  // The EMI tab exists only while EMI is on.
-  if (pl.tab === 'emi' && !em.on) pl.tab = 'zout'
   if (oe.lines === 1 || oe.lines === 2) em.lines = oe.lines
   if (scalar(oe.tr) && oe.tr !== '') em.tr = num(oe.tr, em.tr, 0, EMI_TR_MAX)
   if (scalar(oe.margin) && oe.margin !== '')
     em.margin = num(oe.margin, em.margin, 0, EMI_MARGIN_MAX)
+  // Time-domain settings (M4).
+  const tn = base.tran,
+    ot: Obj = isObj(obj.tran) ? obj.tran : {}
+  if (typeof ot.on === 'boolean') tn.on = ot.on
+  if (scalar(ot.lCable) && ot.lCable !== '')
+    tn.lCable = num(ot.lCable, tn.lCable, 0, CABLE_L_MAX)
+  if (scalar(ot.rCable) && ot.rCable !== '')
+    tn.rCable = num(ot.rCable, tn.rCable, 0, CABLE_R_MAX)
+  // The EMI and Time domain tabs exist only while their check is on.
+  pl.tab = tabOf(base)
   if (typeof obj.notes === 'string' && obj.notes)
     base.notes = obj.notes.slice(0, MAX_NOTES)
   base.blocks = obj.blocks

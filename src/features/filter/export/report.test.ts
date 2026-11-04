@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { db, emiResult, metrics, type Design } from '../engine'
+import { db, emiResult, metrics, type Design, tranResult } from '../engine'
 import { fmtSI } from '../lib/si'
 import { buildPreset, PRESET_NAMES } from '../state/presets'
 import {
@@ -67,6 +67,38 @@ const d4 = (): Design => {
 }
 
 describe('reportMarkdown', () => {
+  it('Time domain on adds its section, three figures and the method line', () => {
+    const st0 = d4()
+    const st = { ...st0, tran: { ...st0.tran, on: true } }
+    const r = tranResult(st)
+    const md = reportMarkdown(st, OPTS, r)
+    expect(reportFigures(st)).toEqual([
+      ...REPORT_FIGURES.slice(0, 4),
+      'fig_hotplug.svg',
+      'fig_loadstep.svg',
+      'fig_ripple.svg',
+    ])
+    for (const f of reportFigures(st))
+      expect(md).toContain(`](${f}){width=92%}`)
+    expect(md).toContain('## 4. Time domain')
+    expect(md).toContain('## 5. Figures')
+    expect(md).toContain('## 7. Method')
+    expect(md).toContain('- Time domain: modified nodal analysis')
+    const h = r.hot[r.hotWorst]
+    expect(md).toContain(`V peak ${fmtSI(h.vPeak, 'V')}`)
+    expect(md).toContain(`inrush ${fmtSI(h.iPeak, 'A')}`)
+    expect(md).toContain('| Vin | V peak | Inrush |')
+    // Without a precomputed result the text is the same.
+    expect(reportMarkdown(st, OPTS)).toBe(md)
+    // Both checks on: EMI first, then Time domain.
+    const both = { ...st, emi: { ...st.emi, on: true } }
+    const mb = reportMarkdown(both, OPTS, r)
+    expect(mb).toContain('## 4. Conducted EMI')
+    expect(mb).toContain('## 5. Time domain')
+    expect(mb).toContain('## 8. Method')
+    expect(reportFigures(both)).toEqual([...REPORT_FIGURES])
+  })
+
   it('D4 has the margin, peak and all figures', () => {
     const st = d4()
     const md = reportMarkdown(st, OPTS)
@@ -97,8 +129,10 @@ describe('reportMarkdown', () => {
     const st0 = d4()
     const st = { ...st0, emi: { ...st0.emi, on: true } }
     const md = reportMarkdown(st, OPTS)
-    expect(reportFigures(st)).toEqual([...REPORT_FIGURES])
-    for (const f of REPORT_FIGURES) expect(md).toContain(`](${f}){width=92%}`)
+    expect(reportFigures(st)).toEqual(REPORT_FIGURES.slice(0, 5))
+    for (const f of reportFigures(st))
+      expect(md).toContain(`](${f}){width=92%}`)
+    expect(md).not.toContain('Time domain')
     expect(md).toContain('## 4. Conducted EMI')
     expect(md).toContain('## 5. Figures')
     expect(md).toContain('## 7. Method')

@@ -46,14 +46,23 @@ const sinc = (x: number) => (x === 0 ? 1 : Math.sin(x) / x)
  * min(D, 1 − D)·T, where the trapezoid becomes a triangle.
  */
 export function harmonicAmp(conv: Conv, tr: number, n: number): number {
+  return Math.abs(harmonicSigned(conv, tr, n))
+}
+
+/**
+ * Signed cosine coefficient of harmonic n, with phase 1 centred at t = 0:
+ * i(t) = io·D + Σ c_n·cos(n·ω·t). |c_n| is harmonicAmp(). Used for the
+ * time-domain ripple waveform (M4).
+ */
+export function harmonicSigned(conv: Conv, tr: number, n: number): number {
   const { D, io, N } = dutyOf(conv)
   if (n % N !== 0) return 0
   const t = Math.min(tr, Math.min(D, 1 - D) / conv.fsw)
   const x = n * Math.PI
   // An exact null (n·D an integer) is zero, not rounding noise.
-  const s = Math.abs(Math.sin(x * D))
-  if (s < 1e-9) return 0
-  return ((2 * io * s) / x) * Math.abs(sinc(x * t * conv.fsw))
+  const s = Math.sin(x * D)
+  if (Math.abs(s) < 1e-9) return 0
+  return ((2 * io * s) / x) * sinc(x * t * conv.fsw)
 }
 
 /**

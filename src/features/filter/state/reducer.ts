@@ -1,6 +1,8 @@
 // Design state changes. Pure: new ids come in with the action.
 import {
   type Block,
+  CABLE_L_MAX,
+  CABLE_R_MAX,
   type Conv,
   type Design,
   EMI_MARGIN_MAX,
@@ -12,7 +14,9 @@ import {
   type PlotSettings,
   setParam,
   type Source,
+  tabOf,
   type TolKey,
+  type TranSettings,
 } from '../engine'
 
 export type Action =
@@ -29,6 +33,7 @@ export type Action =
   | { t: 'add'; block: Block }
   | { t: 'notes'; v: string }
   | { t: 'emi'; patch: Partial<EmiSettings> }
+  | { t: 'tran'; patch: Partial<TranSettings> }
 
 const mapBlock = (st: Design, id: string, fn: (b: Block) => Block): Design => ({
   ...st,
@@ -49,6 +54,12 @@ function setTol(st: Design, id: string, k: TolKey, v: number): Design {
     const { tol: _old, ...rest } = x
     return (Object.keys(tol).length ? { ...rest, tol } : rest) as Block
   })
+}
+
+/** st with its tab checked against the EMI and time-domain switches. */
+function withTab(st: Design): Design {
+  const tab = tabOf(st)
+  return tab === st.plot.tab ? st : { ...st, plot: { ...st.plot, tab } }
 }
 
 export function reducer(st: Design, a: Action): Design {
@@ -99,11 +110,15 @@ export function reducer(st: Design, a: Action): Design {
       emi.tr = Math.min(EMI_TR_MAX, Math.max(0, emi.tr))
       emi.margin = Math.min(EMI_MARGIN_MAX, Math.max(0, emi.margin))
       // Turning EMI off on the EMI tab goes back to the Zout tab.
-      const plot =
-        !emi.on && st.plot.tab === 'emi'
-          ? { ...st.plot, tab: 'zout' as const }
-          : st.plot
-      return { ...st, emi, plot }
+      return withTab({ ...st, emi })
+    }
+    case 'tran': {
+      const tran = { ...st.tran, ...a.patch }
+      // Same limits as adopt(), so a reload gives back what was typed.
+      tran.lCable = Math.min(CABLE_L_MAX, Math.max(0, tran.lCable))
+      tran.rCable = Math.min(CABLE_R_MAX, Math.max(0, tran.rCable))
+      // Turning it off on the Time domain tab goes back to the Zout tab.
+      return withTab({ ...st, tran })
     }
   }
 }

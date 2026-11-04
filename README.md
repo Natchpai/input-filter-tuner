@@ -17,7 +17,7 @@ React and TypeScript from the web-site-starter template.
 
 The page shows the circuit and the plots first, with the inputs on the left
 (on a phone: circuit, plots, then the inputs). Results, Corners, Tolerance,
-Conducted EMI and Saved designs follow below.
+Conducted EMI, Time domain and Saved designs follow below.
 
 - Builds the filter as a ladder of blocks from source to converter. Each block
   is series or shunt, and you can add, remove, reorder, duplicate or switch it off.
@@ -36,6 +36,7 @@ Conducted EMI and Saved designs follow below.
   - Rd sweep.
   - Conducted EMI (only while EMI is on): predicted harmonics against the
     limit lines, and the filter attenuation against the attenuation needed.
+  - Time domain (only while it is on): hot-plug, load step or source ripple.
 - Results:
   - Peak |Zout| and the Middlebrook margin, plus a Nyquist check.
   - Z0, f0 and Q.
@@ -64,6 +65,18 @@ Conducted EMI and Saved designs follow below.
     that would meet the limits.
   - The limit values come from public summaries and are not yet checked
     against the standards (`references/emi-limits.md`).
+- Time domain, an option that is off by default (checkbox in the card
+  header), run in a Web Worker at every Vin:
+  - Hot-plug: Vin steps on through Rsrc + Lsrc and a cable (L and R, default
+    1 µH and 0 Ω), converter off. V peak and overshoot at the converter pins,
+    inrush peak, I²t and the peak voltage at each shunt part.
+  - Load step: the converter as constant power, P light → P full and back.
+    V min, dip, V max, ringing frequency and settle time. A design that is
+    unstable under constant power is flagged.
+  - Source ripple: the steady-state source current over three switching
+    periods, with its peak to peak.
+  - Checked against closed forms, the frequency response and LTspice
+    (within 5 % on D1 Rd-Cd and D4).
 - Damping helpers:
   - "Rd for Q" (NP-DR-26001 equation).
   - "Optimum Rd", a numeric search with all parasitics included.
@@ -79,8 +92,9 @@ Conducted EMI and Saved designs follow below.
   - SPICE netlist (`.cir`) with two copies of the filter: one gives H, the
     other Zout.
   - SVG/PNG of the current plot, in light colours.
-  - Design report: a zip with `report.md` and five SVG figures for the
-    report archive's PDF builder.
+  - Design report: a zip with `report.md` and the SVG figures for the
+    report archive's PDF builder. With the time domain on, it also holds
+    LTspice netlists of the hot-plug and the load step.
 - Presets come from the design reports:
   - NP-DR-26001 (undamped, Rd-Cd, and methods A, B, D).
   - NP-DR-26003 and NP-DR-26004 (bead filters).
@@ -108,6 +122,10 @@ steps a value by 5 %, and Shift+Arrow by 25 %.
   goes through the filter into the AN; the reading is the voltage on its
   50 Ω, in dBµV rms. With a fixed fsw one harmonic reads the same on every
   detector, so it is compared with every limit of its band.
+- Time domain: the same R, L, C elements, solved by modified nodal analysis
+  with fixed-step trapezoidal integration. The step is halved until the
+  peaks agree within 0.1 %. C(V) and L(I) are taken at each corner and held
+  fixed; no tolerances and no converter loop.
 
 ## Tests
 

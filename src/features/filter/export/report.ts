@@ -10,6 +10,8 @@ import {
   type Block,
   type Design,
   type Lim,
+  type TranResult,
+  tranResult,
 } from '../engine'
 import { fmtSI } from '../lib/si'
 
@@ -19,13 +21,29 @@ export const REPORT_FIGURES = [
   'fig_xfer.svg',
   'fig_zin.svg',
   'fig_emi.svg',
+  'fig_hotplug.svg',
+  'fig_loadstep.svg',
+  'fig_ripple.svg',
 ] as const
 
 export type ReportFigure = (typeof REPORT_FIGURES)[number]
 
-/** Figures of this design's report: the EMI figure only while EMI is on. */
+const TIME_FIGURES: readonly ReportFigure[] = [
+  'fig_hotplug.svg',
+  'fig_loadstep.svg',
+  'fig_ripple.svg',
+]
+
+/**
+ * Figures of this design's report: the EMI figure only while EMI is on, the
+ * time-domain figures only while that check is on.
+ */
 export const reportFigures = (st: Design): ReportFigure[] =>
-  REPORT_FIGURES.filter((f) => f !== 'fig_emi.svg' || st.emi.on)
+  REPORT_FIGURES.filter(
+    (f) =>
+      (f !== 'fig_emi.svg' || st.emi.on) &&
+      (!TIME_FIGURES.includes(f) || st.tran.on)
+  )
 
 export type ReportOptions = {
   author: string
@@ -42,6 +60,9 @@ const CAPTIONS: Record<ReportFigure, string> = {
   'fig_xfer.svg': 'Transfer function',
   'fig_zin.svg': 'Input impedance Zin',
   'fig_emi.svg': 'Predicted conducted emissions against the limits',
+  'fig_hotplug.svg': 'Hot-plug: converter-node voltage and source current',
+  'fig_loadstep.svg': 'Load step: converter-node voltage and current',
+  'fig_ripple.svg': 'Source ripple current over three switching periods',
 }
 
 const CTRL = /[\p{Cc}\p{Zl}\p{Zp}]/gu
@@ -161,7 +182,58 @@ function emiText(st: Design): string {
   ].join('\n')
 }
 
-export function reportMarkdown(st: Design, opts: ReportOptions): string {
+/** Time domain section: settings, worst cases and the per-Vin table. */
+function timeText(st: Design, r: TranResult): string {
+  const t = st.tran
+  const h = r.hot[r.hotWorst],
+    s = r.step[r.stepWorst]
+  const bad = r.step.find((x) => x.status === 'unstable')
+  const pl = Math.min(Math.max(0, st.conv.pLight), st.conv.pout)
+  const pct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)} %`
+  const head = [
+    `- Hot-plug: ideal step through Rsrc + Lsrc and a cable of ${fmtSI(t.lCable, 'H')}, ${fmtSI(t.rCable, 'Ω')}; converter off; every Vin.`,
+    `- Load step: constant power ${fmtSI(pl, 'W')} → ${fmtSI(st.conv.pout, 'W')} and back, I = P/(η·V); every Vin.`,
+    `- Worst hot-plug: V peak ${fmtSI(h.vPeak, 'V')} (${pct(h.overshoot)}) at ${fmtSI(h.vin, 'V')}` +
+      (h.iPeak !== null
+        ? `, inrush ${fmtSI(h.iPeak, 'A')}, I²t ${fmtSI(h.i2t, 'A²s')}.`
+        : '; no inrush with cable L = 0.'),
+    bad
+      ? `- Load step: **unstable** at ${fmtSI(bad.vin, 'V')}; the ringing grows under constant power.`
+      : `- Worst load step: V min ${fmtSI(s.vMin, 'V')} (dip ${fmtSI(s.droop, 'V')}) at ${fmtSI(s.vin, 'V')}.`,
+    `- Source ripple at ${fmtSI(r.ripple.vin, 'V')}, full load: ${fmtSI(r.ripple.pp, 'A')} p-p.`,
+  ]
+  if (h.nodePeaks.length)
+    head.push(
+      `- Peak voltage at each shunt part (hot-plug, ${fmtSI(h.vin, 'V')}): ` +
+        h.nodePeaks
+          .map((p) => `${cell(p.name)} ${fmtSI(p.v, 'V')}`)
+          .join(', ') +
+        '.'
+    )
+  const rows = r.hot.map((x, i) => {
+    const q = r.step[i]
+    const ok = q.status !== 'unstable'
+    return (
+      `| ${fmtSI(x.vin, 'V')} | ${fmtSI(x.vPeak, 'V')} (${pct(x.overshoot)}) | ${fmtSI(x.iPeak, 'A')} | ${fmtSI(x.i2t, 'A²s')} | ` +
+      `${ok ? fmtSI(q.vMin, 'V') : '–'} | ${ok ? fmtSI(q.vMax, 'V') : '–'} | ` +
+      `${ok && Number.isFinite(q.settleUp) ? fmtSI(q.settleUp, 's') : '–'} | ${q.status === 'settled' ? x.status : q.status} |`
+    )
+  })
+  return [
+    ...head,
+    '',
+    '| Vin | V peak | Inrush | I²t | V min | V max | Settle | Status |',
+    '|---|---|---|---|---|---|---|---|',
+    ...rows,
+  ].join('\n')
+}
+
+export function reportMarkdown(
+  st: Design,
+  opts: ReportOptions,
+  /** Time-domain result, if already computed; else computed here when on. */
+  tran?: TranResult
+): string {
   const m = metrics(st)
   const cv = st.conv,
     p = m.prim
@@ -285,13 +357,24 @@ export function reportMarkdown(st: Design, opts: ReportOptions): string {
     method.push(
       '- EMI: harmonic n of the trapezoid input current, c_n = 2·Io·|sin(nπD)|/(nπ)·|sinc(nπ·tr·fsw)| (multiples of N only), through the filter into the AN impedance (jωL + R) ∥ 50 Ω. Fixed fsw, so one harmonic reads the same on every detector.'
     )
-  // Sections are numbered in order; Conducted EMI is there only while on.
+  if (st.tran.on)
+    method.push(
+      '- Time domain: modified nodal analysis of the same R, L, C elements, fixed-step trapezoidal integration with backward-Euler steps after each step change; the step is halved until the peaks agree within 0.1 %. Linear C(V) and L(I) at each corner, no tolerances, no converter loop.'
+    )
+  // Sections are numbered in order; Conducted EMI and Time domain are there
+  // only while on.
   const sections: [string, string][] = [
     ['Inputs', inputs],
     ['Parts', parts],
     ['Results', table(['Quantity', 'Value'], res)],
     ...(st.emi.on
       ? ([['Conducted EMI', emiText(st)]] as [string, string][])
+      : []),
+    ...(st.tran.on
+      ? ([['Time domain', timeText(st, tran ?? tranResult(st))]] as [
+          string,
+          string,
+        ][])
       : []),
     ['Figures', figures],
     ['Notes', notesText(st)],

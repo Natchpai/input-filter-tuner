@@ -19,6 +19,10 @@ import {
   type Sweep,
   sweepParam,
   type TabKey,
+  tabOf,
+  type TranResult,
+  tranResult,
+  type TranView,
   zBlock,
 } from '../engine'
 import { fmtSI } from '../lib/si'
@@ -33,6 +37,13 @@ export const TABS: [TabKey, string][] = [
   ['elem', 'Element |Z|'],
   ['sweep', 'Rd sweep'],
   ['emi', 'Conducted EMI'],
+  ['time', 'Time domain'],
+]
+
+export const TRAN_VIEWS: [TranView, string][] = [
+  ['hot', 'Hot-plug'],
+  ['step', 'Load step'],
+  ['ripple', 'Source ripple'],
 ]
 
 /** Tabs that draw snapshot curves. */
@@ -168,11 +179,15 @@ export function buildPlot(
   sets: CurveSets,
   m: Metrics,
   snapshots: Snapshot[],
-  C: PlotColors
+  C: PlotColors,
+  /** Time-domain result from the worker; computed here when left out. */
+  tran?: TranResult | null
 ): PlotResult {
-  // The EMI tab exists only while EMI is on; otherwise draw Zout.
-  const tab = S.plot.tab === 'emi' && !S.emi.on ? 'zout' : S.plot.tab
+  // The EMI and Time tabs exist only while their check is on; else Zout.
+  const tab = tabOf(S)
   if (tab === 'emi') return emiPlot(S, C)
+  if (tab === 'time')
+    return timePlot(S, C, tran === undefined ? tranResult(S) : tran)
   const f = Array.from(sets.nom.f)
   const cv = S.conv
   const ax = (extra: Obj) => ({ ...axisBase(C), ...extra })
@@ -803,4 +818,155 @@ function emiPlot(S: Design, C: PlotColors): PlotResult {
     'Limits ASSUMED until checked against the standard.',
   ]
   return { main, side, note: parts.filter(Boolean).join(' ') }
+}
+
+/** Time domain tab (M4): hot-plug, load step or source ripple. */
+function timePlot(S: Design, C: PlotColors, r: TranResult | null): PlotResult {
+  const ax = (extra: Obj) => ({ ...axisBase(C), ...extra })
+  const xaxis = ax({
+    type: 'linear',
+    title: { text: 'Time (s)' },
+    exponentformat: 'SI',
+  })
+  const layout = (y: Obj, y2: Obj) =>
+    makeLayout(C, {
+      xaxis,
+      yaxis: ax(y),
+      yaxis2: ax({ ...y2, overlaying: 'y', side: 'right', showgrid: false }),
+      margin: { l: 62, r: 62, t: 10, b: 44 },
+    })
+  if (!r)
+    return {
+      main: { traces: [], layout: layout({}, {}) },
+      note: 'Running the time-domain checks…',
+    }
+  const line = (worst: boolean, color: string, dash = 'solid') => ({
+    color,
+    width: worst ? 2 : 1,
+    dash,
+    // Plotly's line simplify draws visible corners on smooth runs.
+    simplify: false,
+  })
+  const traces: Obj[] = []
+  const view = S.plot.tview
+  if (view === 'ripple') {
+    const w = r.ripple
+    traces.push(
+      {
+        x: w.t,
+        y: w.iSrc,
+        name: 'source current',
+        mode: 'lines',
+        line: { color: C.a, width: 1.6, simplify: false },
+      },
+      {
+        x: w.t,
+        y: w.iConv,
+        name: 'converter current',
+        mode: 'lines',
+        yaxis: 'y2',
+        line: { color: C.muted, width: 1 },
+      }
+    )
+    return {
+      main: {
+        traces,
+        layout: layout(
+          { title: { text: 'Source current (A)' } },
+          { title: { text: 'Converter current (A)' } }
+        ),
+      },
+      note:
+        `Steady state at ${fmtSI(w.vin, 'V')}, full load, edge time ${fmtSI(S.emi.tr, 's')}: ` +
+        `source ripple ${fmtSI(w.pp, 'A')} p-p. Fourier sum of the trapezoid current through Hopen.`,
+    }
+  }
+  if (view === 'step') {
+    r.step.forEach((q, i) => {
+      const worst = i === r.stepWorst
+      const tag = fmtSI(q.vin, 'V')
+      traces.push(
+        {
+          x: q.wave.t,
+          y: q.wave.v,
+          name: `V pins, ${tag}`,
+          mode: 'lines',
+          opacity: worst ? 1 : 0.45,
+          line: line(worst, C.a),
+        },
+        {
+          x: q.wave.t,
+          y: q.wave.i,
+          name: `I conv, ${tag}`,
+          mode: 'lines',
+          yaxis: 'y2',
+          opacity: worst ? 1 : 0.45,
+          line: line(worst, C.b, 'dot'),
+        }
+      )
+    })
+    const q = r.step[r.stepWorst]
+    const bad = r.step.find((x) => x.status === 'unstable')
+    const pl = Math.min(Math.max(0, S.conv.pLight), S.conv.pout)
+    return {
+      main: {
+        traces,
+        layout: layout(
+          { title: { text: 'Converter-node voltage (V)' } },
+          { title: { text: 'Converter current (A)' } }
+        ),
+      },
+      note: bad
+        ? `Unstable at ${fmtSI(bad.vin, 'V')}: the ringing grows under constant power.`
+        : `Load step ${fmtSI(pl, 'W')} → ${fmtSI(S.conv.pout, 'W')} at 0 and back at ${fmtSI(q.tDown, 's')}. ` +
+          `Worst ${fmtSI(q.vin, 'V')}: V min ${fmtSI(q.vMin, 'V')}, dip ${fmtSI(q.droop, 'V')}` +
+          (q.fRing ? `, rings at ${fmtSI(q.fRing, 'Hz')}.` : '.'),
+    }
+  }
+  r.hot.forEach((q, i) => {
+    const worst = i === r.hotWorst
+    const tag = fmtSI(q.vin, 'V')
+    traces.push({
+      x: q.wave.t,
+      y: q.wave.v,
+      name: `V pins, ${tag}`,
+      mode: 'lines',
+      opacity: worst ? 1 : 0.45,
+      line: line(worst, C.a),
+    })
+    if (q.iPeak !== null)
+      traces.push({
+        x: q.wave.t,
+        y: q.wave.i,
+        name: `I source, ${tag}`,
+        mode: 'lines',
+        yaxis: 'y2',
+        opacity: worst ? 1 : 0.45,
+        line: line(worst, C.b, 'dot'),
+      })
+  })
+  const q = r.hot[r.hotWorst]
+  traces.push({
+    x: [q.tPeak],
+    y: [q.vPeak],
+    name: 'V peak',
+    mode: 'markers',
+    marker: { color: C.bad, size: 7 },
+  })
+  const t = S.tran
+  return {
+    main: {
+      traces,
+      layout: layout(
+        { title: { text: 'Converter-node voltage (V)' } },
+        { title: { text: 'Source current (A)' } }
+      ),
+    },
+    note:
+      `Hot-plug, converter off, cable ${fmtSI(t.lCable, 'H')} and ${fmtSI(t.rCable, 'Ω')} after Rsrc + Lsrc. ` +
+      `Worst ${fmtSI(q.vin, 'V')}: V peak ${fmtSI(q.vPeak, 'V')} at ${fmtSI(q.tPeak, 's')}` +
+      (q.iPeak !== null
+        ? `, inrush ${fmtSI(q.iPeak, 'A')}.`
+        : '; no inrush with cable L = 0.'),
+  }
 }

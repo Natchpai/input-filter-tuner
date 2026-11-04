@@ -15,9 +15,11 @@ import {
   PlotSettingsCard,
   SourceCard,
 } from './components/settings'
+import { Time } from './components/time'
 import { Tolerance } from './components/tolerance'
 import { ToolCard } from './components/tool-card'
 import { Toolbar } from './components/toolbar'
+import { useTran } from './components/use-tran'
 import { cornerMetrics, emiResult, metrics } from './engine'
 import { curveSets, overlaysOf } from './plots/curves'
 import { readColors } from './plots/theme-colors'
@@ -44,6 +46,7 @@ export function Tuner() {
   // slider drags stay smooth.
   const dst = useDeferredValue(st)
   const colors = useThemeColors()
+  const tran = useTran(dst)
   const calc = useMemo(() => {
     try {
       const corners = cornerMetrics(dst)
@@ -113,6 +116,7 @@ export function Tuner() {
                 m={calc.m}
                 snapshots={snapshots}
                 colors={colors}
+                tran={tran.data}
               />
             )}
           </div>
@@ -136,6 +140,7 @@ export function Tuner() {
                 {calc.corners && <Corners data={calc.corners} />}
                 <Tolerance st={dst} colors={colors} />
                 <Emi st={st} data={calc.emi} />
+                <Time st={st} tr={tran} />
               </>
             )}
             <DesignsCard S={st} m={calc.m} library={library} />
