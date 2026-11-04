@@ -1,54 +1,46 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  Camera,
+  ChevronDown,
   Download,
   FileCode,
+  FileText,
   FileUp,
   Link2,
   Redo2,
   Save,
-  Trash2,
   Undo2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { abs, argd, db, type Design, type Metrics } from '../engine'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { abs, argd, db, type Design } from '../engine'
 import { spiceNetlist } from '../export/netlist'
-import { fmtSI } from '../lib/si'
 import type { CurveSets } from '../plots/curves'
-import { SNAPSHOT_TABS } from '../plots/traces'
 import { adopt } from '../state/adopt'
 import { designLink, download, fileName } from '../state/persist'
 import { PRESET_NAMES, buildPreset } from '../state/presets'
-import {
-  clearSnapshots,
-  dispatch,
-  redoDesign,
-  saveDesign,
-  undoDesign,
-} from '../state/store'
+import { dispatch, redoDesign, undoDesign } from '../state/store'
 import { ReportDialog } from './report-dialog'
-import { saveToast } from './save-toast'
 import { selectCls } from './styles'
 
 export function Toolbar({
   S,
   sets,
-  m,
-  nSnap,
-  nAuto,
   canUndo,
   canRedo,
 }: {
   S: Design
   sets: CurveSets | null
-  m: Metrics | null
-  nSnap: number
-  nAuto: number
   canUndo: boolean
   canRedo: boolean
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const [report, setReport] = useState(false)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -63,20 +55,6 @@ export function Toolbar({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-
-  // No prompt(): some viewers block dialogs. The label carries the key result,
-  // so snapshots can be told apart in the legend. A snapshot is a saved
-  // design with its overlay on, so it survives a reload.
-  const snapshot = () => {
-    if (!m) return
-    const r = saveDesign(
-      `S${nAuto + 1}: ${fmtSI(m.peak.v, 'Ω')} peak, ${m.margin.toFixed(1)} dB`,
-      true
-    )
-    if (r !== 'ok') return saveToast(r)
-    if (!SNAPSHOT_TABS.includes(S.plot.tab))
-      dispatch({ t: 'plot', patch: { tab: 'zout' } })
-  }
 
   // Copy only; do not put the state in this page's URL, or a reload would
   // bring back this design over later edits.
@@ -127,12 +105,30 @@ export function Toolbar({
     download(fileName(S, 'csv'), lines.join('\n'), 'text/csv')
   }
 
+  const saveJson = () =>
+    download(
+      fileName(S, 'json'),
+      JSON.stringify(S, null, 2),
+      'application/json'
+    )
+  const exportSpice = () =>
+    download(
+      fileName(S, 'cir'),
+      spiceNetlist(S, {
+        date: new Date().toISOString().slice(0, 10),
+        link: designLink(S),
+      }),
+      'text/plain'
+    )
+
+  // Narrow screens: icons only, so the row fits in one line at 390 px.
+  const lbl = 'max-sm:sr-only'
   return (
-    <div className='flex flex-wrap items-center gap-1.5'>
+    <div className='flex items-center gap-1.5'>
       <select
         id='preset'
         aria-label='Load a preset'
-        className={selectCls + ' w-40 max-w-full'}
+        className={selectCls + ' min-w-0 flex-1 sm:w-40 sm:flex-none'}
         value=''
         onChange={(e) => {
           if (e.target.value !== '')
@@ -170,27 +166,7 @@ export function Toolbar({
       >
         <Redo2 />
       </Button>
-      <Button
-        id='bSnap'
-        size='sm'
-        variant='secondary'
-        title='Freeze the current curves as a grey reference'
-        onClick={snapshot}
-      >
-        <Camera />
-        {nSnap ? `Snapshot (${nSnap})` : 'Snapshot'}
-      </Button>
-      <Button
-        id='bClrSnap'
-        size='sm'
-        variant='secondary'
-        title='Delete the snapshots and hide all overlays'
-        onClick={() => clearSnapshots() || saveToast('storage')}
-      >
-        <Trash2 />
-        Clear snapshots
-      </Button>
-      <span className='flex-1' />
+      <span className='hidden flex-1 sm:block' />
       <Button
         id='bLink'
         size='sm'
@@ -199,56 +175,72 @@ export function Toolbar({
         onClick={copyLink}
       >
         <Link2 />
-        Copy link
+        <span className={lbl}>Copy link</span>
       </Button>
-      <Button
-        id='bSave'
-        size='sm'
-        variant='secondary'
-        onClick={() =>
-          download(
-            fileName(S, 'json'),
-            JSON.stringify(S, null, 2),
-            'application/json'
-          )
-        }
-      >
-        <Save />
-        Save JSON
-      </Button>
-      <Button
-        id='bLoad'
-        size='sm'
-        variant='secondary'
-        onClick={() => fileRef.current?.click()}
-      >
-        <FileUp />
-        Load JSON
-      </Button>
-      <Button id='bCsv' size='sm' variant='secondary' onClick={exportCsv}>
-        <Download />
-        Export CSV
-      </Button>
-      <ReportDialog S={S} />
-      <Button
-        id='bSpice'
-        size='sm'
-        variant='secondary'
-        title='SPICE netlist (.cir) with H and Zout copies of the filter'
-        onClick={() =>
-          download(
-            fileName(S, 'cir'),
-            spiceNetlist(S, {
-              date: new Date().toISOString().slice(0, 10),
-              link: designLink(S),
-            }),
-            'text/plain'
-          )
-        }
-      >
-        <FileCode />
-        Export SPICE
-      </Button>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            id='bFile'
+            size='sm'
+            variant='secondary'
+            title='Save or load a JSON file'
+          >
+            <Save />
+            <span className={lbl}>File</span>
+            <ChevronDown />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end'>
+          <DropdownMenuItem id='bSave' onSelect={saveJson}>
+            <Save />
+            Save JSON
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            id='bLoad'
+            onSelect={() => fileRef.current?.click()}
+          >
+            <FileUp />
+            Load JSON
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            id='bExport'
+            size='sm'
+            variant='secondary'
+            title='Report, CSV and SPICE'
+          >
+            <Download />
+            <span className={lbl}>Export</span>
+            <ChevronDown />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end'>
+          <DropdownMenuItem
+            id='bReport'
+            title='Design report: report.md and SVG figures in a zip'
+            onSelect={() => setReport(true)}
+          >
+            <FileText />
+            Report…
+          </DropdownMenuItem>
+          <DropdownMenuItem id='bCsv' onSelect={exportCsv}>
+            <Download />
+            CSV (curves)
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            id='bSpice'
+            title='SPICE netlist (.cir) with H and Zout copies of the filter'
+            onSelect={exportSpice}
+          >
+            <FileCode />
+            SPICE netlist
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ReportDialog S={S} open={report} onOpenChange={setReport} />
       <input
         ref={fileRef}
         id='fileIn'

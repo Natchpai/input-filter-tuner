@@ -8,8 +8,7 @@ import {
 } from '@/components/ui/collapsible'
 import { abs, db, type Design, type Metrics, type Sweep } from '../engine'
 import { fmtSI } from '../lib/si'
-
-type Tone = 'good' | 'bad' | 'warn' | ''
+import { marginTone, type Tone } from './tone'
 
 const toneCls: Record<Tone, string> = {
   good: 'border-status-done [&_.v]:text-status-done',
@@ -54,13 +53,7 @@ function Pill({ ok, children }: { ok: boolean; children: ReactNode }) {
 export function Results({ S, m, nom }: { S: Design; m: Metrics; nom: Sweep }) {
   const cv = S.conv,
     p = m.prim
-  const mTone: Tone = m.unstableAt
-    ? 'bad'
-    : m.pass
-      ? 'good'
-      : m.margin > 0
-        ? 'warn'
-        : 'bad'
+  const mTone = marginTone(m)
   const hPk = Math.max(...nom.Hopen.map((z) => db(abs(z))))
   const iRms = m.ripple.isrc / Math.SQRT2
   const fr = fmtSI(m.ripple.fr, 'Hz')

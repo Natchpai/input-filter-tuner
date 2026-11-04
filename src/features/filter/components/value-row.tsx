@@ -31,6 +31,8 @@ type Props = {
   zero?: boolean
   linear?: boolean
   int?: boolean
+  /** Text box only (no label, slider or unit); label becomes aria-label. */
+  bare?: boolean
 }
 
 /**
@@ -49,6 +51,7 @@ export function ValueRow({
   zero = false,
   linear = false,
   int = false,
+  bare = false,
 }: Props) {
   const [draft, setDraft] = useState<string | null>(null)
   const [err, setErr] = useState(false)
@@ -94,6 +97,27 @@ export function ValueRow({
     }
   }
 
+  const box = (
+    <input
+      id={id}
+      type='text'
+      spellCheck={false}
+      autoComplete='off'
+      aria-label={bare ? label : undefined}
+      aria-invalid={err || undefined}
+      className={cn(
+        inputCls,
+        'w-full text-right',
+        err && 'border-destructive ring-1 ring-destructive'
+      )}
+      value={draft ?? show(value)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => draft !== null && commitText(draft)}
+      onKeyDown={onKeyDown}
+    />
+  )
+  if (bare) return box
+
   return (
     <div className='my-1 grid grid-cols-[minmax(0,88px)_88px_minmax(0,1fr)_22px] items-center gap-1.5'>
       <label
@@ -103,22 +127,7 @@ export function ValueRow({
       >
         {label}
       </label>
-      <input
-        id={id}
-        type='text'
-        spellCheck={false}
-        autoComplete='off'
-        aria-invalid={err || undefined}
-        className={cn(
-          inputCls,
-          'w-full text-right',
-          err && 'border-destructive ring-1 ring-destructive'
-        )}
-        value={draft ?? show(value)}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => draft !== null && commitText(draft)}
-        onKeyDown={onKeyDown}
-      />
+      {box}
       <input
         type='range'
         min={0}

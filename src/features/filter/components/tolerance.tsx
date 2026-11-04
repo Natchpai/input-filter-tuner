@@ -157,7 +157,12 @@ export function Tolerance({ st, colors }: { st: Design; colors: PlotColors }) {
 
   if (items.length === 0)
     return (
-      <ToolCard title='Tolerance' id='tolerance'>
+      <ToolCard
+        title='Tolerance'
+        id='tolerance'
+        collapse='tolerance'
+        summary='no tolerances'
+      >
         <Hint>
           Add a ± tolerance on a block (Tolerance section in its card).
         </Hint>
@@ -177,8 +182,18 @@ export function Tolerance({ st, colors }: { st: Design; colors: PlotColors }) {
   const wb = mc?.worstBoard
   const wbMargin = mc && wb ? mc.board[wb.index] : 0
 
+  const mcWorst = mc ? Math.min(...mc.corners.map((c) => c.worst)) : null
+  const summary =
+    mcWorst === null
+      ? `${items.length} ${items.length === 1 ? 'tolerance' : 'tolerances'}, not run`
+      : `MC worst ${dB(mcWorst)} dB${stale ? ' (stale)' : ''}`
   return (
-    <ToolCard title='Tolerance' id='tolerance'>
+    <ToolCard
+      title='Tolerance'
+      id='tolerance'
+      collapse='tolerance'
+      summary={summary}
+    >
       <div className='flex flex-wrap items-center gap-2 text-sm'>
         <label htmlFor='tol-n' className='text-xs text-muted-foreground'>
           Draws

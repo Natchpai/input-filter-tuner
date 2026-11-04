@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,7 +8,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import type { Design } from '../engine'
 import { reportZip } from '../export/report-zip'
@@ -43,8 +41,16 @@ const FIELDS = [
 
 type Form = Record<(typeof FIELDS)[number][0], string>
 
-export function ReportDialog({ S }: { S: Design }) {
-  const [open, setOpen] = useState(false)
+/** Opened from the Export menu; the menu item carries the #bReport id. */
+export function ReportDialog({
+  S,
+  open,
+  onOpenChange: setOpen,
+}: {
+  S: Design
+  open: boolean
+  onOpenChange: (o: boolean) => void
+}) {
   const [busy, setBusy] = useState(false)
   const [f, setF] = useState<Form>({
     author: '',
@@ -52,6 +58,13 @@ export function ReportDialog({ S }: { S: Design }) {
     date: '',
     revision: '0.1',
   })
+  // Fill the author and today's date each time the dialog opens.
+  const [shown, setShown] = useState(false)
+  if (open !== shown) {
+    setShown(open)
+    if (open)
+      setF((x) => ({ ...x, author: x.author || readAuthor(), date: today() }))
+  }
 
   const make = async () => {
     const el = document.querySelector<SVGSVGElement>('#sch svg')
@@ -82,29 +95,7 @@ export function ReportDialog({ S }: { S: Design }) {
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (o)
-          setF((x) => ({
-            ...x,
-            author: x.author || readAuthor(),
-            date: today(),
-          }))
-        setOpen(o)
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button
-          id='bReport'
-          size='sm'
-          variant='secondary'
-          title='Design report: report.md and SVG figures in a zip'
-        >
-          <FileText />
-          Report
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className='sm:max-w-sm'>
         <DialogHeader>
           <DialogTitle>Design report</DialogTitle>

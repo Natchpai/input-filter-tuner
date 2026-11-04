@@ -15,6 +15,7 @@ import {
   PlotSettingsCard,
   SourceCard,
 } from './components/settings'
+import { StatusStrip } from './components/status-strip'
 import { Time } from './components/time'
 import { Tolerance } from './components/tolerance'
 import { ToolCard } from './components/tool-card'
@@ -80,12 +81,18 @@ export function Tuner() {
         <Toolbar
           S={st}
           sets={calc.sets}
-          m={calc.m}
-          nSnap={snapshots.length}
-          nAuto={library.filter((x) => x.auto).length}
           canUndo={hist.past.length > 0}
           canRedo={hist.future.length > 0}
         />
+        {calc.m && (
+          <StatusStrip
+            S={dst}
+            m={calc.m}
+            corners={calc.corners}
+            emi={calc.emi}
+            tran={tran}
+          />
+        )}
         {/* One DOM order for both widths. Narrow: circuit and plot, then the
             inputs, then the rest. Wide: inputs on the left, spanning both
             rows; circuit and plot top right; the rest below them. */}
@@ -97,7 +104,7 @@ export function Tuner() {
             <ToolCard
               title='Circuit'
               right={
-                <span className='text-[11px] font-normal tracking-normal normal-case'>
+                <span className='text-[11px] font-normal tracking-normal normal-case max-sm:hidden'>
                   click a part to edit it
                 </span>
               }
@@ -143,7 +150,12 @@ export function Tuner() {
                 <Time st={st} tr={tran} />
               </>
             )}
-            <DesignsCard S={st} m={calc.m} library={library} />
+            <DesignsCard
+              S={st}
+              m={calc.m}
+              library={library}
+              nSnap={snapshots.length}
+            />
           </div>
         </div>
       </Main>

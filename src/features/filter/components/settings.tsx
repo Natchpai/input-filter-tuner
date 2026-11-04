@@ -9,16 +9,20 @@ import {
   type Source,
   TYPES,
 } from '../engine'
+import { fmtSI } from '../lib/si'
 import { mk } from '../state/defaults'
 import { dispatch } from '../state/store'
 import { LINEAR, selectCls } from './styles'
-import { Hint, ToolCard } from './tool-card'
+import { ToolCard } from './tool-card'
 import { ValueRow } from './value-row'
 
+/** Vin min, nom and max share one row of text boxes, no sliders. */
+const VIN_FIELDS: [keyof Conv, string][] = [
+  ['vinMin', 'min'],
+  ['vinNom', 'nom'],
+  ['vinMax', 'max'],
+]
 const CONV_FIELDS: [keyof Conv, string, string, number, number][] = [
-  ['vinMin', 'Vin min', 'V', 1, 1000],
-  ['vinNom', 'Vin nom', 'V', 1, 1000],
-  ['vinMax', 'Vin max', 'V', 1, 1000],
   ['pout', 'Pout', 'W', 0.01, 10e3],
   ['pLight', 'Light load', 'W', 0.01, 10e3],
   ['eta', 'Efficiency η', '', 0.3, 1],
@@ -37,7 +41,42 @@ const SRC_FIELDS: [keyof Source, string, string, number, number][] = [
 
 export function ConverterCard({ S }: { S: Design }) {
   return (
-    <ToolCard title='Converter (load)'>
+    <ToolCard
+      title='Converter (load)'
+      info={
+        <>
+          Converter input is modelled as a negative resistance R<sub>n</sub> =
+          −V<sub>in</sub>²·η/P, valid below the converter loop crossover. Margin
+          is checked at V<sub>in,min</sub> up to f<sub>check</sub>. Light load
+          only sets the DC current for L-vs-I curves. |R
+          <sub>n</sub>| always uses full power. The three Vin fields need not be
+          in order.
+        </>
+      }
+    >
+      <div className='my-1 grid grid-cols-[minmax(0,88px)_repeat(3,minmax(0,1fr))_22px] items-center gap-1.5'>
+        <label htmlFor='cv-vinMin' className='text-sm text-muted-foreground'>
+          Vin
+        </label>
+        {VIN_FIELDS.map(([k, l]) => (
+          <div key={k} className='relative'>
+            <span className='pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-[10px] text-muted-foreground'>
+              {l}
+            </span>
+            <ValueRow
+              bare
+              id={'cv-' + k}
+              label={'Vin ' + l}
+              unit='V'
+              value={S.conv[k]}
+              onChange={(v) => dispatch({ t: 'conv', k, v })}
+              min={1}
+              max={1000}
+            />
+          </div>
+        ))}
+        <span className='text-xs text-muted-foreground'>V</span>
+      </div>
       {CONV_FIELDS.map(([k, l, u, mn, mx]) => (
         <ValueRow
           key={k}
@@ -53,20 +92,22 @@ export function ConverterCard({ S }: { S: Design }) {
           int={k === 'phases'}
         />
       ))}
-      <Hint>
-        Converter input is modelled as a negative resistance R<sub>n</sub> = −V
-        <sub>in</sub>²·η/P, valid below the converter loop crossover. Margin is
-        checked at V<sub>in,min</sub> up to f<sub>check</sub>. Light load only
-        sets the DC current for L-vs-I curves. |R<sub>n</sub>| always uses full
-        power.
-      </Hint>
     </ToolCard>
   )
 }
 
 export function SourceCard({ S }: { S: Design }) {
   return (
-    <ToolCard title='Source'>
+    <ToolCard
+      title='Source'
+      info={
+        <>
+          Ideal source when both are 0. Z<sub>out</sub> is seen from the
+          converter with the source voltage shorted, so R<sub>src</sub> and L
+          <sub>src</sub> stay in the path.
+        </>
+      }
+    >
       {SRC_FIELDS.map(([k, l, u, mn, mx]) => (
         <ValueRow
           key={k}
@@ -80,11 +121,6 @@ export function SourceCard({ S }: { S: Design }) {
           zero
         />
       ))}
-      <Hint>
-        Ideal source when both are 0. Z<sub>out</sub> is seen from the converter
-        with the source voltage shorted, so R<sub>src</sub> and L<sub>src</sub>{' '}
-        stay in the path.
-      </Hint>
     </ToolCard>
   )
 }
@@ -135,7 +171,11 @@ export function PlotSettingsCard({ S }: { S: Design }) {
   const set = (patch: Partial<PlotSettings>) => dispatch({ t: 'plot', patch })
   const row = 'my-1.5 flex flex-wrap items-center gap-1.5 text-sm'
   return (
-    <ToolCard title='Plot settings'>
+    <ToolCard
+      title='Plot settings'
+      collapse='plot'
+      summary={`${pl.xfer === 'H' ? 'H' : 'S21'}, ${fmtSI(pl.fmin, 'Hz')} to ${fmtSI(pl.fmax, 'Hz')}, ${pl.n} points`}
+    >
       <div className={row}>
         <label htmlFor='ps-xfer'>Transfer plot</label>
         <select

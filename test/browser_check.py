@@ -63,6 +63,12 @@ def set_theme(page, name):
     settle(page, 300)
 
 
+def menu(page, trigger, item):
+    """Open a toolbar menu (File or Export) and pick one item."""
+    page.click(trigger)
+    page.click(item)
+
+
 def no_hscroll(page, width, label):
     sw = page.evaluate("document.documentElement.scrollWidth")
     ok(sw <= width + 1, f"{label}: page scrollWidth {sw} at {width} px")
@@ -578,7 +584,7 @@ try:
         ok(bad not in w.inner_text("#savedList"), "Delete removes the design")
         # SPICE netlist
         with w.expect_download() as dl:
-            w.click("#bSpice")
+            menu(w, "#bExport", "#bSpice")
         cir = pathlib.Path(dl.value.path()).read_text(encoding="utf-8")
         ok(dl.value.suggested_filename.endswith(".cir") and "V_h_src" in cir and ".meas AC zpk" in cir and cir.rstrip().endswith(".end"),
            f"SPICE export downloads {dl.value.suggested_filename}")
@@ -593,7 +599,7 @@ try:
         png = pathlib.Path(dl.value.path()).read_bytes()
         ok(png[:4] == b"\x89PNG" and len(png) > 10000, f"plot PNG export ({len(png)} bytes)")
         # Report zip (D4 is loaded)
-        w.click("#bReport")
+        menu(w, "#bExport", "#bReport")
         w.fill("#rp-author", "Test Author")
         w.fill("#rp-docNo", "NP-DR-TEST")
         with w.expect_download() as dl:
@@ -614,7 +620,7 @@ try:
         ok("26.8 dB" in md and "author: Test Author" in md and set(keys) <= allowed, f"report.md: D4 margin 26.8 dB, front matter keys {keys}")
         ok(all(x.lstrip().startswith("<svg") and "var(--" not in x for x in svgs.values()), "report figures are standalone SVGs with no CSS variables")
         settle(w, 500)
-        w.click("#bReport")
+        menu(w, "#bExport", "#bReport")
         w.wait_for_selector("#rp-author", timeout=5000)
         ok(w.input_value("#rp-author") == "Test Author", "report author is remembered")
         w.keyboard.press("Escape")
@@ -622,7 +628,7 @@ try:
         settle(w, 300)
         w.check("#tran-on")
         settle(w, 300)
-        w.click("#bReport")
+        menu(w, "#bExport", "#bReport")
         w.wait_for_selector("#rp-author", timeout=5000)
         with w.expect_download() as dl:
             w.click("#bReportGo")
@@ -814,6 +820,55 @@ try:
                     settle(t4, 300)
                     t4.locator("#pl1").screenshot(path=str(SHOTS / f"m4_time_{v}_{vw}_{theme.lower()}.png"))
                 t4.close()
+
+        # UI: status strip, collapsible cards, toolbar and schematic fit
+        for vw in [1440, 390]:
+            u = browser.new_page(viewport={"width": vw, "height": 900})
+            watch(u, f"ui {vw}: ")
+            u.goto(URL)
+            ready(u)
+            settle(u, 300)
+            chip = lambda c: u.inner_text(f"#strip [data-chip={c}]")
+            m_chip = chip("margin").split()[-2:]
+            m_chip = " ".join(m_chip)
+            ok(m_chip in u.inner_text("#kpis"), f"{vw} px: strip margin '{m_chip}' matches the Results tile")
+            pout = u.input_value("#cv-pout")
+            commit(u, "#cv-pout", "10k")
+            settle(u, 300)
+            ok(u.get_attribute("#strip [data-chip=margin]", "data-tone") == "bad",
+               f"{vw} px: strip margin turns bad at 10 kW ({chip('margin').split()[-2:]})")
+            commit(u, "#cv-pout", pout)
+            settle(u, 300)
+            top = lambda sel: u.eval_on_selector(sel, "e => e.getBoundingClientRect().top")
+            u.locator("#designs").scroll_into_view_if_needed()
+            settle(u, 300)
+            ok(abs(top("#strip")) < 2, f"{vw} px: strip stays at the top when scrolled ({top('#strip'):.0f} px)")
+            ok(abs(top("#preset") - top("#bExport")) < 4, f"{vw} px: toolbar is one row")
+            sw = u.eval_on_selector("#sch svg", "e => e.getBoundingClientRect().width")
+            cw = u.eval_on_selector("#sch", "e => e.clientWidth")
+            ok(sw <= cw + 1, f"{vw} px: schematic fits the card ({sw:.0f} <= {cw} px)")
+            # Collapse Corners, reload, still closed with a summary; then reopen.
+            u.click("#cornersCard h2 button[aria-expanded]")
+            settle(u, 200)
+            u.reload()
+            ready(u)
+            settle(u, 300)
+            closed = u.locator("#corners").count() == 0
+            summ = u.inner_text("#cornersCard .summary") if closed else ""
+            ok(closed and "dB" in summ, f"{vw} px: Corners stays closed after reload, summary '{summ}'")
+            u.click("#cornersCard h2 button[aria-expanded]")
+            settle(u, 200)
+            ok(u.locator("#corners tbody tr").count() >= 1, f"{vw} px: Corners opens again")
+            # The (i) note on the Converter card
+            n0 = u.locator("text=negative resistance").count()
+            u.locator("button[aria-label='About this card']").first.click()
+            settle(u, 100)
+            n1 = u.locator("text=negative resistance").count()
+            ok(n1 == n0 + 1, f"{vw} px: Converter note shows on (i) ({n0} -> {n1})")
+            u.locator("#tolerance").scroll_into_view_if_needed()
+            settle(u, 300)
+            u.screenshot(path=str(SHOTS / f"ui_scrolled_{vw}_dark.png"), full_page=False)
+            u.close()
 
         # Layout: 1440 and 390 px, dark and light, no horizontal scroll
         for theme in ["Dark", "Light"]:

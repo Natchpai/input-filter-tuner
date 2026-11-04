@@ -1,13 +1,15 @@
 import { type ReactNode, useState } from 'react'
-import { FolderOpen, Pencil, Save, Trash2 } from 'lucide-react'
+import { Camera, FolderOpen, Pencil, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { type Design, MAX_NOTES, type Metrics } from '../engine'
 import { compareRows, metricsOf } from '../lib/compare'
 import { fmtSI } from '../lib/si'
+import { SNAPSHOT_TABS } from '../plots/traces'
 import { MAX_NAME, type SavedDesign } from '../state/library'
 import {
+  clearSnapshots,
   deleteSaved,
   dispatch,
   loadSaved,
@@ -34,10 +36,13 @@ export function DesignsCard({
   S,
   m,
   library,
+  nSnap,
 }: {
   S: Design
   m: Metrics | null
   library: SavedDesign[]
+  /** Saved designs drawn as overlays. */
+  nSnap: number
 }) {
   const [name, setName] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
@@ -52,8 +57,54 @@ export function DesignsCard({
   }
   const guard = (ok: boolean) => ok || saveToast('storage')
 
+  // No prompt(): some viewers block dialogs. The label carries the key result,
+  // so snapshots can be told apart in the legend. A snapshot is a saved
+  // design with its overlay on, so it survives a reload.
+  const snapshot = () => {
+    if (!m) return
+    const nAuto = library.filter((x) => x.auto).length
+    const r = saveDesign(
+      `S${nAuto + 1}: ${fmtSI(m.peak.v, 'Ω')} peak, ${m.margin.toFixed(1)} dB`,
+      true
+    )
+    if (r !== 'ok') return saveToast(r)
+    if (!SNAPSHOT_TABS.includes(S.plot.tab))
+      dispatch({ t: 'plot', patch: { tab: 'zout' } })
+  }
+
   return (
-    <ToolCard id='designs' title='Designs'>
+    <ToolCard
+      id='designs'
+      title='Designs'
+      collapse='designs'
+      summary={`${library.length} saved, ${nSnap} drawn`}
+      right={
+        <span className='flex gap-1 tracking-normal normal-case'>
+          <Button
+            id='bSnap'
+            size='sm'
+            variant='secondary'
+            className='h-7'
+            title='Freeze the current curves as a grey reference'
+            onClick={snapshot}
+          >
+            <Camera />
+            {nSnap ? `Snapshot (${nSnap})` : 'Snapshot'}
+          </Button>
+          <Button
+            id='bClrSnap'
+            size='sm'
+            variant='ghost'
+            className='h-7'
+            title='Delete the snapshots and hide all overlays'
+            onClick={() => clearSnapshots() || saveToast('storage')}
+          >
+            <Trash2 />
+            Clear
+          </Button>
+        </span>
+      }
+    >
       <div className='flex flex-wrap items-center gap-1.5'>
         <input
           id='saveName'

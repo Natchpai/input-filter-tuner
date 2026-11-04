@@ -491,18 +491,21 @@ export function Schematic({ S }: { S: Design }) {
     <div
       id='sch'
       className='overflow-x-auto'
+      title='Click a part to edit it'
       onClick={(e) => {
         const f = (e.target as Element).getAttribute('data-f')
         if (f) focusField(f)
       }}
     >
+      {/* Shrinks with the card down to 0.7× on a phone (then it scrolls).
+          Never above 1×, so the plot stays high on a wide screen. No
+          width/height attributes, so the SVG export uses the viewBox size. */}
       <svg
         viewBox={`0 0 ${W} ${Hh}`}
-        width={W}
-        height={Hh}
         role='img'
         aria-label='Filter schematic'
-        className='block min-w-full'
+        className='mx-auto block h-auto w-full'
+        style={{ minWidth: W * 0.7, maxWidth: W }}
       >
         <g className='rails'>{rail}</g>
         {out}
