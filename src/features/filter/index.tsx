@@ -34,7 +34,7 @@ function useThemeColors() {
 }
 
 export function Tuner() {
-  const { st, snapshots } = useTuner()
+  const { st, snapshots, hist } = useTuner()
   // Inputs follow st at once; sweeps and metrics follow a deferred copy so
   // slider drags stay smooth.
   const dst = useDeferredValue(st)
@@ -56,7 +56,14 @@ export function Tuner() {
     <>
       <SiteHeader title='Tuner' />
       <Main fluid className='space-y-3 px-3 py-3 sm:px-4'>
-        <Toolbar S={st} sets={calc.sets} m={calc.m} nSnap={snapshots.length} />
+        <Toolbar
+          S={st}
+          sets={calc.sets}
+          m={calc.m}
+          nSnap={snapshots.length}
+          canUndo={hist.past.length > 0}
+          canRedo={hist.future.length > 0}
+        />
         <div className='grid gap-3 @5xl/content:grid-cols-[400px_minmax(0,1fr)]'>
           <aside className='min-w-0 space-y-2.5'>
             <ConverterCard S={st} />

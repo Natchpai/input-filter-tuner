@@ -1,5 +1,14 @@
-import { useRef } from 'react'
-import { Camera, Download, FileUp, Link2, Save, Trash2 } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import {
+  Camera,
+  Download,
+  FileUp,
+  Link2,
+  Redo2,
+  Save,
+  Trash2,
+  Undo2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { abs, argd, db, type Design, type Metrics } from '../engine'
@@ -9,7 +18,13 @@ import { SNAPSHOT_TABS, snapshotOf } from '../plots/traces'
 import { adopt } from '../state/adopt'
 import { designLink, download, fileName } from '../state/persist'
 import { PRESET_NAMES, buildPreset } from '../state/presets'
-import { addSnapshot, clearSnapshots, dispatch } from '../state/store'
+import {
+  addSnapshot,
+  clearSnapshots,
+  dispatch,
+  redoDesign,
+  undoDesign,
+} from '../state/store'
 import { selectCls } from './styles'
 
 export function Toolbar({
@@ -17,13 +32,31 @@ export function Toolbar({
   sets,
   m,
   nSnap,
+  canUndo,
+  canRedo,
 }: {
   S: Design
   sets: CurveSets | null
   m: Metrics | null
   nSnap: number
+  canUndo: boolean
+  canRedo: boolean
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || isTextField(e.target)) return
+      const k = e.key.toLowerCase()
+      if (k === 'z' && !e.shiftKey) undoDesign()
+      else if ((k === 'z' && e.shiftKey) || (k === 'y' && !e.shiftKey))
+        redoDesign()
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // No prompt(): some viewers block dialogs. The label carries the key result,
   // so snapshots can be told apart in the legend.
@@ -108,6 +141,30 @@ export function Toolbar({
         ))}
       </select>
       <Button
+        id='bUndo'
+        size='icon'
+        className='size-8'
+        variant='secondary'
+        title='Undo (Ctrl+Z)'
+        aria-label='Undo'
+        disabled={!canUndo}
+        onClick={undoDesign}
+      >
+        <Undo2 />
+      </Button>
+      <Button
+        id='bRedo'
+        size='icon'
+        className='size-8'
+        variant='secondary'
+        title='Redo (Ctrl+Shift+Z or Ctrl+Y)'
+        aria-label='Redo'
+        disabled={!canRedo}
+        onClick={redoDesign}
+      >
+        <Redo2 />
+      </Button>
+      <Button
         id='bSnap'
         size='sm'
         variant='secondary'
@@ -178,5 +235,17 @@ export function Toolbar({
         }}
       />
     </div>
+  )
+}
+
+/** Fields where Ctrl+Z belongs to the browser's own text undo. */
+function isTextField(t: EventTarget | null) {
+  if (!(t instanceof HTMLElement)) return false
+  if (t.isContentEditable) return true
+  if (t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement)
+    return true
+  return (
+    t instanceof HTMLInputElement &&
+    !['range', 'checkbox', 'radio', 'button'].includes(t.type)
   )
 }

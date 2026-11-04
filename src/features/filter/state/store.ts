@@ -2,6 +2,7 @@
 // Components read it with useTuner().
 import { useSyncExternalStore } from 'react'
 import type { Design } from '../engine'
+import { emptyHistory, type History, record, redo, undo } from './history'
 import { initialDesign, saveLocal } from './persist'
 import { type Action, reducer } from './reducer'
 
@@ -19,6 +20,8 @@ export type Snapshot = {
 type TunerState = {
   st: Design
   snapshots: Snapshot[]
+  /** Undo history, in memory only. */
+  hist: History
   /** Message for the first render, e.g. a broken link. */
   warning?: string
 }
@@ -29,7 +32,7 @@ const listeners = new Set<() => void>()
 function get(): TunerState {
   if (!state) {
     const { st, warning } = initialDesign()
-    state = { st, snapshots: [], warning }
+    state = { st, snapshots: [], hist: emptyHistory(), warning }
   }
   return state
 }
@@ -43,7 +46,20 @@ function set(next: TunerState) {
 
 export function dispatch(a: Action) {
   const s = get()
-  set({ ...s, st: reducer(s.st, a) })
+  const st = reducer(s.st, a)
+  set({ ...s, st, hist: record(s.hist, s.st, st, a, Date.now()) })
+}
+
+export function undoDesign() {
+  const s = get()
+  const r = undo(s.hist, s.st)
+  if (r) set({ ...s, ...r })
+}
+
+export function redoDesign() {
+  const s = get()
+  const r = redo(s.hist, s.st)
+  if (r) set({ ...s, ...r })
 }
 
 export function addSnapshot(snap: Snapshot) {
