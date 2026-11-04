@@ -55,6 +55,11 @@ export function Notes() {
               <sub>L</sub>) (NP-DR-26001 eq. for the Rd-Cd leg).
             </li>
             <li>
+              <b>Cd for an Rd-Cd leg</b>: Cd ≥ 10/(2π·f<sub>0</sub>·Rd), so X
+              <sub>Cd</sub> = Rd/10 at f<sub>0</sub> (NP-DR-26001 §7). A smaller
+              Cd also works; check the margin.
+            </li>
+            <li>
               <b>Optimum Rd</b> searches Rd for the lowest peak |Z
               <sub>out</sub>| with every parasitic included.
             </li>

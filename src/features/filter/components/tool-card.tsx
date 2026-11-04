@@ -169,3 +169,58 @@ export function Hint({
 export function Note({ children }: { children: ReactNode }) {
   return <p className='mt-1 text-xs text-muted-foreground'>{children}</p>
 }
+
+const SUP = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹']
+
+/**
+ * A superscript mark after a computed value. It opens a SourceLine with the
+ * formula and its source; hover shows the same text.
+ */
+export function SourceMark({
+  n,
+  id,
+  open,
+  text,
+  onToggle,
+}: {
+  n: number
+  id: string
+  open: boolean
+  text: string
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type='button'
+      data-src={n}
+      className={cn(
+        '-my-1 rounded-sm px-0.5 py-1 align-baseline text-muted-foreground hover:text-foreground',
+        open && 'text-foreground'
+      )}
+      title={text}
+      aria-label={`Source ${n}`}
+      aria-expanded={open}
+      aria-controls={id}
+      onClick={onToggle}
+    >
+      {SUP[n] ?? `(${n})`}
+    </button>
+  )
+}
+
+/** The line a SourceMark opens: same look as a Note. */
+export function SourceLine({
+  n,
+  id,
+  children,
+}: {
+  n: number
+  id: string
+  children: ReactNode
+}) {
+  return (
+    <p id={id} className='mt-0.5 text-xs text-muted-foreground'>
+      {SUP[n] ?? `(${n})`} {children}
+    </p>
+  )
+}

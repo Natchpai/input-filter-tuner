@@ -49,14 +49,21 @@ import {
   TYPES,
 } from '../engine'
 import { formatCurve, parseCurve } from '../lib/curve-text'
-import { closedFormFor } from '../lib/damping'
+import { closedFormFor, dampSources } from '../lib/damping'
 import { fmtIn, fmtSI, parseSI } from '../lib/si'
 import { newId } from '../state/defaults'
 import { dispatch } from '../state/store'
 import { blockSummary } from './block-summary'
 import { useHintScope } from './hint-scope'
 import { inputCls, LINEAR, selectCls } from './styles'
-import { Hint, HintButton, HintScope, Note } from './tool-card'
+import {
+  Hint,
+  HintButton,
+  HintScope,
+  Note,
+  SourceLine,
+  SourceMark,
+} from './tool-card'
 import { setOpen, useUi } from './ui-store'
 import { ValueRow } from './value-row'
 
@@ -69,6 +76,7 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
   const isRc = b.type === 'rc'
   const [q, setQ] = useState(String(b._q || 0.707))
   const [qErr, setQErr] = useState(false)
+  const [src, setSrc] = useState<number | null>(null)
   if (!key) return null
   const set = (v: number) => dispatch({ t: 'param', id: b.id, k: key, v })
   // A disabled block does not change the result, so its helpers would return nonsense.
@@ -109,6 +117,20 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
   const cdMin =
     isRc && sec && rTot > 0 ? 10 / (2 * Math.PI * sec.f0 * rTot) : null
   const cdLow = isRc && cdMin !== null && b.cd < cdMin * (1 - 1e-6)
+  // Source marks: ¹ closed form, ² the Cd rule. One line open at a time.
+  const srcText = dampSources(S, b)
+  const marks = [srcText.cf, cdLow ? srcText.cd : null]
+  const srcId = (n: number) => `src-${b.id}-${n}`
+  const mark = (n: number) => (
+    <SourceMark
+      n={n}
+      id={srcId(n)}
+      open={src === n}
+      text={marks[n - 1]!}
+      onToggle={() => setSrc(src === n ? null : n)}
+    />
+  )
+  const openText = src !== null ? marks[src - 1] : null
 
   return (
     <div className='my-1.5'>
@@ -188,13 +210,20 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
       {cf?.rd ? (
         <Note>
           closed-form Rd {fmtSI(cf.rd, 'Ω')} · peak {fmtSI(cf.peak!, 'Ω')}
+          {marks[0] && mark(1)}
           {cdLow && (
             <span className='text-status-open'>
               {' '}
               · Cd ≥ {fmtSI(cdMin!, 'F')}
             </span>
           )}
+          {cdLow && marks[1] && mark(2)}
         </Note>
+      ) : null}
+      {cf?.rd && openText ? (
+        <SourceLine n={src!} id={srcId(src!)}>
+          {openText}
+        </SourceLine>
       ) : null}
     </div>
   )

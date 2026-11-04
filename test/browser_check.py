@@ -215,11 +215,25 @@ try:
         line = page.inner_text(f"#card-{rc_id}")
         first_cd = f"in-{rc_id}-cd"
         cd0 = page.input_value(f"#{first_cd}")
+        card = f"#card-{rc_id}"
+        # Source marks: ¹ opens the closed-form formula, ² the Cd rule
+        page.click(f"{card} [data-src='1']")
+        settle(page)
+        m1 = page.get_attribute(f"{card} [data-src='1']", "aria-expanded")
+        s1 = page.inner_text(f"#src-{rc_id}-1") if page.locator(f"#src-{rc_id}-1").count() else ""
         commit(page, f"#{first_cd}", "47u")
-        warn = page.inner_text(f"#card-{rc_id}")
+        warn = page.inner_text(card)
+        page.click(f"{card} [data-src='2']")
+        settle(page)
+        s2 = page.inner_text(f"#src-{rc_id}-2") if page.locator(f"#src-{rc_id}-2").count() else ""
+        page.click(f"{card} [data-src='2']")
+        settle(page)
+        closed = page.locator(f"#src-{rc_id}-2").count() == 0
         commit(page, f"#{first_cd}", cd0)
         ok("closed-form Rd" in line and "Cd ≥" not in line and "Cd ≥ 140" in warn,
            f"damping line: closed-form Rd, Cd warning only at Cd = 47u ({cd0} ok)")
+        ok(m1 == "true" and "Middlebrook" in s1 and "NP-DR-26001" in s2 and closed,
+           f"source marks: ¹ closed form, ² Cd rule, a second click closes ({s2[:40]})")
         # Slider drag
         block_id = first_l.split("-")[1]
         page.locator(f"#card-{block_id} input[type=range]").first.fill("300")
