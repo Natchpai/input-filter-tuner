@@ -2,7 +2,6 @@ import { useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
-  ChevronDown,
   ChevronRight,
   Copy,
   Ellipsis,
@@ -49,7 +48,7 @@ import {
   TYPES,
 } from '../engine'
 import { formatCurve, parseCurve } from '../lib/curve-text'
-import { closedFormFor, dampSources } from '../lib/damping'
+import { closedFormFor, dampSources, forPeak } from '../lib/damping'
 import { fmtIn, fmtSI, parseSI } from '../lib/si'
 import { newId } from '../state/defaults'
 import { dispatch } from '../state/store'
@@ -74,7 +73,17 @@ const badge =
 function DampHelpers({ S, b }: { S: Design; b: Block }) {
   const key = dampKey(b)
   const isRc = b.type === 'rc'
-  const [q, setQ] = useState(String(b._q || 0.707))
+  // Rd-Ld forms: the box is a peak target r = peak/Z0 and sets Ld and Rd.
+  // It starts at the current closed-form peak/Z0, so a first press keeps Ld
+  // and only moves Rd (a fixed start like 1.5 asks series Rd∥Ld for n ≈ 25).
+  // The parent keys this component by dmode, so a new form starts fresh.
+  const isRL = b.type === 'ind' && (b.dmode === 'RLpar' || b.dmode === 'RLser')
+  const [q, setQ] = useState(() => {
+    if (!isRL) return String(b._q || 0.707)
+    const cf = closedFormFor(S, b),
+      sec = sectionOf(S, b.id)
+    return cf?.peak && sec ? (cf.peak / sec.Z0).toPrecision(3) : '2'
+  })
   const [qErr, setQErr] = useState(false)
   const [src, setSrc] = useState<number | null>(null)
   if (!key) return null
@@ -108,6 +117,24 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
     }
     set(Math.max(0, Number((rd - esr).toPrecision(3))))
   }
+  const forPk = () => {
+    const r = parseFloat(q)
+    if (!(r > 0)) return setQErr(true)
+    setQErr(false)
+    const v = forPeak(S, b, r)
+    if (!v) {
+      toast.info('Series Rd∥Ld cannot get the peak below 1.41·Z0.')
+      return
+    }
+    const clip = (x: number, lo: number, hi: number) =>
+      Math.min(hi, Math.max(lo, Number(x.toPrecision(3))))
+    // One patch, so Ld and Rd are one undo step.
+    dispatch({
+      t: 'patch',
+      id: b.id,
+      patch: { dL: clip(v.ld, 1e-9, 10e-3), dR: clip(v.rd, 1e-3, 1e4) },
+    })
+  }
 
   // One short line: the closed-form target, and a Cd warning when Cd is
   // below 10/(2π·f0·Rd). The rest is in the block's hint (InfoLines).
@@ -135,39 +162,38 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
   return (
     <div className='my-1.5'>
       <div className='flex flex-wrap items-center gap-1.5'>
-        {isRc && (
-          <>
-            <label
-              htmlFor={`qv-${b.id}`}
-              className='text-sm text-muted-foreground'
-            >
-              Q
-            </label>
-            <input
-              id={`qv-${b.id}`}
-              data-h='qv'
-              aria-label='Target Q'
-              className={cn(
-                inputCls,
-                'w-14 text-right',
-                qErr && 'border-destructive ring-1 ring-destructive'
-              )}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !off && forQ()}
-            />
-            <Button
-              size='sm'
-              variant='secondary'
-              data-h='q'
-              disabled={off}
-              title={title('Rd for this Q, from Rd = Z0²/(Z0/Q − rL)')}
-              onClick={forQ}
-            >
-              Set Rd for Q
-            </Button>
-          </>
-        )}
+        <label htmlFor={`qv-${b.id}`} className='text-sm text-muted-foreground'>
+          {isRL ? 'peak/Z0' : 'Q'}
+        </label>
+        <input
+          id={`qv-${b.id}`}
+          data-h='qv'
+          aria-label={isRL ? 'Target peak/Z0' : 'Target Q'}
+          className={cn(
+            inputCls,
+            'w-14 text-right',
+            qErr && 'border-destructive ring-1 ring-destructive'
+          )}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) =>
+            e.key === 'Enter' && !off && (isRL ? forPk() : forQ())
+          }
+        />
+        <Button
+          size='sm'
+          variant='secondary'
+          data-h='q'
+          disabled={off}
+          title={title(
+            isRL
+              ? 'Ld and Rd for peak = r·Z0: n from the closed-form peak, Ld = n·L, Rd closed form'
+              : 'Rd for this Q, from Rd = Z0²/(Z0/Q − rL)'
+          )}
+          onClick={isRL ? forPk : forQ}
+        >
+          {isRL ? 'Set Rd, Ld' : 'Set Rd for Q'}
+        </Button>
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button
@@ -175,17 +201,10 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
               variant='secondary'
               data-h='menu'
               disabled={off}
-              title={title(isRc ? 'Other ways to set Rd' : 'Set Rd')}
-              aria-label={isRc ? 'Other ways to set Rd' : undefined}
+              title={title('Other ways to set Rd')}
+              aria-label='Other ways to set Rd'
             >
-              {isRc ? (
-                <Ellipsis />
-              ) : (
-                <>
-                  Set Rd
-                  <ChevronDown />
-                </>
-              )}
+              <Ellipsis />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start'>
@@ -716,7 +735,7 @@ export function BlockCard({
           )}
           <CurveEditor S={S} b={b} />
           <ToleranceEditor b={b} />
-          <DampHelpers S={S} b={b} />
+          <DampHelpers key={b.type === 'ind' ? b.dmode : ''} S={S} b={b} />
           {b.type === 'bead4' && (
             <BeadHelper key={[b.rs, b.lb, b.rp, b.cb].join()} b={b} />
           )}

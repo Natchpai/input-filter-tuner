@@ -380,6 +380,44 @@ try:
         unfold(page)
         esr = page.eval_on_selector_all("[id^=in-][id$=-esr]", "els => els[0].value")
         ok(esr == "2.08", f"Method A preset is C1 with {esr} ohm ESR")
+        # Inductor damping: Set Rd for Q on Rd ∥ L, Set Rd, Ld on the Rd-Ld forms
+        pnames = page.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
+
+        def pick_p(prefix):
+            page.select_option("#preset", str(next(i for i, n in enumerate(pnames) if n.startswith(prefix))))
+            settle(page, 250)
+            unfold(page)
+            return page.eval_on_selector_all("[id^=in-][id$=-dR]", "els => els[0].id").split("-")[1]
+
+        lid = pick_p("D1 · Method B")
+        commit(page, f"#in-{lid}-dR", "3")
+        page.fill(f"#qv-{lid}", "0.707")
+        page.click(f"#card-{lid} button[data-h=q]")
+        settle(page)
+        rd_b = page.input_value(f"#in-{lid}-dR")
+        ok(rd_b == "1.06", f"Rd ∥ L: Rd for Q = 0.707 gives {rd_b} (D1 Method B: 1.06)")
+        lid = pick_p("LC + parallel Rd-Ld")
+        before = (page.input_value(f"#in-{lid}-dL"), page.input_value(f"#in-{lid}-dR"))
+        commit(page, f"#in-{lid}-dL", "4.7u")
+        commit(page, f"#in-{lid}-dR", "3")
+        page.fill(f"#qv-{lid}", "1.414")
+        q_btn = page.inner_text(f"#card-{lid} button[data-h=q]")
+        page.click(f"#card-{lid} button[data-h=q]")
+        settle(page)
+        got = (page.input_value(f"#in-{lid}-dL"), page.input_value(f"#in-{lid}-dR"))
+        page.keyboard.press("Control+z")
+        settle(page)
+        undone = (page.input_value(f"#in-{lid}-dL"), page.input_value(f"#in-{lid}-dR"))
+        ok(q_btn == "Set Rd, Ld" and got == ("11u", "1.35") and undone == ("4.7u", "3"),
+           f"parallel Rd-Ld: peak/Z0 1.414 gives Ld, Rd {got} (preset {before}); one undo gives {undone}")
+        # The box starts at the current closed-form peak/Z0: a first press keeps Ld
+        lid = pick_p("LC + series Rd∥Ld")
+        box = page.input_value(f"#qv-{lid}")
+        page.click(f"#card-{lid} button[data-h=q]")
+        settle(page)
+        got = (page.input_value(f"#in-{lid}-dL"), page.input_value(f"#in-{lid}-dR"))
+        ok(box == "3.46" and got == ("22u", "0.76"),
+           f"series Rd∥Ld: box starts at {box}, a first press gives Ld, Rd {got}")
         # 2-stage: Rd1 uses its own (L1) section
         page.select_option("#preset", "10")
         settle(page, 400)

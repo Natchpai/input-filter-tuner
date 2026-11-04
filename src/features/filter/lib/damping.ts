@@ -1,4 +1,10 @@
-import { type Block, closedForm, type Design, sectionOf } from '../engine'
+import {
+  type Block,
+  closedForm,
+  type Design,
+  nForPeak,
+  sectionOf,
+} from '../engine'
 import { fmtSI } from './si'
 
 /** Closed-form optimum for a damping element, using the LC section it belongs to. */
@@ -14,6 +20,21 @@ export function closedFormFor(S: Design, b: Block) {
     return { ...(closedForm(b.dmode, n, p.Z0) || {}), n, nLabel: 'Ld/L' }
   }
   return null
+}
+
+/**
+ * Rd-Ld forms: Ld and Rd for a peak target r·Z0, the design assistant's rule
+ * (Erickson). n from the closed-form peak, Ld = n·L, Rd from the closed
+ * form. null when the block has no Rd-Ld damping or section, or the peak
+ * cannot be reached (series Rd∥Ld needs r > √2).
+ */
+export function forPeak(S: Design, b: Block, r: number) {
+  if (b.type !== 'ind' || (b.dmode !== 'RLpar' && b.dmode !== 'RLser'))
+    return null
+  const sec = sectionOf(S, b.id)
+  const n = sec ? nForPeak(b.dmode, r) : null
+  const cf = sec && n ? closedForm(b.dmode, n, sec.Z0) : null
+  return cf && n ? { n, ld: n * b.L, rd: cf.rd } : null
 }
 
 /** The closed-form formulas of engine/closed-form.ts, as text. */

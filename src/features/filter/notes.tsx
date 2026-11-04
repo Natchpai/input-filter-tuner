@@ -52,7 +52,14 @@ export function Notes() {
             </li>
             <li>
               <b>Rd for Q</b> uses Rd = Z<sub>0</sub>²/(Z<sub>0</sub>/Q − r
-              <sub>L</sub>) (NP-DR-26001 eq. for the Rd-Cd leg).
+              <sub>L</sub>) (NP-DR-26001 eq. for the Rd-Cd leg). The same
+              formula sets Rd ∥ L.
+            </li>
+            <li>
+              <b>Set Rd, Ld</b> (Rd-Ld forms): the box is a peak target r =
+              peak/Z
+              <sub>0</sub>. n comes from the closed-form peak, Ld = n·L, and Rd
+              from the closed form (lossless). Series Rd‖Ld needs r &gt; 1.41.
             </li>
             <li>
               <b>Cd for an Rd-Cd leg</b>: Cd ≥ 10/(2π·f<sub>0</sub>·Rd), so X
