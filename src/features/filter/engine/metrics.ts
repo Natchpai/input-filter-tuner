@@ -84,6 +84,16 @@ export function undamped(st: Design): Design {
   }
 }
 
+/**
+ * Series-form Q as in the NP-DR reports: Q = Z0 / r_total, where r_total is
+ * the series-equivalent loss at f0. At resonance Zout ≈ Z0²/r_total, so
+ * Q = Re(Zout(f0))/Z0. null when there is no primary section.
+ */
+export function qSeriesOf(st: Design): number | null {
+  const prim = primary(st)
+  return prim ? point(st, prim.f0).Zout.re / prim.Z0 : null
+}
+
 export type Metrics = {
   rn: { min: number; nom: number; max: number }
   peak: Peak
@@ -187,10 +197,7 @@ export function metrics(st: Design): Metrics {
   const dcLoss: Record<string, number> = {}
   for (const b of on)
     if (kindOf(b) === 'series') dcLoss[b.id] = iin * iin * dcR(b)
-  // Series-form Q as in the NP-DR reports: Q = Z0 / r_total, where r_total is
-  // the series-equivalent loss at f0. At resonance Zout ≈ Z0²/r_total, so
-  // Q = Re(Zout(f0))/Z0.
-  const qSeries = prim ? point(st, prim.f0).Zout.re / prim.Z0 : null
+  const qSeries = qSeriesOf(st)
   return {
     rn,
     peak: pk,

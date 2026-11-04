@@ -120,6 +120,38 @@ export const TYPES: { [T in BlockType]: TypeSpec<T> } = {
 
 export const BLOCK_TYPES = Object.keys(TYPES) as BlockType[]
 
+/** Value keys of a block type that can carry a ± tolerance. */
+export type TolKeyOf<T extends BlockType> = keyof NonNullable<
+  BlockOf<T>['tol']
+> &
+  string
+/** Every tolerance key of any block type (distributive over the union). */
+export type TolKey = { [T in BlockType]: TolKeyOf<T> }[BlockType]
+
+/** Which values can carry a tolerance (M1b): main L, C and R only. */
+export const TOL_KEYS: { [T in BlockType]: readonly TolKeyOf<T>[] } = {
+  ind: ['L', 'dR', 'dL'],
+  bead2: ['lb'],
+  bead4: ['lb'],
+  res: ['r'],
+  cap: ['c'],
+  rc: ['rd', 'cd'],
+}
+
+/** Label of a tolerance key, e.g. "L", "Rd" (damping keys are not in TYPES). */
+export function tolLabel(type: BlockType, key: string): string {
+  if (type === 'ind' && key === 'dR') return 'Rd'
+  if (type === 'ind' && key === 'dL') return 'Ld'
+  return (
+    (TYPES[type].p as readonly { key: string; label: string }[]).find(
+      (p) => p.key === key
+    )?.label ?? key
+  )
+}
+
+/** Highest tolerance adopt() and the UI accept, ± %. */
+export const MAX_TOL = 80
+
 /** Damping options for an inductor. */
 export const DAMP: Record<DampMode, string> = {
   none: 'No damping',

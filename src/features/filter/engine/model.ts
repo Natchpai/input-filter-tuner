@@ -6,6 +6,9 @@ export type DampMode = 'none' | 'R' | 'RLpar' | 'RLser'
 /** Points [x, y], sorted by x. Linear between points, flat beyond the ends. */
 export type Curve = [number, number][]
 
+/** ± % tolerance per value key (M1b). Symmetric, uniform in Monte Carlo. */
+export type Tol<K extends string> = Partial<Record<K, number>>
+
 type BlockBase = {
   id: string
   name: string
@@ -24,6 +27,7 @@ export type IndBlock = BlockBase & {
   dL: number
   /** L against DC current, [A, H] points (operating-point corners). */
   li?: Curve
+  tol?: Tol<'L' | 'dR' | 'dL'>
 }
 export type Bead2Block = BlockBase & {
   type: 'bead2'
@@ -32,6 +36,7 @@ export type Bead2Block = BlockBase & {
   rb: number
   /** Lb against DC current, [A, H] points (operating-point corners). */
   li?: Curve
+  tol?: Tol<'lb'>
 }
 export type Bead4Block = BlockBase & {
   type: 'bead4'
@@ -41,8 +46,14 @@ export type Bead4Block = BlockBase & {
   cb: number
   /** Lb against DC current, [A, H] points (operating-point corners). */
   li?: Curve
+  tol?: Tol<'lb'>
 }
-export type ResBlock = BlockBase & { type: 'res'; r: number; l: number }
+export type ResBlock = BlockBase & {
+  type: 'res'
+  r: number
+  l: number
+  tol?: Tol<'r'>
+}
 export type CapBlock = BlockBase & {
   type: 'cap'
   c: number
@@ -52,6 +63,7 @@ export type CapBlock = BlockBase & {
   derate: number
   /** C per part against DC bias, [V, F] points. Replaces derate at corners. */
   cv?: Curve
+  tol?: Tol<'c'>
 }
 export type RcBlock = BlockBase & {
   type: 'rc'
@@ -59,6 +71,7 @@ export type RcBlock = BlockBase & {
   cd: number
   esr: number
   esl: number
+  tol?: Tol<'rd' | 'cd'>
 }
 
 export type Block =
