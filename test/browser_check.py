@@ -761,12 +761,15 @@ try:
         ok("54.6 V" in t4.inner_text("#tran-summary"), f"D1 Rd-Cd hot-plug peak 54.6 V: '{t4.inner_text('#tran-summary')[:50]}'")
         t4.click("#tabs button[data-t=time]")
         settle(t4, 300)
-        drawn = {}
+        drawn, units = {}, {}
         for v in ["hot", "step", "ripple"]:
             t4.click(f"#tviews button[data-v={v}]")
             settle(t4, 300)
             drawn[v] = t4.eval_on_selector("#pl1", "d => (d.data || []).length")
+            units[v] = t4.eval_on_selector("#pl1", "d => d._fullLayout.xaxis.title.text")
         ok(all(n >= 2 for n in drawn.values()), f"Time tab draws every view {drawn}")
+        ok(units == {"hot": "Time (ms)", "step": "Time (ms)", "ripple": "Time (µs)"},
+           f"time axis in ms / µs, not plain seconds {units}")
         t4.uncheck("#tran-on")
         settle(t4, 300)
         sel = t4.eval_on_selector("#tabs button[aria-selected=true]", "b => b.dataset.t")

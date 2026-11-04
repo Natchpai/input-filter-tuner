@@ -114,6 +114,23 @@ function axisBase(C: PlotColors): Obj {
   }
 }
 
+/**
+ * Log frequency axis as on log paper: a labelled major tick at each decade
+ * and 8 minor grid lines (2 to 9) inside it.
+ */
+function decades(C: PlotColors): Obj {
+  return {
+    dtick: 1,
+    minor: {
+      dtick: 'D1',
+      showgrid: true,
+      gridcolor: C.line,
+      griddash: 'dot',
+      ticks: '',
+    },
+  }
+}
+
 function makeLayout(C: PlotColors, extra: Obj = {}): Obj {
   // Spikes, hover box and toolbar take the theme colours. With a transparent
   // paper Plotly falls back to a white hover box, which is unreadable in dark
@@ -146,6 +163,7 @@ function makeLayout(C: PlotColors, extra: Obj = {}): Obj {
       type: 'log',
       title: { text: 'Frequency (Hz)' },
       exponentformat: 'SI',
+      ...decades(C),
       ...axisBase(C),
     },
     ...extra,
@@ -701,6 +719,7 @@ function emiPlot(S: Design, C: PlotColors): PlotResult {
     type: 'log',
     title: { text: 'Frequency (Hz)' },
     exponentformat: 'SI',
+    ...decades(C),
     range: [Math.log10(150e3), Math.log10(info.fMax)],
   })
   const traces: Obj[] = [
@@ -820,17 +839,40 @@ function emiPlot(S: Design, C: PlotColors): PlotResult {
   return { main, side, note: parts.filter(Boolean).join(' ') }
 }
 
+/**
+ * Unit for a time axis that reaches tMax seconds: ns, µs, ms or s, so the
+ * ticks read 0 to 999 of that unit instead of 0.00004 s.
+ */
+export function timeUnit(tMax: number): { k: number; unit: string } {
+  const units: [number, string][] = [
+    [1e-9, 'ns'],
+    [1e-6, 'µs'],
+    [1e-3, 'ms'],
+  ]
+  for (const [k, unit] of units)
+    if (Math.abs(tMax) < 1000 * k) return { k, unit }
+  return { k: 1, unit: 's' }
+}
+
 /** Time domain tab (M4): hot-plug, load step or source ripple. */
 function timePlot(S: Design, C: PlotColors, r: TranResult | null): PlotResult {
   const ax = (extra: Obj) => ({ ...axisBase(C), ...extra })
-  const xaxis = ax({
-    type: 'linear',
-    title: { text: 'Time (s)' },
-    exponentformat: 'SI',
-  })
+  // Set per view from the longest run shown; the x data are divided by k.
+  let tu = { k: 1, unit: 's' }
+  const ts = (t: number[]) => t.map((v) => v / tu.k)
+  const span = (waves: { t: number[] }[]) => {
+    let m = 0
+    for (const w of waves) for (const v of w.t) m = Math.max(m, Math.abs(v))
+    tu = timeUnit(m)
+  }
   const layout = (y: Obj, y2: Obj) =>
     makeLayout(C, {
-      xaxis,
+      xaxis: ax({
+        type: 'linear',
+        title: { text: `Time (${tu.unit})` },
+        exponentformat: 'none',
+        hoverformat: '.4~g',
+      }),
       yaxis: ax(y),
       yaxis2: ax({ ...y2, overlaying: 'y', side: 'right', showgrid: false }),
       margin: { l: 62, r: 62, t: 10, b: 44 },
@@ -851,16 +893,17 @@ function timePlot(S: Design, C: PlotColors, r: TranResult | null): PlotResult {
   const view = S.plot.tview
   if (view === 'ripple') {
     const w = r.ripple
+    span([w])
     traces.push(
       {
-        x: w.t,
+        x: ts(w.t),
         y: w.iSrc,
         name: 'source current',
         mode: 'lines',
         line: { color: C.a, width: 1.6, simplify: false },
       },
       {
-        x: w.t,
+        x: ts(w.t),
         y: w.iConv,
         name: 'converter current',
         mode: 'lines',
@@ -882,12 +925,13 @@ function timePlot(S: Design, C: PlotColors, r: TranResult | null): PlotResult {
     }
   }
   if (view === 'step') {
+    span(r.step.map((q) => q.wave))
     r.step.forEach((q, i) => {
       const worst = i === r.stepWorst
       const tag = fmtSI(q.vin, 'V')
       traces.push(
         {
-          x: q.wave.t,
+          x: ts(q.wave.t),
           y: q.wave.v,
           name: `V pins, ${tag}`,
           mode: 'lines',
@@ -895,7 +939,7 @@ function timePlot(S: Design, C: PlotColors, r: TranResult | null): PlotResult {
           line: line(worst, C.a),
         },
         {
-          x: q.wave.t,
+          x: ts(q.wave.t),
           y: q.wave.i,
           name: `I conv, ${tag}`,
           mode: 'lines',
@@ -923,11 +967,12 @@ function timePlot(S: Design, C: PlotColors, r: TranResult | null): PlotResult {
           (q.fRing ? `, rings at ${fmtSI(q.fRing, 'Hz')}.` : '.'),
     }
   }
+  span(r.hot.map((q) => q.wave))
   r.hot.forEach((q, i) => {
     const worst = i === r.hotWorst
     const tag = fmtSI(q.vin, 'V')
     traces.push({
-      x: q.wave.t,
+      x: ts(q.wave.t),
       y: q.wave.v,
       name: `V pins, ${tag}`,
       mode: 'lines',
@@ -936,7 +981,7 @@ function timePlot(S: Design, C: PlotColors, r: TranResult | null): PlotResult {
     })
     if (q.iPeak !== null)
       traces.push({
-        x: q.wave.t,
+        x: ts(q.wave.t),
         y: q.wave.i,
         name: `I source, ${tag}`,
         mode: 'lines',
@@ -947,7 +992,7 @@ function timePlot(S: Design, C: PlotColors, r: TranResult | null): PlotResult {
   })
   const q = r.hot[r.hotWorst]
   traces.push({
-    x: [q.tPeak],
+    x: ts([q.tPeak]),
     y: [q.vPeak],
     name: 'V peak',
     mode: 'markers',
