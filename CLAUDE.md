@@ -12,8 +12,9 @@ M0 (the port) is done except one item: `legacy/` (the old single-file tool
 and its tests) is kept until the user says to remove it, together with
 `scripts/legacy-fixture.mjs`.
 
-M1a is planned in `docs/M1-plan.md` and waits for the user's approval
-before any code. Read that file first.
+M6 comes next (the user moved it ahead of M1a). It is planned in
+`docs/M6-plan.md` and waits for the user's approval before any code. Read
+that file first. M1a (`docs/M1-plan.md`) follows M6.
 
 ## Git
 
