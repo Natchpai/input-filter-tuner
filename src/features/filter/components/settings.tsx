@@ -65,13 +65,13 @@ export function ConverterCard({ S }: { S: Design }) {
         </>
       }
     >
-      <div className='my-1 grid grid-cols-[minmax(0,88px)_repeat(3,minmax(0,1fr))_22px] items-center gap-1.5'>
+      <div className='my-1 grid grid-cols-[minmax(0,88px)_repeat(3,minmax(0,1fr))] items-center gap-1.5'>
         <label htmlFor='cv-vinMin' className='text-sm text-muted-foreground'>
           Vin
         </label>
         {VIN_FIELDS.map(([k, l]) => (
           <div key={k} className='relative'>
-            <span className='pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-[10px] text-muted-foreground'>
+            <span className='pointer-events-none absolute top-1/2 left-2 z-10 -translate-y-1/2 text-[10px] text-muted-foreground'>
               {l}
             </span>
             <ValueRow
@@ -86,7 +86,6 @@ export function ConverterCard({ S }: { S: Design }) {
             />
           </div>
         ))}
-        <span className='text-xs text-muted-foreground'>V</span>
       </div>
       {CONV_FIELDS.map(([k, l, u, mn, mx]) => (
         <ValueRow

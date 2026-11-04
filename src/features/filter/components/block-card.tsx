@@ -500,7 +500,7 @@ export function BlockCard({
         <button
           type='button'
           className='summary min-w-0 flex-1 truncate text-left text-xs text-muted-foreground hover:text-foreground'
-          title={`${T.kind} · ${T.label}`}
+          title={`${T.kind} · ${T.label}: ${blockSummary(b)}`}
           onClick={fold}
         >
           {open ? `${T.kind} · ${T.label}` : blockSummary(b)}

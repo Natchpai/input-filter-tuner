@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { stepE } from '../engine'
 import { fmtIn, parseSI } from '../lib/si'
 import { inputCls } from './styles'
 
@@ -19,6 +20,22 @@ function sliderVal(pos: number, min: number, max: number, zero: boolean) {
   return Number(v.toPrecision(3))
 }
 
+/** Decades the log slider covers around its value (×/÷ 10). */
+const SPAN = 100
+
+/**
+ * The log slider's range: SPAN wide around `at`, inside [min, max]. A value
+ * of 0 (a `zero` field) gets the full range.
+ */
+function sliderWindow(at: number, min: number, max: number): [number, number] {
+  if (!(at > 0) || max / min <= SPAN) return [min, max]
+  const lo = Math.min(Math.max(at / Math.sqrt(SPAN), min), max / SPAN)
+  return [lo, lo * SPAN]
+}
+
+/** Parts that step by E-series values. */
+const E_UNITS = new Set(['H', 'F', 'Ω'])
+
 type Props = {
   id: string
   label: string
@@ -31,14 +48,17 @@ type Props = {
   zero?: boolean
   linear?: boolean
   int?: boolean
-  /** Text box only (no label, slider or unit); label becomes aria-label. */
+  /** Text box only (no label or slider); label becomes aria-label. */
   bare?: boolean
 }
 
 /**
- * One numeric parameter: label, SI text box, slider, unit. Text commits on
- * Enter or blur; arrow keys step ×1.05 (Shift ×1.25), or 1 % of the range on
- * linear fields.
+ * One numeric parameter: label, SI text box with the unit inside, slider.
+ * Text commits on Enter or blur; Escape puts the value back. Up/Down (and
+ * the wheel while the box has focus) step L, C and R by one E24 value
+ * (Shift: E6), other log fields ×1.05 (Shift ×1.25), linear fields 1 % of
+ * the range (Shift 5 %). The log slider covers ÷10 to ×10 around the value
+ * and re-centres when a drag ends.
  */
 export function ValueRow({
   id,
@@ -55,13 +75,19 @@ export function ValueRow({
 }: Props) {
   const [draft, setDraft] = useState<string | null>(null)
   const [err, setErr] = useState(false)
+  // The slider window follows the value, but not during a drag.
+  const [drag, setDrag] = useState(false)
+  const [anchor, setAnchor] = useState(value)
+  if (!drag && anchor !== value) setAnchor(value)
+  const [lo, hi] = linear ? [min, max] : sliderWindow(anchor, min, max)
+
   const show = (v: number) => (linear ? String(v) : fmtIn(v))
   const toPos = (v: number) =>
     linear
       ? Math.round((1000 * (v - min)) / (max - min))
-      : sliderPos(v, min, max, zero)
+      : sliderPos(v, lo, hi, zero)
   const fromPos = (p: number) => {
-    if (!linear) return sliderVal(p, min, max, zero)
+    if (!linear) return sliderVal(p, lo, hi, zero)
     const v = min + ((max - min) * p) / 1000
     return int ? Math.round(v) : Number(v.toPrecision(3))
   }
@@ -79,47 +105,85 @@ export function ValueRow({
   }
   const commitText = (s: string) => commit(linear ? parseFloat(s) : parseSI(s))
 
+  const step = (up: boolean, big: boolean) => {
+    let v = value
+    if (linear) {
+      const st = int ? 1 : ((max - min) / 100) * (big ? 5 : 1)
+      v = Math.min(max, Math.max(min, v + (up ? st : -st)))
+    } else if (v === 0) {
+      v = up ? min : 0
+    } else if (E_UNITS.has(unit)) {
+      v = stepE(v, big ? 'E6' : 'E24', up ? 1 : -1)
+    } else {
+      const f = big ? 1.25 : 1.05
+      v = Number((v * (up ? f : 1 / f)).toPrecision(4))
+    }
+    commit(v)
+  }
+  // The wheel listener must not be passive, so the pane does not scroll too.
+  const stepRef = useRef(step)
+  useEffect(() => {
+    stepRef.current = step
+  })
+  const boxRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (document.activeElement !== el || e.deltaY === 0) return
+      e.preventDefault()
+      stepRef.current(e.deltaY < 0, e.shiftKey)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') e.currentTarget.blur()
+    if (e.key === 'Escape') {
+      setDraft(null)
+      setErr(false)
+    }
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault()
-      const up = e.key === 'ArrowUp'
-      let v = value
-      if (linear) {
-        const st = int ? 1 : ((max - min) / 100) * (e.shiftKey ? 5 : 1)
-        v = Math.min(max, Math.max(min, v + (up ? st : -st)))
-      } else {
-        const f = e.shiftKey ? 1.25 : 1.05
-        v = v === 0 ? min : v * (up ? f : 1 / f)
-        v = Number(v.toPrecision(4))
-      }
-      commit(v)
+      step(e.key === 'ArrowUp', e.shiftKey)
     }
   }
 
+  const pad = unit.length > 1 ? 'pr-7' : unit ? 'pr-5' : ''
   const box = (
-    <input
-      id={id}
-      type='text'
-      spellCheck={false}
-      autoComplete='off'
-      aria-label={bare ? label : undefined}
-      aria-invalid={err || undefined}
-      className={cn(
-        inputCls,
-        'w-full text-right',
-        err && 'border-destructive ring-1 ring-destructive'
+    <div className='relative min-w-0'>
+      <input
+        ref={boxRef}
+        id={id}
+        type='text'
+        spellCheck={false}
+        autoComplete='off'
+        aria-label={bare ? label : undefined}
+        aria-invalid={err || undefined}
+        className={cn(
+          inputCls,
+          'w-full text-right',
+          pad,
+          err && 'border-destructive ring-1 ring-destructive'
+        )}
+        value={draft ?? show(value)}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => draft !== null && commitText(draft)}
+        onKeyDown={onKeyDown}
+      />
+      {unit && (
+        <span className='pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-xs text-muted-foreground'>
+          {unit}
+        </span>
       )}
-      value={draft ?? show(value)}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => draft !== null && commitText(draft)}
-      onKeyDown={onKeyDown}
-    />
+    </div>
   )
   if (bare) return box
 
+  const endDrag = () => setDrag(false)
   return (
-    <div className='my-1 grid grid-cols-[minmax(0,88px)_88px_minmax(0,1fr)_22px] items-center gap-1.5'>
+    <div className='my-1 grid grid-cols-[minmax(0,88px)_112px_minmax(0,1fr)] items-center gap-1.5'>
       <label
         htmlFor={id}
         title={label}
@@ -136,13 +200,18 @@ export function ValueRow({
         aria-label={label + ' slider'}
         className='w-full accent-primary'
         value={toPos(value)}
+        onPointerDown={() => setDrag(true)}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onKeyDown={() => setDrag(true)}
+        onKeyUp={endDrag}
+        onBlur={endDrag}
         onChange={(e) => {
           setDraft(null)
           setErr(false)
           onChange(fromPos(+e.target.value))
         }}
       />
-      <span className='text-xs text-muted-foreground'>{unit}</span>
     </div>
   )
 }

@@ -213,12 +213,53 @@ try:
         page.locator(f"#card-{block_id} input[type=range]").first.fill("300")
         settle(page)
         ok(page.input_value(f"#{first_l}") != "22u", f"slider moves L to {page.input_value(f'#{first_l}')}")
-        # Arrow key steps ×1.05
+        # Arrow keys step L by E-series values: E24, Shift E6
         commit(page, f"#{first_l}", "22u")
         page.focus(f"#{first_l}")
         page.keyboard.press("ArrowUp")
         settle(page)
-        ok(page.input_value(f"#{first_l}") == "23.1u", f"ArrowUp steps L to {page.input_value(f'#{first_l}')} (22u × 1.05)")
+        up24 = page.input_value(f"#{first_l}")
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("ArrowDown")
+        settle(page)
+        dn24 = page.input_value(f"#{first_l}")
+        commit(page, f"#{first_l}", "22u")
+        page.focus(f"#{first_l}")
+        page.keyboard.press("Shift+ArrowUp")
+        settle(page)
+        ok((up24, dn24, page.input_value(f"#{first_l}")) == ("24u", "20u", "33u"),
+           f"ArrowUp/Down step L by E24 (22u -> {up24}, then {dn24}), Shift by E6 (-> {page.input_value(f'#{first_l}')})")
+        # The wheel steps a focused field only
+        commit(page, f"#{first_l}", "22u")
+        page.hover(f"#{first_l}")
+        page.mouse.wheel(0, -100)
+        settle(page)
+        unfocused = page.input_value(f"#{first_l}")
+        page.focus(f"#{first_l}")
+        page.hover(f"#{first_l}")
+        page.mouse.wheel(0, -100)
+        settle(page)
+        ok(unfocused == "22u" and page.input_value(f"#{first_l}") == "24u",
+           f"wheel steps L only while focused ({unfocused}, then {page.input_value(f'#{first_l}')})")
+        # Escape drops the typed text
+        page.fill(f"#{first_l}", "47u")
+        page.press(f"#{first_l}", "Escape")
+        ok(page.input_value(f"#{first_l}") == "24u", f"Escape puts the value back ({page.input_value(f'#{first_l}')})")
+        commit(page, f"#{first_l}", "22u")
+        # The log slider spans ÷10 to ×10 around the value and re-centres after a drag
+        rng_l = page.locator(f"#card-{block_id} input[type=range]").first
+        pos0 = rng_l.input_value()
+        bb = rng_l.bounding_box()
+        page.mouse.move(bb["x"] + bb["width"] / 2, bb["y"] + bb["height"] / 2)
+        page.mouse.down()
+        page.mouse.move(bb["x"] + bb["width"] * 0.75, bb["y"] + bb["height"] / 2, steps=5)
+        mid = rng_l.input_value()
+        page.mouse.up()
+        settle(page)
+        l_after = page.input_value(f"#{first_l}")
+        ok(pos0 == "500" and int(mid) > 650 and rng_l.input_value() == "500" and l_after not in ("22u", "220u"),
+           f"slider: centred ({pos0}), drag to {mid}, L = {l_after}, centred again ({rng_l.input_value()})")
+        commit(page, f"#{first_l}", "22u")
         # Add each block type
         nblk = page.eval_on_selector_all("#blocks .blk", "b => b.length")
         for t in ["ind", "bead2", "bead4", "res", "cap", "rc"]:
@@ -287,7 +328,7 @@ try:
         ok(page.eval_on_selector_all("#blocks .blk", "b => b.length") == nblk + 6, "state survives reload")
 
         # Tolerance slider updates its text box
-        page.locator("#ps-dL").locator("xpath=..").locator("input[type=range]").fill("750")
+        page.locator("#ps-dL").locator("xpath=../..").locator("input[type=range]").fill("750")
         settle(page)
         ok(page.input_value("#ps-dL") == "45", f"tolerance slider updates text box ({page.input_value('#ps-dL')})")
         commit(page, "#ps-dC", "-150")
