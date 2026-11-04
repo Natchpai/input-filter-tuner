@@ -107,6 +107,9 @@ try:
             kpis = page.inner_text("#kpis")
             parts = page.eval_on_selector_all("#sch .hit", "h => h.length")
             ok("Peak |Zout|" in kpis and parts > 0, f"preset '{name}': results and {parts} clickable parts")
+            n_rows = page.eval_on_selector_all("#corners tbody tr", "r => r.length")
+            n_worst = page.eval_on_selector_all("#corners tr[data-worst=true]", "r => r.length")
+            ok(n_rows >= 1 and n_worst == 1, f"  corners card: {n_rows} rows, one marked worst")
             for t in tabs:
                 page.click(f"#tabs button[data-t={t}]")
                 settle(page, 120 if t != "sweep" else 400)
@@ -318,6 +321,88 @@ try:
         ok(bad in x.inner_text("#plotnote"), "hostile block name is shown as text in the sweep note")
         ok("d=" not in x.evaluate("location.hash"), f"link hash is cleared after loading ({x.evaluate('location.hash')})")
         x.close()
+
+        # ---- M1a: operating-point corners and curves ----
+        c = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(c, "m1a: ")
+        c.goto(URL)
+        ready(c)
+        names = c.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
+
+        def pick(prefix):
+            c.select_option("#preset", str(next(i for i, n in enumerate(names) if n.startswith(prefix))))
+            settle(c, 300)
+
+        def rows():
+            return c.eval_on_selector_all("#corners tbody tr", r"rs => rs.map(r => r.innerText.replace(/\s+/g, ' '))")
+
+        def worst_row():
+            return c.inner_text("#corners tr[data-worst=true]")
+
+        pick("D4")
+        r = rows()
+        ok(len(r) == 2 and "26.8 dB" in worst_row() and "light" in worst_row() and "28.5 dB" in r[1],
+           f"D4 corners: light 26.8 dB (worst), full 28.5 dB {r}")
+        zt = c.eval_on_selector("#pl1", "d => d.data.map(t => t.name)")
+        ok(any("Worst corner" in (n or "") for n in zt), "D4 Zout tab draws the worst-corner trace")
+        pick("LQRx 02")
+        r = rows()
+        ok(len(r) == 3 and "13.0 dB" in r[0] and "21.2 dB" in r[1] and "15 V" in worst_row(),
+           f"LQRx 02 corners: 13 dB at 15 V (worst), 21 dB at 24 V {r}")
+        zt = c.eval_on_selector("#pl1", "d => d.data.map(t => t.name)")
+        ok(not any("Worst corner" in (n or "") for n in zt), "no worst-corner trace without curves")
+        # Paste a SimSurfing-style CSV into Cf (third block): the corner rows change
+        cf = c.locator("#blocks .blk").nth(2)
+        cf.locator("[id^=curve-btn-]").click()
+        box = cf.locator("textarea[id^=curve-]")
+        box.fill("DC Bias Voltage [V],Capacitance [F]\n0,4.7E-06\n15,3.4E-06\n24,2.6E-06\n28,2.3E-06")
+        box.press("Tab")
+        settle(c, 400)
+        r2 = rows()
+        ok(r2 != r and "4 pts" in cf.inner_text(), f"curve on Cf changes the corner rows {r2}")
+        c.reload()
+        ready(c)
+        settle(c, 300)
+        ok(rows() == r2, "curve survives reload")
+        # A #d= link with curves and light load
+        d4link = {
+            "name": "D4 link",
+            "conv": {"vinMin": 12, "vinNom": 12, "vinMax": 12, "pout": 10, "pLight": 2, "eta": 1, "vout": 5, "fsw": 1.1e6, "fcheck": 1.1e6},
+            "source": {"R": 0, "L": 0},
+            "blocks": [
+                {"type": "bead4", "name": "FB1", "rs": 0.05, "lb": 1e-6, "rp": 150, "cb": 2e-12, "li": [[0, 1e-6], [0.83, 0.8e-6]]},
+                {"type": "res", "name": "R1", "r": 0.068},
+                {"type": "cap", "name": "C1", "c": 10e-6, "esr": 0, "n": 2, "derate": 30, "cv": [[0, 10e-6], [12, 7e-6]]},
+            ],
+        }
+        # A new page, because a hash change alone does not reload the app.
+        c.close()
+        c = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(c, "m1a link: ")
+        c.goto(URL + "#d=" + base64.b64encode(json.dumps(d4link).encode()).decode())
+        ready(c)
+        settle(c, 500)
+        ok(len(rows()) == 2 and "167" in rows()[0] and c.input_value("#cv-pLight") == "2",
+           f"#d= link keeps pLight and curves {rows()}")
+        ok(c.locator("#blocks .blk").nth(0).inner_text().count("2 pts") == 1
+           and c.locator("#blocks .blk").nth(2).inner_text().count("2 pts") == 1, "#d= link keeps li on FB1 and cv on C1")
+        # A linked design is saved locally on the first edit (persist.ts).
+        commit(c, "#cv-pLight", "3")
+        settle(c, 200)
+        c.reload()
+        ready(c)
+        settle(c, 300)
+        ok(len(rows()) == 2 and "250 mA" in rows()[0] and c.input_value("#cv-pLight") == "3",
+           f"linked curves survive an edit and a reload {rows()}")
+        # Clearing the box removes the curve
+        fb = c.locator("#blocks .blk").nth(0)
+        fb.locator("[id^=curve-btn-]").click()
+        fb.locator("textarea[id^=curve-]").fill("")
+        fb.locator("textarea[id^=curve-]").press("Tab")
+        settle(c, 400)
+        ok(len(rows()) == 1 and "pts" not in fb.inner_text(), f"clearing the L box removes the curve and the light rows {rows()}")
+        c.screenshot(path=str(SHOTS / "m1a_corners.png"), full_page=True)
+        c.close()
 
         # ---- M6: undo/redo, saved designs, exports ----
         w = browser.new_page(viewport={"width": 1440, "height": 1000})
