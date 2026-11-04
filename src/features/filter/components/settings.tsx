@@ -1,0 +1,253 @@
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import {
+  BLOCK_TYPES,
+  type BlockType,
+  type Conv,
+  type Design,
+  type PlotSettings,
+  type Source,
+  TYPES,
+} from '../engine'
+import { mk } from '../state/defaults'
+import { dispatch } from '../state/store'
+import { LINEAR, selectCls } from './styles'
+import { Hint, ToolCard } from './tool-card'
+import { ValueRow } from './value-row'
+
+const CONV_FIELDS: [keyof Conv, string, string, number, number][] = [
+  ['vinMin', 'Vin min', 'V', 1, 1000],
+  ['vinNom', 'Vin nom', 'V', 1, 1000],
+  ['vinMax', 'Vin max', 'V', 1, 1000],
+  ['pout', 'Pout', 'W', 0.01, 10e3],
+  ['eta', 'Efficiency η', '', 0.3, 1],
+  ['vout', 'Vout', 'V', 0.3, 1000],
+  ['fsw', 'fsw', 'Hz', 1e3, 10e6],
+  ['phases', 'Phases N', '', 1, 8],
+  ['k', 'Margin k', 'dB', 0, 20],
+  ['fcheck', 'f check max', 'Hz', 100, 100e6],
+]
+const SRC_FIELDS: [keyof Source, string, string, number, number][] = [
+  ['R', 'Rsrc', 'Ω', 1e-4, 100],
+  ['L', 'Lsrc', 'H', 1e-9, 100e-6],
+]
+
+export function ConverterCard({ S }: { S: Design }) {
+  return (
+    <ToolCard title='Converter (load)'>
+      {CONV_FIELDS.map(([k, l, u, mn, mx]) => (
+        <ValueRow
+          key={k}
+          id={'cv-' + k}
+          label={l}
+          unit={u}
+          value={S.conv[k]}
+          onChange={(v) => dispatch({ t: 'conv', k, v })}
+          min={mn}
+          max={mx}
+          linear={LINEAR.has(k)}
+          int={k === 'phases'}
+        />
+      ))}
+      <Hint>
+        Converter input is modelled as a negative resistance R<sub>n</sub> = −V
+        <sub>in</sub>²·η/P, valid below the converter loop crossover. Margin is
+        checked at V<sub>in,min</sub> up to f<sub>check</sub>.
+      </Hint>
+    </ToolCard>
+  )
+}
+
+export function SourceCard({ S }: { S: Design }) {
+  return (
+    <ToolCard title='Source'>
+      {SRC_FIELDS.map(([k, l, u, mn, mx]) => (
+        <ValueRow
+          key={k}
+          id={'src-' + k}
+          label={l}
+          unit={u}
+          value={S.source[k]}
+          onChange={(v) => dispatch({ t: 'source', k, v })}
+          min={mn}
+          max={mx}
+          zero
+        />
+      ))}
+      <Hint>
+        Ideal source when both are 0. Z<sub>out</sub> is seen from the converter
+        with the source voltage shorted, so R<sub>src</sub> and L<sub>src</sub>{' '}
+        stay in the path.
+      </Hint>
+    </ToolCard>
+  )
+}
+
+const ADD_LABELS: Record<BlockType, string> = {
+  ind: '+ Inductor',
+  bead2: '+ Bead (2-el)',
+  bead4: '+ Bead (4-el)',
+  res: '+ Series R',
+  cap: '+ Capacitor',
+  rc: '+ Rd-Cd leg',
+}
+
+export function AddBlockCard({ S }: { S: Design }) {
+  const add = (t: BlockType) => {
+    const T = TYPES[t]
+    const count =
+      S.blocks.filter((b) => TYPES[b.type].prefix === T.prefix).length + 1
+    const b = mk(t, T.prefix + count)
+    dispatch({ t: 'add', block: b })
+    requestAnimationFrame(() =>
+      document
+        .getElementById('card-' + b.id)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    )
+  }
+  return (
+    <ToolCard title='Add block (added next to the converter)'>
+      <div className='flex flex-wrap gap-1.5'>
+        {BLOCK_TYPES.map((t) => (
+          <Button
+            key={t}
+            size='sm'
+            variant='secondary'
+            data-add={t}
+            onClick={() => add(t)}
+          >
+            {ADD_LABELS[t]}
+          </Button>
+        ))}
+      </div>
+    </ToolCard>
+  )
+}
+
+export function PlotSettingsCard({ S }: { S: Design }) {
+  const pl = S.plot
+  const set = (patch: Partial<PlotSettings>) => dispatch({ t: 'plot', patch })
+  const row = 'my-1.5 flex flex-wrap items-center gap-1.5 text-sm'
+  return (
+    <ToolCard title='Plot settings'>
+      <div className={row}>
+        <label htmlFor='ps-xfer'>Transfer plot</label>
+        <select
+          id='ps-xfer'
+          className={selectCls}
+          value={pl.xfer}
+          onChange={(e) =>
+            set({ xfer: e.target.value as PlotSettings['xfer'] })
+          }
+        >
+          <option value='H'>H = Vout/Vsrc</option>
+          <option value='S21'>S21 (50 Ω ports)</option>
+        </select>
+        <label htmlFor='ps-load'>H load</label>
+        <select
+          id='ps-load'
+          className={selectCls}
+          value={pl.load}
+          onChange={(e) =>
+            set({ load: e.target.value as PlotSettings['load'] })
+          }
+        >
+          <option value='open'>Open</option>
+          <option value='conv'>Converter Rn (Vin nom)</option>
+          <option value='res'>Resistor</option>
+        </select>
+      </div>
+      <div className={cn(row, 'gap-4')}>
+        <label className='flex items-center gap-1.5'>
+          <input
+            type='checkbox'
+            id='ps-und'
+            className='size-4 accent-primary'
+            checked={pl.undamped}
+            onChange={(e) => set({ undamped: e.target.checked })}
+          />
+          Show undamped curve
+        </label>
+        <label className='flex items-center gap-1.5'>
+          <input
+            type='checkbox'
+            id='ps-tol'
+            className='size-4 accent-primary'
+            checked={pl.tol}
+            onChange={(e) => set({ tol: e.target.checked })}
+          />
+          Tolerance curves
+        </label>
+      </div>
+      <ValueRow
+        id='ps-rload'
+        label='R load (H)'
+        unit='Ω'
+        value={pl.rload}
+        onChange={(v) => set({ rload: v })}
+        min={0.01}
+        max={1e4}
+      />
+      <ValueRow
+        id='ps-z0'
+        label='S21 port Z0'
+        unit='Ω'
+        value={pl.z0}
+        onChange={(v) => set({ z0: v })}
+        min={1}
+        max={1000}
+      />
+      <ValueRow
+        id='ps-dL'
+        label='Tol. ΔL'
+        unit='%'
+        value={pl.dL}
+        onChange={(v) => set({ dL: v })}
+        min={-90}
+        max={90}
+        zero
+        linear
+      />
+      <ValueRow
+        id='ps-dC'
+        label='Tol. ΔC'
+        unit='%'
+        value={pl.dC}
+        onChange={(v) => set({ dC: v })}
+        min={-90}
+        max={90}
+        zero
+        linear
+      />
+      <ValueRow
+        id='ps-fmin'
+        label='f min'
+        unit='Hz'
+        value={pl.fmin}
+        onChange={(v) => set({ fmin: Math.min(v, pl.fmax / 10) })}
+        min={0.1}
+        max={1e6}
+      />
+      <ValueRow
+        id='ps-fmax'
+        label='f max'
+        unit='Hz'
+        value={pl.fmax}
+        onChange={(v) => set({ fmax: Math.max(v, pl.fmin * 10) })}
+        min={1e3}
+        max={10e9}
+      />
+      <ValueRow
+        id='ps-n'
+        label='Points'
+        unit=''
+        value={pl.n}
+        onChange={(v) => set({ n: Math.round(v) })}
+        min={100}
+        max={4000}
+        linear
+        int
+      />
+    </ToolCard>
+  )
+}

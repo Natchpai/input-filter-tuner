@@ -1,8 +1,17 @@
 # Input Filter Tuner
 
-A one-file browser tool for tuning DC-DC converter input filters.
-Open `index.html` in Chrome or Edge. Plotly loads from cdnjs the first time;
-after that the browser cache is enough.
+A browser tool for tuning DC-DC converter input filters. Built with Vite,
+React and TypeScript from the web-site-starter template.
+
+## Open it
+
+- **One file, no server:** `npm run build:single`, then double-click
+  `dist-single/index.html` in Chrome or Edge. Everything is inside the file,
+  Plotly included, so it works offline.
+- **GitHub Pages:** pushing to `main` runs `.github/workflows/pages.yml`.
+  Set Settings > Pages > Source to "GitHub Actions" once. The URL path is
+  `base` in `vite.config.ts` (`/input-filter-tuner/`).
+- **While editing:** `npm install`, then `npm run dev`.
 
 ## What it does
 
@@ -61,13 +70,34 @@ steps a value by 5 %, and Shift+Arrow by 25 %.
 ## Tests
 
 ```
-node test/engine.test.mjs      # engine vs. report numbers and regression cases, 75 checks
-python test/browser_check.py   # headless Chrome: presets, tabs, edits, hostile links, phone width
+npm test                          # Vitest: engine, parity, SI parsing, adopt()
+npm run build && npm run build:single
+python -I test/browser_check.py   # headless Chrome on vite preview and the single file
+npm run lint
+npx prettier --check .
+npm run knip
 ```
 
-The engine test checks the report values for D1, D3, D4, LQRx 02, LQRx 03
-and D6. It also checks that the closed-form optimum damping matches the
-numeric optimizer, and that S21 gives the expected results.
+- `engine.test.ts` checks the report values for D1, D3, D4, LQRx 02,
+  LQRx 03 and D6 (75 checks). It also checks that the closed-form optimum
+  damping matches the numeric optimizer, and that S21 gives the expected
+  results.
+- `parity.test.ts` checks every preset against
+  `engine/__fixtures__/legacy-presets.json`, the numbers of the old
+  single-file tool, to 1e-9.
+- `browser_check.py` loads every preset and tab, edits values, uses the
+  helpers, tries a hostile link, and checks 1440 px and 390 px in dark and
+  light. Screenshots go to `%TEMP%ilter-shots`.
+
+## Layout
+
+- `src/features/filter/engine/`: the math, pure TypeScript with no DOM
+  access.
+- `src/features/filter/state/`: presets, `adopt()`, reducer, store,
+  localStorage and links.
+- `src/features/filter/plots/`: sweeps, Plotly traces per tab.
+- `src/features/filter/components/`: cards, schematic, results, toolbar.
+- The rest of `src/` is the template: layout, sidebar, theme, shadcn/ui.
 
 ## References
 

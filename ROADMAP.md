@@ -4,14 +4,14 @@ Proposed improvements, grouped into milestones. Each milestone stands alone,
 so you can pick any of them in any order. Effort is S (under a day),
 M (1 to 3 days) or L (more than 3 days).
 
-Order: **M0 first** (decided 2026-11-04). Then, by value to a filter design
-review: **M1 → M2 → M4 → M3**, and the rest as needed.
+Order: **M0 first** (decided 2026-11-04, done 2026-11-04). Then, by value
+to a filter design review: **M1 → M2 → M4 → M3**, and the rest as needed.
 
 Status key: `[ ]` not started, `[x]` done.
 
 ---
 
-## M0. Port to the web-site-starter template (decided, next)
+## M0. Port to the web-site-starter template (done 2026-11-04, legacy/ kept)
 
 **Decision (2026-11-04):** split the single `index.html` into a Vite +
 TypeScript project, built from the user's template
@@ -36,16 +36,15 @@ TypeScript project, built from the user's template
 **Gaps the template does not cover:**
 - **No test runner.** Add Vitest and port `test/engine.test.mjs`, all
   75 checks. Port `test/browser_check.py` to run against `npm run preview`.
-- **No single-file build.** Today the tool opens with a double-click. Either
-  add `vite-plugin-singlefile`, or host it on GitHub Pages like the template.
-  The user decides this in the M0 plan.
-- **Plotly.** Choose between `plotly.js-dist-min` from npm (about 3.5 MB in
-  the bundle) and the pinned CDN.
+- **No single-file build.** Decided: both. `npm run build:single` with
+  `vite-plugin-singlefile`, and GitHub Pages like the template.
+- **Plotly.** Decided: `plotly.js-basic-dist-min` 2.35.3 from npm (scatter
+  only, about 1 MB), loaded with a dynamic import.
 
 **Port outline (to be planned in detail and approved before any code):**
-- [ ] Start a new project from the template. Keep the current `index.html`
+- [x] Start a new project from the template. Keep the current `index.html`
   as the reference until the port has parity.
-- [ ] Engine as pure typed modules under `src/features/filter/engine/`:
+- [x] Engine as pure typed modules under `src/features/filter/engine/`:
   - complex math
   - block types
   - ABCD ladder
@@ -53,23 +52,23 @@ TypeScript project, built from the user's template
   - metrics and stage lookup (`sectionOf`)
   - closed forms
   - presets
-- [ ] State: a reducer, with URL-hash and localStorage persistence. Keep
+- [x] State: a reducer, with URL-hash and localStorage persistence. Keep
   `adopt()` as the only whitelist and validator for untrusted input.
-- [ ] UI as React components using the template's card patterns:
+- [x] UI as React components using the template's card patterns:
   - value rows with a slider
   - block cards
   - SVG schematic
   - plot tabs
   - results tiles
   - snapshots
-- [ ] Parity check: every engine check passes in Vitest, every browser check
+- [x] Parity check: every engine check passes in Vitest, every browser check
   passes, and the presets give the same numbers as the old `index.html`.
 
 **Done when:**
 - The port matches the old tool on all 14 presets.
 - All engine and browser checks pass.
 - The template's build, lint and Prettier checks pass.
-- The old `index.html` is retired.
+- The old `index.html` is retired. (Kept in `legacy/` for now, by choice.)
 
 ---
 
@@ -198,19 +197,17 @@ margin.
 - [ ] **Named designs (S).** Save several designs in the browser, compare them
   side by side, and keep snapshots across reloads.
 - [ ] **Undo/redo (S).**
-- [ ] **Offline use (S).** Bundle a pinned Plotly next to `index.html`, so the
-  tool works with no network.
+- [x] **Offline use (S).** Done in M0: the single-file build carries Plotly.
 
 ---
 
 ## M7. Code health
 
-- [ ] **Engine as its own file (S).** Move the engine to `engine.js`, still
-  with no build step, so Node and other tools can import it directly.
+- [x] **Engine as its own file (S).** Done in M0: `src/features/filter/engine/`.
 - [ ] **ngspice cross-check (M).** A test that runs each preset in ngspice and
   compares Zout and H with the engine within 0.5 dB.
-- [ ] **CI (S).** Run both test suites on every change, if the folder becomes
-  a git repository.
+- [ ] **CI (S).** Run both test suites on every change. The Pages workflow
+  runs `npm test` before it builds; the browser check is not in CI yet.
 
 ---
 

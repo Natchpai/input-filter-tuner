@@ -1,0 +1,1514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Input Filter Tuner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly.min.js"></script>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #5d6673; --line: #d9dde3;
+  --accent: #2563eb; --accent-2: #d97706; --accent-3: #7c3aed; --accent-4: #059669;
+  --bad: #dc2626; --good: #16a34a; --warn: #ca8a04; --input: #ffffff; --chip: #eef1f5;
+  --wire: #374151; --part: #1d4ed8; --ghost: .28;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1216; --panel: #171b21; --ink: #e6e9ee; --muted: #9aa4b2; --line: #2a313b;
+    --accent: #60a5fa; --accent-2: #fbbf24; --accent-3: #c4b5fd; --accent-4: #34d399;
+    --bad: #f87171; --good: #4ade80; --warn: #facc15; --input: #0f1318; --chip: #222831;
+    --wire: #cbd5e1; --part: #93c5fd;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1216; --panel: #171b21; --ink: #e6e9ee; --muted: #9aa4b2; --line: #2a313b;
+  --accent: #60a5fa; --accent-2: #fbbf24; --accent-3: #c4b5fd; --accent-4: #34d399;
+  --bad: #f87171; --good: #4ade80; --warn: #facc15; --input: #0f1318; --chip: #222831;
+  --wire: #cbd5e1; --part: #93c5fd;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+body { overflow-x: hidden; }
+header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px;
+  border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 650; }
+header .sp { flex: 1; }
+button, select, input { font: inherit; color: var(--ink); }
+button { background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+select, input[type=text], input[type=number] { background: var(--input); border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; }
+input.err { border-color: var(--bad); outline: 1px solid var(--bad); }
+main { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 12px; padding: 12px 16px; }
+@media (max-width: 960px) { main { grid-template-columns: minmax(0, 1fr); } header { position: static; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+.card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 8px; font-weight: 650;
+  display: flex; align-items: center; gap: 6px; }
+.card h2 .sp { flex: 1; }
+.row { display: grid; grid-template-columns: 92px 92px minmax(0, 1fr) 22px; gap: 6px; align-items: center; margin: 3px 0; }
+.row label { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row input[type=text] { width: 100%; text-align: right; font-variant-numeric: tabular-nums; }
+.row input[type=range] { width: 100%; accent-color: var(--accent); }
+.row .u { color: var(--muted); font-size: 11px; }
+.row2 { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 5px 0; }
+.row2 input[type=text] { width: 64px; text-align: right; }
+.blk { border-left: 3px solid var(--accent); }
+.blk.shunt { border-left-color: var(--accent-4); }
+.blk.off { opacity: .55; }
+.blk .bh { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.blk .bh input.name { width: 64px; font-weight: 650; }
+.blk .bh .t { color: var(--muted); font-size: 11px; flex: 1; }
+.blk .bh button { padding: 1px 7px; }
+.hint { color: var(--muted); font-size: 11px; margin: 4px 0 0; }
+.hint b { color: var(--ink); font-weight: 600; }
+.addbar { display: flex; flex-wrap: wrap; gap: 6px; }
+#sch { overflow-x: auto; }
+#sch svg { display: block; min-width: 100%; }
+#sch .w { stroke: var(--wire); stroke-width: 1.4; fill: none; }
+#sch .p { stroke: var(--part); stroke-width: 1.6; fill: none; }
+#sch .pf { fill: var(--part); stroke: var(--part); }
+#sch .lbl { fill: var(--ink); font-size: 10px; }
+#sch .val { fill: var(--muted); font-size: 10px; }
+#sch .dot { fill: var(--wire); }
+#sch .hit { fill: transparent; cursor: pointer; }
+#sch .hit:hover { fill: color-mix(in srgb, var(--accent) 15%, transparent); }
+#sch .ghost { opacity: var(--ghost); }
+#sch .box { fill: var(--chip); stroke: var(--wire); stroke-width: 1.2; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.kpi { border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; }
+.kpi .k { color: var(--muted); font-size: 11px; }
+.kpi .v { font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.kpi .s { color: var(--muted); font-size: 11px; }
+.kpi.good { border-color: var(--good); } .kpi.good .v { color: var(--good); }
+.kpi.bad { border-color: var(--bad); } .kpi.bad .v { color: var(--bad); }
+.kpi.warn { border-color: var(--warn); }
+table.res { width: 100%; border-collapse: collapse; margin-top: 8px; font-variant-numeric: tabular-nums; }
+table.res td, table.res th { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+table.res td.n { text-align: right; }
+table.res th { color: var(--muted); font-weight: 600; font-size: 11px; }
+details summary { cursor: pointer; color: var(--muted); }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.plot { width: 100%; height: 520px; }
+.plotpair { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 8px; }
+@media (max-width: 760px) { .plotpair { grid-template-columns: minmax(0, 1fr); } .plot { height: 420px; } }
+.note { font-size: 11px; color: var(--muted); }
+.pill { display: inline-block; padding: 0 6px; border-radius: 9px; background: var(--chip); font-size: 11px; }
+.pill.good { color: var(--good); } .pill.bad { color: var(--bad); }
+a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Input Filter Tuner</h1>
+  <select id="preset" title="Load a preset"></select>
+  <button id="bSnap" title="Freeze current curves as a grey reference">Snapshot</button>
+  <button id="bClrSnap">Clear snapshots</button>
+  <span class="sp"></span>
+  <button id="bLink" title="Copy a link that holds the whole design">Copy link</button>
+  <button id="bSave">Save JSON</button>
+  <button id="bLoad">Load JSON</button>
+  <button id="bCsv">Export CSV</button>
+  <button id="bTheme" title="Toggle light/dark">Theme</button>
+  <input type="file" id="fileIn" accept=".json,application/json" hidden>
+</header>
+<main>
+  <aside>
+    <section class="card" id="convCard"><h2>Converter (load)</h2><div id="conv"></div>
+      <p class="hint">Converter input is modelled as a negative resistance R<sub>n</sub> = −V<sub>in</sub>²·η/P, valid below the converter loop crossover. Margin is checked at V<sub>in,min</sub> up to f<sub>check</sub>.</p></section>
+    <section class="card"><h2>Source</h2><div id="src"></div>
+      <p class="hint">Ideal source when both are 0. Z<sub>out</sub> is seen from the converter with the source voltage shorted, so R<sub>src</sub> and L<sub>src</sub> stay in the path.</p></section>
+    <div id="blocks"></div>
+    <section class="card"><h2>Add block (added next to the converter)</h2>
+      <div class="addbar">
+        <button data-add="ind">+ Inductor</button>
+        <button data-add="bead2">+ Bead (2-el)</button>
+        <button data-add="bead4">+ Bead (4-el)</button>
+        <button data-add="res">+ Series R</button>
+        <button data-add="cap">+ Capacitor</button>
+        <button data-add="rc">+ Rd-Cd leg</button>
+      </div></section>
+    <section class="card"><h2>Plot settings</h2><div id="plotset"></div></section>
+  </aside>
+  <div>
+    <section class="card"><h2>Circuit <span class="sp"></span><span class="note">click a part to edit it</span></h2><div id="sch"></div></section>
+    <section class="card"><h2>Results</h2><div class="kpis" id="kpis"></div>
+      <details><summary>All numbers</summary><table class="res" id="restab"></table></details></section>
+    <section class="card">
+      <div class="tabs" id="tabs"></div>
+      <div id="plotwrap"></div>
+      <p class="note" id="plotnote"></p>
+    </section>
+    <section class="card"><h2>Notes</h2>
+      <div class="note">
+        <p><b>H</b> = V<sub>out</sub>/V<sub>src</sub> with the source impedance and the chosen load (default: converter side open), as in the NP-DR reports. Because the network is reciprocal, |H<sub>open</sub>| also equals the ratio of source ripple current to converter ripple current.
+        <b>S21</b> is the 50&nbsp;Ω two-port S21 of the filter blocks only (no source impedance), as a VNA measures it.</p>
+        <p><b>Q<sub>eff</sub></b> = peak|Z<sub>out</sub>| / Z<sub>0</sub>, with Z<sub>0</sub> = √(L/C) of the series element nearest the converter and the capacitors after it.
+        <b>Rd for Q</b> uses Rd = Z<sub>0</sub>²/(Z<sub>0</sub>/Q − r<sub>L</sub>) (NP-DR-26001 eq. for the Rd-Cd leg).
+        <b>Optimum Rd</b> searches Rd for the lowest peak |Z<sub>out</sub>| with every parasitic included.
+        The closed-form optimum (lossless L and C) for Rd-Cd, parallel Rd-Ld and series Rd‖Ld follows Middlebrook and Erickson; this tool checked each one against its own numeric optimizer for n = 0.1 to 4.</p>
+        <p>Ripple: the converter input current harmonic at N·f<sub>sw</sub> is 2·I<sub>o</sub>·|sin(NπD)|/(Nπ) (peak, ideal trapezoid, N interleaved phases, D = V<sub>out</sub>/(V<sub>in,nom</sub>·η)). Block losses at that frequency use this one harmonic only.</p>
+      </div></section>
+  </div>
+</main>
+
+<script>
+// ENGINE-START
+const Engine = (() => {
+  'use strict';
+  const TAU = 2 * Math.PI;
+  const cx = (re, im = 0) => ({ re, im });
+  const ZERO = cx(0), ONE = cx(1);
+  const add = (a, b) => cx(a.re + b.re, a.im + b.im);
+  const mul = (a, b) => cx(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re);
+  const div = (a, b) => { const d = b.re * b.re + b.im * b.im; return cx((a.re * b.re + a.im * b.im) / d, (a.im * b.re - a.re * b.im) / d); };
+  const inv = a => div(ONE, a);
+  const abs = a => Math.hypot(a.re, a.im);
+  const argd = a => Math.atan2(a.im, a.re) * 180 / Math.PI;
+  const TINY = 1e-15;
+  // Parallel of impedances; null = open branch.
+  function par(...zs) {
+    let y = ZERO;
+    for (const z of zs) { if (z === null) continue; y = add(y, inv(abs(z) < TINY ? cx(TINY) : z)); }
+    return abs(y) < TINY ? cx(1 / TINY) : inv(y);
+  }
+  const db = x => 20 * Math.log10(Math.max(x, 1e-300));
+
+  // Block types. kind: series (in the rail) or shunt (rail to ground).
+  // p: [key, label, unit, default, min, max, allowZero]
+  const TYPES = {
+    ind:   { kind: 'series', label: 'Inductor', prefix: 'L', p: [
+      ['L', 'L', 'H', 10e-6, 1e-9, 10e-3, false], ['dcr', 'DCR', 'Ω', 20e-3, 1e-4, 10, true],
+      ['cp', 'Cp (SRF)', 'F', 0, 0.1e-12, 1e-9, true]],
+      damp: true },
+    bead2: { kind: 'series', label: 'Ferrite bead, 2-element: Rdc + (Lb ∥ Rb)', prefix: 'FB', p: [
+      ['rdc', 'Rdc', 'Ω', 50e-3, 1e-4, 10, true], ['lb', 'Lb', 'H', 1e-6, 1e-9, 100e-6, false],
+      ['rb', 'Rb', 'Ω', 50, 0.1, 10e3, false]], damp: false },
+    bead4: { kind: 'series', label: 'Ferrite bead, 4-element: Rs + (Lb ∥ Rp ∥ Cb)', prefix: 'FB', p: [
+      ['rs', 'Rs', 'Ω', 50e-3, 1e-4, 10, true], ['lb', 'Lb', 'H', 1e-6, 1e-9, 100e-6, false],
+      ['rp', 'Rp', 'Ω', 150, 0.1, 100e3, false], ['cb', 'Cb', 'F', 2e-12, 0.01e-12, 1e-9, true]], damp: false },
+    res:   { kind: 'series', label: 'Series resistor', prefix: 'R', p: [
+      ['r', 'R', 'Ω', 0.1, 1e-4, 1e3, true], ['l', 'ESL', 'H', 0, 0.01e-9, 100e-9, true]], damp: false },
+    cap:   { kind: 'shunt', label: 'Capacitor bank', prefix: 'C', p: [
+      ['c', 'C (each)', 'F', 10e-6, 1e-12, 10e-3, false], ['esr', 'ESR (each)', 'Ω', 5e-3, 1e-4, 10, true],
+      ['esl', 'ESL (each)', 'H', 0, 0.01e-9, 100e-9, true], ['n', 'Count', '', 1, 1, 50, false],
+      ['derate', 'DC-bias loss', '%', 0, 0, 90, true]], damp: false },
+    rc:    { kind: 'shunt', label: 'Rd-Cd damping leg', prefix: 'Rd', p: [
+      ['rd', 'Rd', 'Ω', 1, 1e-3, 1e3, true], ['cd', 'Cd', 'F', 47e-6, 1e-9, 10e-3, false],
+      ['esr', 'Cd ESR', 'Ω', 0, 1e-4, 10, true], ['esl', 'Cd ESL', 'H', 0, 0.01e-9, 100e-9, true]], damp: false },
+  };
+  // Damping options for an inductor.
+  const DAMP = {
+    none:  'No damping',
+    R:     'R across L (method B)',
+    RLpar: 'Rd + Ld in series, across L (parallel Rd-Ld)',
+    RLser: 'Rd ∥ Ld, in series with L (series Rd-Ld)',
+  };
+  const SC1 = { L: 1, C: 1 };
+
+  function effC(b, s = SC1) { return b.c * (1 - (b.derate || 0) / 100) * s.C; }
+
+  function zBlock(b, w, s = SC1) {
+    switch (b.type) {
+      case 'ind': {
+        let z = cx(b.dcr, w * b.L * s.L);
+        if (b.cp > 0) z = par(z, cx(0, -1 / (w * b.cp)));
+        if (b.dmode === 'R') z = par(z, cx(b.dR));
+        else if (b.dmode === 'RLpar') z = par(z, cx(b.dR, w * b.dL));
+        else if (b.dmode === 'RLser') z = add(z, par(cx(b.dR), cx(0, w * b.dL)));
+        return z;
+      }
+      case 'bead2': return add(cx(b.rdc), par(cx(0, w * b.lb * s.L), cx(b.rb)));
+      case 'bead4': return add(cx(b.rs), par(cx(0, w * b.lb * s.L), cx(b.rp), b.cb > 0 ? cx(0, -1 / (w * b.cb)) : null));
+      case 'res':   return cx(b.r, w * b.l);
+      case 'cap': {
+        const n = Math.max(1, b.n);
+        return cx(b.esr / n, (w * b.esl - 1 / (w * effC(b, s))) / n);
+      }
+      case 'rc':    return cx(b.rd + b.esr, w * b.esl - 1 / (w * b.cd));
+    }
+    throw new Error('unknown block ' + b.type);
+  }
+  const kindOf = b => TYPES[b.type].kind;
+
+  // DC resistance of a series block (inductors are shorts at DC).
+  function dcR(b) {
+    switch (b.type) {
+      case 'ind': return (b.dmode === 'R' || b.dmode === 'RLpar') ? (b.dcr + b.dR > 0 ? b.dcr * b.dR / (b.dcr + b.dR) : 0) : b.dcr;
+      case 'bead2': return b.rdc;
+      case 'bead4': return b.rs;
+      case 'res': return b.r;
+    }
+    return 0;
+  }
+  const isInductive = b => b.type === 'ind' || b.type === 'bead2' || b.type === 'bead4';
+  const mainL = (b, s = SC1) => (b.type === 'ind' ? b.L : b.lb) * s.L;
+
+  function abcd(blocks, w, s) {
+    let A = ONE, B = ZERO, C = ZERO, D = ONE;
+    for (const b of blocks) {
+      if (!b.on) continue;
+      const z = zBlock(b, w, s);
+      if (kindOf(b) === 'series') { B = add(mul(A, z), B); D = add(mul(C, z), D); }
+      else { const y = inv(abs(z) < TINY ? cx(TINY) : z); A = add(A, mul(B, y)); C = add(C, mul(D, y)); }
+    }
+    return { A, B, C, D };
+  }
+
+  const rnOf = (conv, vin) => -(vin * vin * conv.eta) / conv.pout;
+
+  function loadZ(st) {
+    const pl = st.plot;
+    if (pl.load === 'conv') return cx(rnOf(st.conv, st.conv.vinNom));
+    if (pl.load === 'res') return cx(pl.rload);
+    return null; // open
+  }
+
+  // Everything at one frequency.
+  function point(st, f, s = SC1) {
+    const w = TAU * f;
+    const { A, B, C, D } = abcd(st.blocks, w, s);
+    const Zs = cx(st.source.R, w * st.source.L);
+    const den = add(A, mul(Zs, C));
+    const num = add(B, mul(Zs, D));
+    const Zout = div(num, den);
+    const Hopen = inv(den);
+    const ZL = loadZ(st);
+    const H = ZL ? inv(add(den, div(num, ZL))) : Hopen;
+    const z0 = st.plot.z0 || 50;
+    const S21 = div(cx(2), add(add(A, D), add(cx(B.re / z0, B.im / z0), cx(C.re * z0, C.im * z0))));
+    const Rn = cx(rnOf(st.conv, st.conv.vinNom));
+    const Zin = div(add(mul(A, Rn), B), add(mul(C, Rn), D));
+    const ZinOpen = div(A, C);
+    const RnMin = rnOf(st.conv, st.conv.vinMin);
+    const Tm = cx(Zout.re / RnMin, Zout.im / RnMin);
+    return { Zout, Hopen, H, S21, Zin, ZinOpen, Tm };
+  }
+
+  function grid(fmin, fmax, n) {
+    const a = Math.log10(fmin), b = Math.log10(fmax), out = new Float64Array(n);
+    for (let i = 0; i < n; i++) out[i] = 10 ** (a + (b - a) * i / (n - 1));
+    return out;
+  }
+
+  function sweep(st, s = SC1, f = null) {
+    f = f || grid(st.plot.fmin, st.plot.fmax, st.plot.n);
+    const keys = ['Zout', 'Hopen', 'H', 'S21', 'Zin', 'ZinOpen', 'Tm'];
+    const r = { f };
+    for (const k of keys) r[k] = new Array(f.length);
+    for (let i = 0; i < f.length; i++) { const p = point(st, f[i], s); for (const k of keys) r[k][i] = p[k]; }
+    return r;
+  }
+
+  function golden(fn, a, b, it = 60) {
+    const g = (Math.sqrt(5) - 1) / 2;
+    let x1 = b - g * (b - a), x2 = a + g * (b - a), f1 = fn(x1), f2 = fn(x2);
+    for (let i = 0; i < it; i++) {
+      if (f1 < f2) { b = x2; x2 = x1; f2 = f1; x1 = b - g * (b - a); f1 = fn(x1); }
+      else { a = x1; x1 = x2; f1 = f2; x2 = a + g * (b - a); f2 = fn(x2); }
+    }
+    return (a + b) / 2;
+  }
+
+  // Bisection in log f for the point where Im(Zout) changes sign between 10^a and 10^b.
+  function imZero(st, a, b, s) {
+    let sa = Math.sign(point(st, 10 ** a, s).Zout.im);
+    for (let k = 0; k < 50; k++) {
+      const m = (a + b) / 2, sm = Math.sign(point(st, 10 ** m, s).Zout.im);
+      if (sm === sa) a = m; else b = m;
+    }
+    return 10 ** ((a + b) / 2);
+  }
+
+  // Peak of |Zout| between fLo and fHi. A coarse grid alone can step over a narrow
+  // resonance, so every local maximum is refined, and so is every inductive-to-capacitive
+  // crossing of Im(Zout) (a parallel resonance), which the grid always sees.
+  function peakZout(st, fLo, fHi, s = SC1, n = 400) {
+    const la = Math.log10(fLo), lb = Math.log10(fHi);
+    const lf = i => la + (lb - la) * i / (n - 1);
+    const z = new Array(n), v = new Float64Array(n);
+    let bi = 0;
+    for (let i = 0; i < n; i++) { z[i] = point(st, 10 ** lf(i), s).Zout; v[i] = abs(z[i]); if (v[i] > v[bi]) bi = i; }
+    let best = { f: 10 ** lf(bi), v: v[bi], edge: bi === 0 || bi === n - 1 };
+    const take = f => { const val = abs(point(st, f, s).Zout); if (val > best.v) best = { f, v: val, edge: false }; };
+    const refine = (a, b) => take(10 ** golden(t => -abs(point(st, 10 ** t, s).Zout), a, b, 40));
+    const maxima = [];
+    for (let i = 0; i < n; i++) {
+      const l = i > 0 ? v[i - 1] : -Infinity, r = i < n - 1 ? v[i + 1] : -Infinity;
+      if (v[i] >= l && v[i] >= r) maxima.push(i);
+    }
+    maxima.sort((a, b) => v[b] - v[a]);
+    for (const i of maxima.slice(0, 8)) refine(lf(Math.max(0, i - 1)), lf(Math.min(n - 1, i + 1)));
+    for (let i = 0; i < n - 1; i++) {
+      if (z[i].im > 0 && z[i + 1].im <= 0) {
+        const fr = imZero(st, lf(i), lf(i + 1), s);
+        take(fr);
+        const w = (lb - la) / (n - 1);
+        refine(Math.log10(fr) - w, Math.log10(fr) + w);
+      }
+    }
+    return best;
+  }
+
+  // One LC section: an inductive series block and the capacitor banks after it,
+  // up to the next inductive series block.
+  function sectionAt(bl, idx, s = SC1) {
+    let C = 0;
+    for (let i = idx + 1; i < bl.length; i++) {
+      if (kindOf(bl[i]) === 'series' && isInductive(bl[i])) break;
+      if (bl[i].type === 'cap') C += effC(bl[i], s) * Math.max(1, bl[i].n);
+    }
+    if (!(C > 0)) return null;
+    const L = mainL(bl[idx], s);
+    return { block: bl[idx], L, C, Z0: Math.sqrt(L / C), f0: 1 / (TAU * Math.sqrt(L * C)), rL: dcR(bl[idx]) };
+  }
+  const isLser = b => kindOf(b) === 'series' && isInductive(b);
+
+  // Primary filter section: the inductive series block nearest the converter.
+  function primary(st, s = SC1) {
+    const bl = st.blocks.filter(b => b.on);
+    for (let i = bl.length - 1; i >= 0; i--) if (isLser(bl[i])) return sectionAt(bl, i, s);
+    return null;
+  }
+
+  // The section a block belongs to: an inductor is its own section; any other block
+  // belongs to the nearest inductive series block on the source side.
+  function sectionOf(st, id, s = SC1) {
+    const bl = st.blocks.filter(b => b.on || b.id === id);
+    const j = bl.findIndex(b => b.id === id);
+    if (j < 0) return null;
+    for (let i = j; i >= 0; i--) if (isLser(bl[i])) return sectionAt(bl, i, s);
+    return null;
+  }
+
+  // Closed-form optimum damping for a lossless LC section (Middlebrook / Erickson).
+  // rc: n = Cd/C. RLpar and RLser: n = Ld/L. Returns Rd and peak |Zout|, both scaled by Z0.
+  function closedForm(mode, n, Z0) {
+    if (!(n > 0) || !(Z0 > 0)) return null;
+    if (mode === 'rc') return { rd: Z0 * Math.sqrt((2 + n) * (4 + 3 * n) / (2 * n * n * (4 + n))), peak: Z0 * Math.sqrt(2 * (2 + n)) / n };
+    if (mode === 'RLpar') return { rd: Z0 * Math.sqrt(n * (3 + 4 * n) * (1 + 2 * n) / (2 * (1 + 4 * n))), peak: Z0 * Math.sqrt(2 * n * (1 + 2 * n)) };
+    if (mode === 'RLser') return { rd: Z0 * (n / (1 + n)) * Math.sqrt((2 + n) * (4 + 3 * n) / (2 * (1 + n) * (4 + n))), peak: Z0 * Math.sqrt(2 * (1 + n) * (2 + n)) / n };
+    return null;
+  }
+
+  // NP-DR-26001: Rd = Z0^2 / (Z0/Q - rL). Returns Infinity when rL alone already gives Q.
+  function rdForQ(Z0, Q, rL) { const d = Z0 / Q - rL; return d > 0 ? Z0 * Z0 / d : Infinity; }
+
+  // NP-DR-26004 datasheet extraction for the 4-element bead.
+  function beadFromDatasheet({ rdc, fx, x, fsrf, zmax }) {
+    const lb = x / (TAU * fx);
+    return { rs: rdc, lb, rp: Math.max(zmax - rdc, 1e-3), cb: fsrf > 0 ? 1 / ((TAU * fsrf) ** 2 * lb) : 0 };
+  }
+
+  function checkRange(st) {
+    const lo = st.plot.fmin;
+    return [lo, Math.max(Math.min(st.conv.fcheck || st.conv.fsw, st.plot.fmax), lo * 1.01)];
+  }
+
+  // Which parameter is the damping resistor of a block, if any.
+  function dampKey(b) {
+    if (b.type === 'rc') return 'rd';
+    if (b.type === 'ind' && b.dmode && b.dmode !== 'none') return 'dR';
+    return null;
+  }
+
+  function withParam(st, id, key, val) {
+    return { ...st, blocks: st.blocks.map(b => b.id === id ? { ...b, [key]: val } : b) };
+  }
+
+  function optimizeParam(st, id, key, lo, hi) {
+    const [fLo, fHi] = checkRange(st);
+    const obj = t => peakZout(withParam(st, id, key, Math.exp(t)), fLo, fHi, SC1, 300).v;
+    const x = golden(obj, Math.log(lo), Math.log(hi), 50);
+    const val = Math.exp(x);
+    return { val, peak: peakZout(withParam(st, id, key, val), fLo, fHi).v };
+  }
+
+  function sweepParam(st, id, key, values) {
+    const [fLo, fHi] = checkRange(st);
+    return values.map(v => {
+      const s2 = withParam(st, id, key, v);
+      return { v, peak: peakZout(s2, fLo, fHi, SC1, 160).v, hfsw: db(abs(point(s2, st.conv.fsw).Hopen)) };
+    });
+  }
+
+  function undamped(st) {
+    return { ...st, blocks: st.blocks.map(b => b.type === 'rc' ? { ...b, on: false } : (b.type === 'ind' ? { ...b, dmode: 'none' } : b)) };
+  }
+
+  function metrics(st) {
+    const cv = st.conv;
+    const [fLo, fHi] = checkRange(st);
+    const rn = { min: rnOf(cv, cv.vinMin), nom: rnOf(cv, cv.vinNom), max: rnOf(cv, cv.vinMax) };
+    const pk = peakZout(st, fLo, fHi);
+    const prim = primary(st);
+    const margin = db(Math.abs(rn.min) / pk.v);
+    // Nyquist: Tm = Zout/Rn with Rn < 0, so Tm crosses the real axis left of -1
+    // where Im(Zout) = 0 and Re(Zout) > |Rn|. Each crossing is located by bisection,
+    // because Re(Zout) at a high-Q crossing is far above the grid samples next to it.
+    // Same range as the margin: Rn is only valid up to f check.
+    const nq = Math.max(400, st.plot.n);
+    const la = Math.log10(fLo), lb = Math.log10(fHi), lf = i => la + (lb - la) * i / (nq - 1);
+    let unstableAt = null, prevIm = point(st, 10 ** la).Zout.im;
+    for (let i = 1; i < nq && unstableAt === null; i++) {
+      const im = point(st, 10 ** lf(i)).Zout.im;
+      if (Math.sign(im) !== Math.sign(prevIm)) {
+        const fr = imZero(st, lf(i - 1), lf(i), SC1);
+        if (point(st, fr).Zout.re > Math.abs(rn.min)) unstableAt = fr;
+      }
+      prevIm = im;
+    }
+    // DC
+    let rdc = st.source.R;
+    for (const b of st.blocks) if (b.on && kindOf(b) === 'series') rdc += dcR(b);
+    const iin = cv.pout / (cv.eta * cv.vinMin);
+    // Ripple
+    const N = Math.max(1, Math.round(cv.phases || 1));
+    const D = Math.min(1, Math.max(0, cv.vout / (cv.vinNom * cv.eta)));
+    const io = cv.pout / cv.vout;
+    const k = Math.floor(N * D);
+    const iacRms = (io / N) * Math.sqrt(Math.max(0, (N * D - k) * (k + 1 - N * D)));
+    const fr = N * cv.fsw;
+    const ih = 2 * io * Math.abs(Math.sin(N * Math.PI * D)) / (N * Math.PI);
+    const pr = point(st, fr), ps = point(st, cv.fsw);
+    // Per-block loss at the ripple fundamental (backward walk from the converter).
+    const w = TAU * fr;
+    // Converter draws I = ih out of the output node, so V = -Zout·I there.
+    let I = cx(ih), V = cx(-pr.Zout.re * ih, -pr.Zout.im * ih);
+    const acLoss = {};
+    const on = st.blocks.filter(b => b.on);
+    for (let i = on.length - 1; i >= 0; i--) {
+      const b = on[i], z = zBlock(b, w);
+      if (kindOf(b) === 'series') { acLoss[b.id] = abs(I) ** 2 * z.re / 2; V = add(V, mul(z, I)); }
+      else { const il = div(V, z); acLoss[b.id] = abs(il) ** 2 * z.re / 2; I = add(I, il); }
+    }
+    const dcLoss = {};
+    for (const b of on) if (kindOf(b) === 'series') dcLoss[b.id] = iin * iin * dcR(b);
+    // Series-form Q as in the NP-DR reports: Q = Z0 / r_total, where r_total is the
+    // series-equivalent loss at f0. At resonance Zout ≈ Z0²/r_total, so Q = Re(Zout(f0))/Z0.
+    const qSeries = prim ? point(st, prim.f0).Zout.re / prim.Z0 : null;
+    return {
+      rn, peak: pk, peakIsEdge: pk.edge, margin, pass: margin >= cv.k && !unstableAt, unstableAt,
+      prim, qeff: prim ? pk.v / prim.Z0 : null, qSeries, fLo, fHi,
+      dc: { r: rdc, iin, drop: iin * rdc, loss: iin * iin * rdc, pct: 100 * iin * iin * rdc / cv.pout, perBlock: dcLoss },
+      ripple: { N, D, io, iacRms, fr, ih, hfr: abs(pr.Hopen), hfsw: abs(ps.Hopen), s21fr: abs(pr.S21),
+        isrc: ih * abs(pr.Hopen), vout: ih * abs(pr.Zout), perBlock: acLoss },
+    };
+  }
+
+  return { TYPES, DAMP, TAU, cx, abs, argd, db, par, zBlock, dcR, effC, abcd, point, grid, sweep, peakZout,
+    primary, sectionOf, closedForm, rdForQ, beadFromDatasheet, metrics, optimizeParam, sweepParam, undamped, rnOf,
+    dampKey, checkRange, withParam, kindOf, mainL, isInductive };
+})();
+if (typeof module !== 'undefined') module.exports = Engine;
+// ENGINE-END
+</script>
+
+<script>
+'use strict';
+const E = Engine;
+
+// ---------- SI formatting and parsing ----------
+const PFX = [[1e12, 'T'], [1e9, 'G'], [1e6, 'M'], [1e3, 'k'], [1, ''], [1e-3, 'm'], [1e-6, 'µ'], [1e-9, 'n'], [1e-12, 'p'], [1e-15, 'f']];
+function fmtSI(v, unit = '', sig = 3) {
+  if (v === null || v === undefined || Number.isNaN(v)) return '–';
+  if (!Number.isFinite(v)) return (v > 0 ? '∞' : '−∞') + (unit ? ' ' + unit : '');
+  if (v === 0) return '0' + (unit ? ' ' + unit : '');
+  const a = Math.abs(v);
+  let p = PFX.find(([m]) => a >= m * 0.9995) || PFX[PFX.length - 1];
+  let x = v / p[0];
+  let s = Number(x.toPrecision(sig)).toString();
+  return (v < 0 ? s.replace('-', '−') : s) + (unit || p[1] ? ' ' : '') + p[1] + unit;
+}
+function fmtIn(v) { // compact for inputs
+  if (v === 0) return '0';
+  const a = Math.abs(v);
+  const p = PFX.find(([m]) => a >= m * 0.9995) || PFX[PFX.length - 1];
+  return Number((v / p[0]).toPrecision(4)).toString() + (p[1] === 'µ' ? 'u' : p[1]);
+}
+const SFX = { T: 1e12, G: 1e9, M: 1e6, k: 1e3, K: 1e3, m: 1e-3, u: 1e-6, 'µ': 1e-6, 'μ': 1e-6, n: 1e-9, p: 1e-12, f: 1e-15 };
+function parseSI(str) {
+  // Strip a unit word, case-sensitive, so a femto "f" or milli "m" prefix is kept.
+  let s = String(str).trim().replace(/,/g, '.').replace(/\s+/g, '').replace(/(Ω|ohms?|Hz|H|F|V|W|A|%)$/, '');
+  if (/^meg/i.test(s.replace(/^[-+0-9.e]+/i, ''))) s = s.replace(/meg$/i, 'M');
+  // 4u7 style
+  let m = s.match(/^([-+]?\d+)([TGMkKmuµμnpf])(\d+)$/);
+  if (m) return parseFloat(m[1] + '.' + m[3]) * SFX[m[2]];
+  m = s.match(/^([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)([TGMkKmuµμnpf]?)$/i);
+  if (!m) return NaN;
+  return parseFloat(m[1]) * (m[2] ? SFX[m[2]] : 1);
+}
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ---------- State ----------
+let uid = 1;
+const newId = () => 'b' + (uid++);
+function mk(type, name, vals = {}) {
+  const T = E.TYPES[type];
+  const b = { id: newId(), type, name, on: true };
+  for (const [k, , , def] of T.p) b[k] = def;
+  if (type === 'ind') { b.dmode = 'none'; b.dR = 1; b.dL = 10e-6; }
+  return Object.assign(b, vals);
+}
+function baseState(name, conv, source, blocks, plot = {}) {
+  return {
+    v: 1, name,
+    conv: Object.assign({ vinMin: 12, vinNom: 12, vinMax: 12, pout: 10, eta: 1, vout: 5, fsw: 1e6, phases: 1, k: 6, fcheck: 1e6 }, conv),
+    source: Object.assign({ R: 0, L: 0 }, source),
+    blocks,
+    plot: Object.assign({ fmin: 10, fmax: 100e6, n: 800, xfer: 'H', load: 'open', rload: 10, z0: 50, undamped: true,
+      tol: false, dL: -30, dC: -40, tab: 'zout', sweepId: null }, plot),
+  };
+}
+
+const PRESETS = [
+  { name: 'D1 · LC undamped (48 V, 100 W)', make: () => baseState('D1 LC undamped',
+    { vinMin: 48, vinNom: 48, vinMax: 48, pout: 100, eta: 1, vout: 12, fsw: 500e3, fcheck: 500e3 }, {},
+    [mk('ind', 'L1', { L: 22e-6, dcr: 20e-3 }), mk('cap', 'C1', { c: 10e-6, esr: 0 })]) },
+  { name: 'D1 · LC + Rd-Cd, Q = 0.707', make: () => baseState('D1 LC + Rd-Cd',
+    { vinMin: 48, vinNom: 48, vinMax: 48, pout: 100, eta: 1, vout: 12, fsw: 500e3, fcheck: 500e3 }, {},
+    [mk('ind', 'L1', { L: 22e-6, dcr: 20e-3 }), mk('cap', 'C1', { c: 10e-6, esr: 0 }), mk('rc', 'Rd1', { rd: 1.06, cd: 150e-6 })]) },
+  { name: 'D1 · Method A: R in series with C', make: () => baseState('D1 Method A',
+    { vinMin: 48, vinNom: 48, vinMax: 48, pout: 100, eta: 1, vout: 12, fsw: 500e3, fcheck: 500e3 }, {},
+    [mk('ind', 'L1', { L: 22e-6, dcr: 20e-3 }), mk('cap', 'C1', { c: 10e-6, esr: 2.08 })]) },
+  { name: 'D1 · Method B: R across L', make: () => baseState('D1 Method B',
+    { vinMin: 48, vinNom: 48, vinMax: 48, pout: 100, eta: 1, vout: 12, fsw: 500e3, fcheck: 500e3 }, {},
+    [mk('ind', 'L1', { L: 22e-6, dcr: 20e-3, dmode: 'R', dR: 1.06 }), mk('cap', 'C1', { c: 10e-6, esr: 0 })]) },
+  { name: 'D1 · Method D: R in series with L', make: () => baseState('D1 Method D',
+    { vinMin: 48, vinNom: 48, vinMax: 48, pout: 100, eta: 1, vout: 12, fsw: 500e3, fcheck: 500e3 }, {},
+    [mk('ind', 'L1', { L: 22e-6, dcr: 20e-3 }), mk('res', 'RD', { r: 2.08 }), mk('cap', 'C1', { c: 10e-6, esr: 0 })]) },
+  { name: 'LC + parallel Rd-Ld (n = 0.5, optimum)', make: () => baseState('LC + parallel Rd-Ld',
+    { vinMin: 48, vinNom: 48, vinMax: 48, pout: 100, eta: 1, vout: 12, fsw: 500e3, fcheck: 500e3 }, {},
+    [mk('ind', 'L1', { L: 22e-6, dcr: 20e-3, dmode: 'RLpar', dL: 11e-6, dR: 1.35 }), mk('cap', 'C1', { c: 10e-6, esr: 0 })]), optimize: 0 },
+  { name: 'LC + series Rd∥Ld (n = 1, optimum)', make: () => baseState('LC + series Rd-Ld',
+    { vinMin: 48, vinNom: 48, vinMax: 48, pout: 100, eta: 1, vout: 12, fsw: 500e3, fcheck: 500e3 }, {},
+    [mk('ind', 'L1', { L: 22e-6, dcr: 20e-3, dmode: 'RLser', dL: 22e-6, dR: 0.76 }), mk('cap', 'C1', { c: 10e-6, esr: 0 })]), optimize: 0 },
+  { name: 'D3 · 2-element bead + C (12 V, 10 W)', make: () => baseState('D3 bead filter',
+    { vinMin: 12, vinNom: 12, vinMax: 12, pout: 10, eta: 1, vout: 5, fsw: 1.1e6, fcheck: 1.1e6 }, {},
+    [mk('bead2', 'FB1', { rdc: 0.16, lb: 1e-6, rb: 50 }), mk('cap', 'C1', { c: 10e-6, esr: 0 })]) },
+  { name: 'D4 · 4-element bead + 68 mΩ + 2×10 µF', make: () => baseState('D4 bead final',
+    { vinMin: 12, vinNom: 12, vinMax: 12, pout: 10, eta: 1, vout: 5, fsw: 1.1e6, fcheck: 1.1e6 }, {},
+    [mk('bead4', 'FB1', { rs: 50e-3, lb: 1e-6, rp: 150, cb: 2e-12 }), mk('res', 'R1', { r: 68e-3 }),
+     mk('cap', 'C1', { c: 10e-6, esr: 0, n: 2, derate: 30 })]) },
+  { name: 'Pi / CLC + Rd-Cd (12 V, 24 W)', make: () => baseState('Pi CLC',
+    { vinMin: 9, vinNom: 12, vinMax: 15, pout: 24, eta: 0.92, vout: 5, fsw: 500e3, fcheck: 500e3 }, {},
+    [mk('cap', 'C1', { c: 4.7e-6, esr: 5e-3, esl: 0.5e-9, n: 2, derate: 30 }), mk('ind', 'L1', { L: 4.7e-6, dcr: 15e-3 }),
+     mk('cap', 'C2', { c: 10e-6, esr: 3e-3, esl: 0.5e-9, n: 2, derate: 30 }), mk('rc', 'Rd1', { rd: 0.6, cd: 68e-6, esr: 0.05 })]), optimize: 3 },
+  { name: '2-stage LC, both damped (24 V, 60 W)', make: () => baseState('2-stage LC',
+    { vinMin: 18, vinNom: 24, vinMax: 32, pout: 60, eta: 0.94, vout: 12, fsw: 400e3, fcheck: 400e3 }, {},
+    [mk('ind', 'L1', { L: 10e-6, dcr: 12e-3 }), mk('cap', 'C1', { c: 4.7e-6, esr: 4e-3, n: 2, derate: 35 }),
+     mk('rc', 'Rd1', { rd: 1.2, cd: 33e-6 }), mk('ind', 'L2', { L: 2.2e-6, dcr: 6e-3 }),
+     mk('cap', 'C2', { c: 4.7e-6, esr: 4e-3, n: 4, derate: 35 }), mk('rc', 'Rd2', { rd: 0.5, cd: 47e-6 })]), optimize: [2, 5] },
+  { name: 'D6 · TPS62142 bus: R_SRC, C_BUS, L101, C_BUCK', make: () => baseState('D6 TPS62142',
+    { vinMin: 4.5, vinNom: 5, vinMax: 5.5, pout: 6.6, eta: 0.9, vout: 3.3, fsw: 2.5e6, fcheck: 2.5e6 }, { R: 0.056 },
+    [mk('cap', 'C_BUS', { c: 10e-6, esr: 5e-3, n: 3 }), mk('ind', 'L101', { L: 0.33e-6, dcr: 0.13 }),
+     mk('cap', 'C_BUCK', { c: 10e-6, esr: 5e-3, n: 3 })]) },
+  { name: 'LQRx 02 · 24→12 V 240 W, 2-phase', make: () => baseState('LQRx 02 power state',
+    { vinMin: 15, vinNom: 24, vinMax: 28, pout: 240, eta: 0.95, vout: 12, fsw: 200e3, phases: 2, fcheck: 200e3 }, {},
+    [mk('res', 'R101', { r: 5e-3 }), mk('ind', 'L101', { L: 1e-6, dcr: 5.6e-3 }),
+     mk('cap', 'Cf', { c: 4.7e-6, esr: 0, n: 8, derate: 33 }), mk('rc', 'Cd', { rd: 0, cd: 94e-6, esr: 0.195 })]) },
+  { name: 'LQRx 03 · LMR54410 1.1 MHz input', make: () => baseState('LQRx 03 buck',
+    { vinMin: 9.39, vinNom: 12, vinMax: 24, pout: 9, eta: 0.85, vout: 9, fsw: 1.1e6, fcheck: 1.1e6 }, {},
+    [mk('res', 'R301', { r: 20e-3 }), mk('ind', 'L301', { L: 2.2e-6, dcr: 0.2 }),
+     mk('cap', 'C303', { c: 4.7e-6, esr: 0, derate: 33 }), mk('cap', 'C304', { c: 0.1e-6, esr: 0 }),
+     mk('rc', 'Cd', { rd: 0, cd: 22e-6, esr: 1 })]) },
+];
+
+let S = null;            // current state
+let snapshots = [];
+let lastSweep = null, lastMetrics = null;
+
+function loadPreset(i) {
+  const p = PRESETS[i];
+  S = p.make();
+  const opt = p.optimize === undefined ? [] : [].concat(p.optimize);
+  for (const k of opt) {
+    const b = S.blocks[k], key = E.dampKey(b);
+    if (key) b[key] = E.optimizeParam(S, b.id, key, 1e-3, 1e3).val;
+  }
+  buildAll();
+}
+
+// ---------- Persistence ----------
+const LS_KEY = 'input-filter-tuner-v1';
+function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } }
+function encodeState() { return btoa(unescape(encodeURIComponent(JSON.stringify(S)))); }
+function decodeState(s) { return JSON.parse(decodeURIComponent(escape(atob(s)))); }
+// Load a design from a link, a JSON file or localStorage. The input is untrusted:
+// copy only known fields, as numbers within sane limits, and drop everything else.
+const has = (o, k) => o && Object.prototype.hasOwnProperty.call(o, k);
+function num(v, def, lo = -Infinity, hi = Infinity) {
+  const x = Number(v);
+  return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : def;
+}
+const pos = (v, def) => { const x = Number(v); return Number.isFinite(x) && x > 0 ? x : def; };
+function adopt(obj) {
+  if (!obj || typeof obj !== 'object' || !Array.isArray(obj.blocks) || !obj.conv || typeof obj.conv !== 'object')
+    throw new Error('not a filter design');
+  const base = baseState(String(obj.name || 'Loaded').slice(0, 80), {}, {}, []);
+  const cv = base.conv, oc = obj.conv;
+  for (const k of ['vinMin', 'vinNom', 'vinMax', 'pout', 'vout', 'fsw', 'fcheck']) cv[k] = pos(oc[k], cv[k]);
+  cv.eta = num(oc.eta, cv.eta, 0.3, 1);
+  cv.phases = Math.round(num(oc.phases, cv.phases, 1, 8));
+  cv.k = num(oc.k, cv.k, 0, 20);
+  const os = obj.source || {};
+  base.source.R = num(os.R, 0, 0); base.source.L = num(os.L, 0, 0);
+  const pl = base.plot, op = obj.plot || {};
+  pl.fmin = pos(op.fmin, pl.fmin);
+  pl.fmax = Math.max(pos(op.fmax, pl.fmax), pl.fmin * 10);
+  pl.n = Math.round(num(op.n, pl.n, 100, 4000));
+  pl.rload = pos(op.rload, pl.rload); pl.z0 = pos(op.z0, pl.z0);
+  pl.dL = num(op.dL, pl.dL, -90, 90); pl.dC = num(op.dC, pl.dC, -90, 90);
+  for (const k of ['undamped', 'tol']) if (typeof op[k] === 'boolean') pl[k] = op[k];
+  if (['H', 'S21'].includes(op.xfer)) pl.xfer = op.xfer;
+  if (['open', 'conv', 'res'].includes(op.load)) pl.load = op.load;
+  if (TABS.some(([k]) => k === op.tab)) pl.tab = op.tab;
+  base.blocks = obj.blocks.filter(b => b && typeof b === 'object' && has(E.TYPES, b.type)).map(b => {
+    const T = E.TYPES[b.type];
+    const n = mk(b.type, String(b.name ?? '').slice(0, 40) || T.prefix);
+    for (const [k, , , def, , , zero] of T.p) n[k] = zero ? num(b[k], def, 0) : pos(b[k], def);
+    if (b.type === 'cap') { n.n = Math.round(num(n.n, 1, 1, 50)); n.derate = num(n.derate, 0, 0, 90); }
+    n.on = b.on !== false;
+    if (b.type === 'ind') {
+      n.dmode = has(E.DAMP, b.dmode) ? b.dmode : 'none';
+      n.dR = pos(b.dR, n.dR); n.dL = pos(b.dL, n.dL);
+    }
+    if (has(b, '_q')) n._q = pos(b._q, 0.707);
+    return n;
+  });
+  S = base;
+}
+
+// ---------- Converter / source / plot settings forms ----------
+const CONV_FIELDS = [
+  ['vinMin', 'Vin min', 'V', 1, 1000], ['vinNom', 'Vin nom', 'V', 1, 1000], ['vinMax', 'Vin max', 'V', 1, 1000],
+  ['pout', 'Pout', 'W', 0.01, 10e3], ['eta', 'Efficiency η', '', 0.3, 1], ['vout', 'Vout', 'V', 0.3, 1000],
+  ['fsw', 'fsw', 'Hz', 1e3, 10e6], ['phases', 'Phases N', '', 1, 8], ['k', 'Margin k', 'dB', 0, 20],
+  ['fcheck', 'f check max', 'Hz', 100, 100e6]];
+const SRC_FIELDS = [['R', 'Rsrc', 'Ω', 1e-4, 100, true], ['L', 'Lsrc', 'H', 1e-9, 100e-6, true]];
+
+function sliderPos(v, min, max, zero) {
+  if (zero && v <= 0) return 0;
+  const lo = Math.log(min), hi = Math.log(max);
+  const t = (Math.log(Math.min(Math.max(v, min), max)) - lo) / (hi - lo);
+  return Math.round((zero ? 20 : 0) + t * (zero ? 980 : 1000));
+}
+function sliderVal(pos, min, max, zero) {
+  if (zero && pos <= 10) return 0;
+  const t = zero ? (pos - 20) / 980 : pos / 1000;
+  const v = Math.exp(Math.log(min) + Math.max(0, t) * (Math.log(max) - Math.log(min)));
+  return Number(v.toPrecision(3));
+}
+const LINEAR = new Set(['eta', 'phases', 'k', 'n', 'derate']);
+
+// Generic numeric row. get/set read and write the value; id is used for focus.
+function numRow(id, label, unit, get, set, min, max, zero, opts = {}) {
+  const lin = opts.linear;
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<label for="${id}" title="${esc(label)}">${esc(label)}</label>
+    <input type="text" id="${id}" spellcheck="false" autocomplete="off">
+    <input type="range" min="0" max="1000" step="1" aria-label="${esc(label)} slider">
+    <span class="u">${esc(unit)}</span>`;
+  const t = row.querySelector('input[type=text]'), r = row.querySelector('input[type=range]');
+  const toPos = v => lin ? Math.round(1000 * (v - min) / (max - min)) : sliderPos(v, min, max, zero);
+  const fromPos = p => {
+    if (!lin) return sliderVal(p, min, max, zero);
+    let v = min + (max - min) * p / 1000;
+    return opts.int ? Math.round(v) : Number(v.toPrecision(3));
+  };
+  const show = () => { const v = get(); t.value = lin ? String(v) : fmtIn(v); r.value = toPos(v); t.classList.remove('err'); };
+  const commit = v => {
+    if (!Number.isFinite(v)) { t.classList.add('err'); return; }
+    if (lin) v = Math.min(max, Math.max(min, v));               // linear fields have hard limits
+    else if (v < 0 || (!zero && v === 0)) { t.classList.add('err'); return; }
+    if (opts.int) v = Math.round(v);
+    set(v); show(); changed();
+  };
+  t.addEventListener('change', () => commit(lin ? parseFloat(t.value) : parseSI(t.value)));
+  t.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { t.blur(); }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      let v = get();
+      if (lin) { const st = opts.int ? 1 : (max - min) / 100 * (e.shiftKey ? 5 : 1); v = Math.min(max, Math.max(min, v + (e.key === 'ArrowUp' ? st : -st))); }
+      else { const f = e.shiftKey ? 1.25 : 1.05; v = v === 0 ? min : v * (e.key === 'ArrowUp' ? f : 1 / f); v = Number(v.toPrecision(4)); }
+      commit(v);
+    }
+  });
+  r.addEventListener('input', () => { set(fromPos(+r.value)); t.value = lin ? String(get()) : fmtIn(get()); changed(); });
+  show();
+  row._show = show;
+  return row;
+}
+
+function buildConv() {
+  const box = document.getElementById('conv');
+  box.innerHTML = '';
+  for (const [k, l, u, mn, mx] of CONV_FIELDS) {
+    const lin = LINEAR.has(k);
+    box.appendChild(numRow('cv-' + k, l, u, () => S.conv[k], v => { S.conv[k] = v; }, mn, mx, false,
+      { linear: lin, int: k === 'phases' }));
+  }
+  const src = document.getElementById('src');
+  src.innerHTML = '';
+  for (const [k, l, u, mn, mx, z] of SRC_FIELDS) src.appendChild(numRow('src-' + k, l, u, () => S.source[k], v => { S.source[k] = v; }, mn, mx, z));
+}
+
+function buildPlotSet() {
+  const box = document.getElementById('plotset');
+  const pl = S.plot;
+  box.innerHTML = `
+    <div class="row2"><label>Transfer plot</label>
+      <select id="ps-xfer"><option value="H">H = Vout/Vsrc</option><option value="S21">S21 (50 Ω ports)</option></select>
+      <label>H load</label>
+      <select id="ps-load"><option value="open">Open</option><option value="conv">Converter Rn (Vin nom)</option><option value="res">Resistor</option></select>
+    </div>
+    <div class="row2"><label><input type="checkbox" id="ps-und"> Show undamped curve</label>
+      <label><input type="checkbox" id="ps-tol"> Tolerance curves</label></div>`;
+  box.querySelector('#ps-xfer').value = pl.xfer;
+  box.querySelector('#ps-load').value = pl.load;
+  box.querySelector('#ps-und').checked = pl.undamped;
+  box.querySelector('#ps-tol').checked = pl.tol;
+  box.querySelector('#ps-xfer').onchange = e => { pl.xfer = e.target.value; changed(); };
+  box.querySelector('#ps-load').onchange = e => { pl.load = e.target.value; changed(); };
+  box.querySelector('#ps-und').onchange = e => { pl.undamped = e.target.checked; changed(); };
+  box.querySelector('#ps-tol').onchange = e => { pl.tol = e.target.checked; changed(); };
+  box.appendChild(numRow('ps-rload', 'R load (H)', 'Ω', () => pl.rload, v => { pl.rload = v; }, 0.01, 1e4, false));
+  box.appendChild(numRow('ps-z0', 'S21 port Z0', 'Ω', () => pl.z0, v => { pl.z0 = v; }, 1, 1000, false));
+  box.appendChild(numRow('ps-dL', 'Tol. ΔL', '%', () => pl.dL, v => { pl.dL = v; }, -90, 90, true, { linear: true }));
+  box.appendChild(numRow('ps-dC', 'Tol. ΔC', '%', () => pl.dC, v => { pl.dC = v; }, -90, 90, true, { linear: true }));
+  box.appendChild(numRow('ps-fmin', 'f min', 'Hz', () => pl.fmin, v => { pl.fmin = Math.min(v, pl.fmax / 10); }, 0.1, 1e6, false));
+  box.appendChild(numRow('ps-fmax', 'f max', 'Hz', () => pl.fmax, v => { pl.fmax = Math.max(v, pl.fmin * 10); }, 1e3, 10e9, false));
+  box.appendChild(numRow('ps-n', 'Points', '', () => pl.n, v => { pl.n = Math.round(v); }, 100, 4000, false, { linear: true, int: true }));
+}
+
+// ---------- Block cards ----------
+function buildBlocks() {
+  const box = document.getElementById('blocks');
+  box.innerHTML = '';
+  S.blocks.forEach((b, i) => box.appendChild(blockCard(b, i)));
+}
+
+function blockCard(b, i) {
+  const T = E.TYPES[b.type];
+  const card = document.createElement('section');
+  card.className = 'card blk ' + T.kind + (b.on ? '' : ' off');
+  card.id = 'card-' + b.id;
+  card.innerHTML = `<div class="bh">
+      <input type="checkbox" title="Enable" ${b.on ? 'checked' : ''}>
+      <input class="name" type="text" value="${esc(b.name)}" aria-label="Name">
+      <span class="t">${esc(T.kind === 'series' ? 'series · ' : 'shunt · ')}${esc(T.label)}</span>
+      <button title="Move toward source" data-a="up">↑</button>
+      <button title="Move toward converter" data-a="dn">↓</button>
+      <button title="Duplicate" data-a="dup">⧉</button>
+      <button title="Remove" data-a="rm">✕</button></div>`;
+  const hd = card.querySelector('.bh');
+  hd.querySelector('input[type=checkbox]').onchange = e => { b.on = e.target.checked; refreshBlock(b); changed(); };
+  hd.querySelector('input.name').onchange = e => { b.name = e.target.value.trim() || b.name; changed(); };
+  hd.querySelectorAll('button').forEach(btn => btn.onclick = () => {
+    const a = btn.dataset.a, idx = S.blocks.indexOf(b);
+    if (a === 'up' && idx > 0) [S.blocks[idx - 1], S.blocks[idx]] = [S.blocks[idx], S.blocks[idx - 1]];
+    if (a === 'dn' && idx < S.blocks.length - 1) [S.blocks[idx + 1], S.blocks[idx]] = [S.blocks[idx], S.blocks[idx + 1]];
+    if (a === 'dup') S.blocks.splice(idx + 1, 0, Object.assign(JSON.parse(JSON.stringify(b)), { id: newId(), name: b.name + "'" }));
+    if (a === 'rm') S.blocks.splice(idx, 1);
+    buildBlocks(); changed();
+  });
+  for (const [k, label, unit, , mn, mx, z] of T.p) {
+    const lin = LINEAR.has(k);
+    card.appendChild(numRow(`in-${b.id}-${k}`, label, unit, () => b[k], v => { b[k] = v; }, mn, mx, z,
+      { linear: lin, int: k === 'n' }));
+  }
+  if (T.damp) {
+    const d = document.createElement('div');
+    d.className = 'row2';
+    d.innerHTML = `<label>Damping</label><select>${Object.entries(E.DAMP).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>`;
+    const sel = d.querySelector('select');
+    sel.value = b.dmode || 'none';
+    sel.onchange = () => { b.dmode = sel.value; buildBlocks(); changed(); };
+    card.appendChild(d);
+    if (b.dmode && b.dmode !== 'none') {
+      card.appendChild(numRow(`in-${b.id}-dR`, 'Rd', 'Ω', () => b.dR, v => { b.dR = v; }, 1e-3, 1e4, false));
+      if (b.dmode !== 'R') card.appendChild(numRow(`in-${b.id}-dL`, 'Ld', 'H', () => b.dL, v => { b.dL = v; }, 1e-9, 10e-3, false));
+    }
+  }
+  const helpers = dampHelpers(b);
+  if (helpers) card.appendChild(helpers);
+  if (b.type === 'bead4') card.appendChild(beadHelper(b));
+  const info = document.createElement('p');
+  info.className = 'hint';
+  info.id = 'info-' + b.id;
+  card.appendChild(info);
+  return card;
+}
+
+function dampHelpers(b) {
+  const key = E.dampKey(b);
+  if (!key) return null;
+  const d = document.createElement('div');
+  d.className = 'row2';
+  const isRc = b.type === 'rc';
+  d.innerHTML = `<button data-h="opt" title="Search Rd for the lowest peak |Zout|, all parasitics included">Optimum Rd</button>
+    ${isRc ? `<button data-h="q">Rd for Q =</button><input type="text" data-h="qv" value="${b._q || 0.707}" aria-label="Target Q">
+    <button data-h="cf" title="Set Rd to the closed-form optimum for this Cd/C">Closed-form Rd</button>` :
+    `<button data-h="cf" title="Set Rd to the closed-form optimum for this Ld/L">Closed-form Rd</button>`}`;
+  // A disabled block does not change the result, so its helpers would return nonsense.
+  if (!b.on) d.querySelectorAll('button').forEach(x => { x.disabled = true; x.title = 'Enable the block first'; });
+  d.querySelector('[data-h=opt]').onclick = () => {
+    const r = E.optimizeParam(S, b.id, key, 1e-3, 1e4);
+    b[key] = Number(r.val.toPrecision(3)); refreshBlock(b); changed();
+  };
+  d.querySelector('[data-h=cf]').onclick = () => {
+    const cf = closedFormFor(b);
+    if (!cf || !cf.rd) return;
+    // For an Rd-Cd leg the damping R is Rd + Cd ESR, so subtract the ESR.
+    const rd = isRc ? Math.max(0, cf.rd - b.esr) : cf.rd;
+    b[key] = Number(rd.toPrecision(3)); refreshBlock(b); changed();
+  };
+  if (isRc) {
+    const qv = d.querySelector('[data-h=qv]');
+    d.querySelector('[data-h=q]').onclick = () => {
+      const q = parseFloat(qv.value), p = E.sectionOf(S, b.id);
+      if (!p || !(q > 0)) { qv.classList.add('err'); return; }
+      qv.classList.remove('err'); b._q = q;
+      const rd = E.rdForQ(p.Z0, q, p.rL);
+      if (!Number.isFinite(rd)) { alert('rL alone already gives Q ≤ ' + q + '. No Rd needed.'); return; }
+      b.rd = Math.max(0, Number((rd - b.esr).toPrecision(3)));
+      refreshBlock(b); changed();
+    };
+  }
+  return d;
+}
+
+// Closed-form optimum for a damping element, using the LC section it belongs to.
+function closedFormFor(b) {
+  const p = E.sectionOf(S, b.id);
+  if (!p) return null;
+  if (b.type === 'rc') return Object.assign(E.closedForm('rc', b.cd / p.C, p.Z0) || {}, { n: b.cd / p.C, nLabel: 'Cd/C' });
+  if (b.type === 'ind' && (b.dmode === 'RLpar' || b.dmode === 'RLser'))
+    return Object.assign(E.closedForm(b.dmode, b.dL / b.L, p.Z0) || {}, { n: b.dL / b.L, nLabel: 'Ld/L' });
+  return null;
+}
+
+function beadHelper(b) {
+  const d = document.createElement('details');
+  d.innerHTML = `<summary>Fill from datasheet points (NP-DR-26004)</summary>
+    <div class="row2"><label>Rdc</label><input type="text" data-k="rdc" value="${fmtIn(b.rs)}">
+      <label>X at</label><input type="text" data-k="fx" value="1M"><label>=</label><input type="text" data-k="x" value="${fmtIn(2 * Math.PI * 1e6 * b.lb)}">Ω</div>
+    <div class="row2"><label>f<sub>SRF</sub></label><input type="text" data-k="fsrf" placeholder="none" value="${b.cb > 0 ? fmtIn(1 / (2 * Math.PI * Math.sqrt(b.lb * b.cb))) : ''}">
+      <label>|Z| at SRF</label><input type="text" data-k="zmax" value="${fmtIn(b.rs + b.rp)}">Ω
+      <button>Apply</button></div>
+    <p class="hint">Lb = X/(2πf) at low f, Rp = |Z|(f<sub>SRF</sub>) − Rs, Cb = 1/((2πf<sub>SRF</sub>)²·Lb). Leave f<sub>SRF</sub> empty for Cb = 0.</p>`;
+  d.querySelector('button').onclick = () => {
+    const v = {}, el = {};
+    d.querySelectorAll('input[data-k]').forEach(i => {
+      el[i.dataset.k] = i;
+      v[i.dataset.k] = i.dataset.k === 'fsrf' && i.value.trim() === '' ? 0 : parseSI(i.value);
+    });
+    // Rdc may be 0; fx, X and |Z| must be > 0; f_SRF is 0 (none) or above fx; |Z| above Rdc.
+    const bad = {
+      rdc: !(v.rdc >= 0), fx: !(v.fx > 0), x: !(v.x > 0), zmax: !(v.zmax > v.rdc),
+      fsrf: !(v.fsrf === 0 || v.fsrf > v.fx),
+    };
+    for (const k in bad) el[k].classList.toggle('err', bad[k]);
+    if (Object.values(bad).some(Boolean)) return;
+    Object.assign(b, E.beadFromDatasheet(v));
+    refreshBlock(b); changed();
+  };
+  return d;
+}
+
+function refreshBlock(b) {
+  const old = document.getElementById('card-' + b.id);
+  if (old) old.replaceWith(blockCard(b, S.blocks.indexOf(b)));
+}
+
+// ---------- Schematic ----------
+const EL = 44;
+function prim(kind, name, val, field, ghost) {
+  const textW = Math.ceil(Math.max(name.length, val.length) * 5.7);
+  const W = Math.max(EL, textW + 8);         // wide labels get longer leads
+  const off = (W - EL) / 2;
+  const vert = { up: textW + 18, dn: 10 }, hor = { up: 30, dn: 10 };
+  return { w: W, ext: o => o === 'h' ? hor : vert, draw(g, map, o, u0, v0) {
+    if (off > 0) {
+      g.push(`<polyline class="w" points="${map(u0, v0).join(',')} ${map(u0 + off, v0).join(',')}"/>`);
+      g.push(`<polyline class="w" points="${map(u0 + off + EL, v0).join(',')} ${map(u0 + W, v0).join(',')}"/>`);
+    }
+    const P = (u, v) => map(u0 + off + u, v0 + v);
+    const pl = (pts, cls) => g.push(`<polyline class="${cls}" points="${pts.map(([u, v]) => P(u, v).join(',')).join(' ')}"/>`);
+    const cg = ghost ? ' ghost' : '';
+    if (kind === 'R') {
+      const pts = [[0, 0], [8, 0]];
+      for (let i = 0; i < 6; i++) pts.push([8 + (i + 0.5) * 28 / 6, i % 2 ? -5 : 5]);
+      pts.push([36, 0], [44, 0]);
+      pl(pts, 'p' + cg);
+    } else if (kind === 'L') {
+      pl([[0, 0], [8, 0]], 'p' + cg); pl([[36, 0], [44, 0]], 'p' + cg);
+      const pts = [];
+      for (let h = 0; h < 4; h++) for (let k = 0; k <= 8; k++) { const a = Math.PI * k / 8; pts.push([8 + h * 7 + 3.5 - 3.5 * Math.cos(a), 4.5 * Math.sin(a)]); }
+      pl(pts, 'p' + cg);
+    } else if (kind === 'C') {
+      pl([[0, 0], [19, 0]], 'p' + cg); pl([[25, 0], [44, 0]], 'p' + cg);
+      pl([[19, -9], [19, 9]], 'p' + cg); pl([[25, -9], [25, 9]], 'p' + cg);
+    } else if (kind === 'B') {
+      pl([[0, 0], [8, 0]], 'p' + cg); pl([[36, 0], [44, 0]], 'p' + cg);
+      g.push(`<polygon class="pf${cg}" points="${[[8, -5], [36, -5], [36, 5], [8, 5]].map(([u, v]) => P(u, v).join(',')).join(' ')}"/>`);
+    }
+    const [cx0, cy0] = P(22, 0);
+    if (o === 'h') {
+      g.push(`<text class="lbl${cg}" x="${cx0}" y="${cy0 - 20}" text-anchor="middle">${esc(name)}</text>`);
+      g.push(`<text class="val${cg}" x="${cx0}" y="${cy0 - 9}" text-anchor="middle">${esc(val)}</text>`);
+    } else {
+      g.push(`<text class="lbl${cg}" x="${cx0 + 13}" y="${cy0 - 2}">${esc(name)}</text>`);
+      g.push(`<text class="val${cg}" x="${cx0 + 13}" y="${cy0 + 10}">${esc(val)}</text>`);
+    }
+    if (field) {
+      const a = P(0, -10), c = P(44, 12);
+      const x = Math.min(a[0], c[0]), y = Math.min(a[1], c[1]);
+      g.push(`<rect class="hit" data-f="${field}" x="${x}" y="${y}" width="${Math.abs(c[0] - a[0])}" height="${Math.abs(c[1] - a[1])}"><title>${esc(name)} = ${esc(val)}</title></rect>`);
+    }
+  } };
+}
+function ser(items) {
+  items = items.filter(Boolean);
+  return { w: items.reduce((s, x) => s + x.w, 0),
+    ext: o => ({ up: Math.max(...items.map(x => x.ext(o).up)), dn: Math.max(...items.map(x => x.ext(o).dn)) }),
+    draw(g, map, o, u0, v0) { let u = u0; for (const x of items) { x.draw(g, map, o, u, v0); u += x.w; } } };
+}
+function parl(items) {
+  items = items.filter(Boolean);
+  if (items.length === 1) return items[0];
+  const w = Math.max(...items.map(x => x.w)) + 16;
+  const offs = o => { const v = [0]; for (let i = 1; i < items.length; i++) v.push(v[i - 1] + items[i - 1].ext(o).up + items[i].ext(o).dn + 4); return v; };
+  return { w,
+    ext: o => { const v = offs(o); return { up: v[v.length - 1] + items[items.length - 1].ext(o).up, dn: items[0].ext(o).dn }; },
+    draw(g, map, o, u0, v0) {
+      const v = offs(o);
+      const line = (a, b, c, d) => g.push(`<polyline class="w" points="${map(a, b).join(',')} ${map(c, d).join(',')}"/>`);
+      line(u0, v0, u0 + 8, v0); line(u0 + w - 8, v0, u0 + w, v0);
+      line(u0 + 8, v0, u0 + 8, v0 + v[v.length - 1]); line(u0 + w - 8, v0, u0 + w - 8, v0 + v[v.length - 1]);
+      items.forEach((x, i) => {
+        const pad = (w - 16 - x.w) / 2;
+        line(u0 + 8, v0 + v[i], u0 + 8 + pad, v0 + v[i]);
+        x.draw(g, map, o, u0 + 8 + pad, v0 + v[i]);
+        line(u0 + 8 + pad + x.w, v0 + v[i], u0 + w - 8, v0 + v[i]);
+      });
+    } };
+}
+
+function blockShape(b) {
+  const g = !b.on, f = k => `${b.id}.${k}`, n = b.name;
+  switch (b.type) {
+    case 'ind': {
+      let core = ser([prim('L', n, fmtSI(b.L, 'H'), f('L'), g), b.dcr > 0 ? prim('R', 'DCR', fmtSI(b.dcr, 'Ω'), f('dcr'), g) : null]);
+      if (b.cp > 0) core = parl([core, prim('C', 'Cp', fmtSI(b.cp, 'F'), f('cp'), g)]);
+      if (b.dmode === 'R') return parl([core, prim('R', 'Rd', fmtSI(b.dR, 'Ω'), f('dR'), g)]);
+      if (b.dmode === 'RLpar') return parl([core, ser([prim('R', 'Rd', fmtSI(b.dR, 'Ω'), f('dR'), g), prim('L', 'Ld', fmtSI(b.dL, 'H'), f('dL'), g)])]);
+      if (b.dmode === 'RLser') return ser([core, parl([prim('L', 'Ld', fmtSI(b.dL, 'H'), f('dL'), g), prim('R', 'Rd', fmtSI(b.dR, 'Ω'), f('dR'), g)])]);
+      return core;
+    }
+    case 'bead2': return ser([prim('R', n + ' Rdc', fmtSI(b.rdc, 'Ω'), f('rdc'), g),
+      parl([prim('L', 'Lb', fmtSI(b.lb, 'H'), f('lb'), g), prim('R', 'Rb', fmtSI(b.rb, 'Ω'), f('rb'), g)])]);
+    case 'bead4': return ser([prim('R', n + ' Rs', fmtSI(b.rs, 'Ω'), f('rs'), g),
+      parl([prim('L', 'Lb', fmtSI(b.lb, 'H'), f('lb'), g), prim('R', 'Rp', fmtSI(b.rp, 'Ω'), f('rp'), g),
+        b.cb > 0 ? prim('C', 'Cb', fmtSI(b.cb, 'F'), f('cb'), g) : null])]);
+    case 'res': return ser([prim('R', n, fmtSI(b.r, 'Ω'), f('r'), g), b.l > 0 ? prim('L', 'ESL', fmtSI(b.l, 'H'), f('l'), g) : null]);
+    case 'cap': {
+      const cnt = b.n > 1 ? `${b.n}× ` : '';
+      const der = b.derate ? ` (−${b.derate}%)` : '';
+      return ser([prim('C', n, cnt + fmtSI(b.c, 'F') + der, f('c'), g),
+        b.esr > 0 ? prim('R', 'ESR', fmtSI(b.esr, 'Ω'), f('esr'), g) : null,
+        b.esl > 0 ? prim('L', 'ESL', fmtSI(b.esl, 'H'), f('esl'), g) : null]);
+    }
+    case 'rc': return ser([b.rd > 0 ? prim('R', n, fmtSI(b.rd, 'Ω'), f('rd'), g) : null,
+      prim('C', b.rd > 0 ? 'Cd' : n, fmtSI(b.cd, 'F'), f('cd'), g),
+      b.esr > 0 ? prim('R', 'ESR', fmtSI(b.esr, 'Ω'), f('esr'), g) : null,
+      b.esl > 0 ? prim('L', 'ESL', fmtSI(b.esl, 'H'), f('esl'), g) : null]);
+  }
+}
+
+function drawSchematic() {
+  const out = [];
+  const srcItems = [];
+  if (S.source.R > 0) srcItems.push(prim('R', 'Rsrc', fmtSI(S.source.R, 'Ω'), 'src.R'));
+  if (S.source.L > 0) srcItems.push(prim('L', 'Lsrc', fmtSI(S.source.L, 'H'), 'src.L'));
+  const shapes = S.blocks.map(b => ({ b, sh: blockShape(b), kind: E.kindOf(b) }));
+  const serAll = [...srcItems, ...shapes.filter(x => x.kind === 'series').map(x => x.sh)];
+  const upMax = Math.max(30, ...serAll.map(x => x.ext('h').up));
+  const dnMax = Math.max(10, ...serAll.map(x => x.ext('h').dn));
+  const shLen = Math.max(EL, ...shapes.filter(x => x.kind === 'shunt').map(x => x.sh.w));
+  const RY = upMax + 14;
+  const GY = RY + Math.max(shLen + 24, dnMax + 40, 80);
+  const mapH = (u, v) => [u, RY - v];
+  let x = 20;
+  // Source
+  const sy = (RY + GY) / 2;
+  out.push(`<polyline class="w" points="${x + 14},${RY} ${x + 14},${sy - 13}"/><circle class="w" cx="${x + 14}" cy="${sy}" r="13"/>
+    <text class="lbl" x="${x + 14}" y="${sy - 1}" text-anchor="middle">+</text><text class="lbl" x="${x + 14}" y="${sy + 9}" text-anchor="middle">−</text>
+    <polyline class="w" points="${x + 14},${sy + 13} ${x + 14},${GY}"/>
+    <text class="val" x="${x + 32}" y="${sy + 4}">Vin</text>`);
+  out.push(`<polyline class="w" points="${x + 4},${GY + 6} ${x + 24},${GY + 6}"/><polyline class="w" points="${x + 8},${GY + 10} ${x + 20},${GY + 10}"/><polyline class="w" points="${x + 14},${GY} ${x + 14},${GY + 6}"/>`);
+  x += 14;
+  const railStart = x;
+  for (const it of srcItems) { it.draw(out, mapH, 'h', x, 0); x += it.w; }
+  if (srcItems.length) x += 6;
+  let lastShunt = false;
+  for (const { b, sh, kind } of shapes) {
+    if (kind === 'series') {
+      sh.draw(out, mapH, 'h', x, 0); x += sh.w; lastShunt = false;
+    } else {
+      const e = sh.ext('v');
+      x += Math.max(e.dn, 14) + (lastShunt ? 0 : 4);
+      const mapV = (u, v) => [x + v, RY + 12 + u];
+      out.push(`<polyline class="w" points="${x},${RY} ${x},${RY + 12}"/>`);
+      sh.draw(out, mapV, 'v', 0, 0);
+      out.push(`<polyline class="w" points="${x},${RY + 12 + sh.w} ${x},${GY}"/>`);
+      out.push(`<circle class="dot" cx="${x}" cy="${RY}" r="2.6"/><circle class="dot" cx="${x}" cy="${GY}" r="2.6"/>`);
+      x += Math.max(e.up, 30); lastShunt = true;
+    }
+  }
+  const conX = x + 24;
+  const rn = E.rnOf(S.conv, S.conv.vinMin);
+  const body = out.join('');
+  const bw = 112;
+  const conv = `<rect class="box" x="${conX}" y="${RY - 6}" width="${bw}" height="${GY - RY + 12}" rx="6"/>
+    <text class="lbl" x="${conX + bw / 2}" y="${(RY + GY) / 2 - 8}" text-anchor="middle">Converter</text>
+    <text class="val" x="${conX + bw / 2}" y="${(RY + GY) / 2 + 6}" text-anchor="middle">Rn = ${esc(fmtSI(rn, 'Ω'))}</text>
+    <text class="val" x="${conX + bw / 2}" y="${(RY + GY) / 2 + 19}" text-anchor="middle">at Vin min</text>`;
+  const W = conX + bw + 12, Hh = GY + 18;
+  document.getElementById('sch').innerHTML =
+    `<svg viewBox="0 0 ${W} ${Hh}" width="${W}" height="${Hh}" role="img" aria-label="Filter schematic">
+      <g class="rails">${railMask(shapes, srcItems, RY, railStart, conX, GY)}</g>${body}${conv}</svg>`;
+  document.querySelectorAll('#sch .hit').forEach(r => r.addEventListener('click', () => focusField(r.dataset.f)));
+}
+// Draw the rail as wires between series parts only (parts draw their own leads).
+function railMask(shapes, srcItems, RY, railStart, conX, GY) {
+  const segs = [];
+  const gap = (a, b) => { if (b > a) segs.push(`<polyline class="w" points="${a},${RY} ${b},${RY}"/>`); };
+  let cur = railStart;
+  for (const it of srcItems) cur += it.w;
+  let x = cur + (srcItems.length ? 6 : 0);
+  gap(cur, x);
+  let lastShunt = false;
+  for (const { sh, kind } of shapes) {
+    if (kind === 'series') { x += sh.w; lastShunt = false; }
+    else {
+      const e = sh.ext('v');
+      const nx = x + Math.max(e.dn, 14) + (lastShunt ? 0 : 4);
+      gap(x, nx); x = nx;
+      const nx2 = x + Math.max(e.up, 30);
+      gap(x, nx2); x = nx2; lastShunt = true;
+    }
+  }
+  gap(x, conX);
+  segs.push(`<polyline class="w" points="${railStart},${GY} ${conX},${GY}"/>`);
+  return segs.join('');
+}
+
+function focusField(f) {
+  const [id, k] = f.split('.');
+  const el = id === 'src' ? document.getElementById('src-' + k) : document.getElementById(`in-${id}-${k}`);
+  if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus({ preventScroll: true }); el.select(); }
+}
+
+// ---------- Results ----------
+function kpi(k, v, s, cls = '') { return `<div class="kpi ${cls}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`; }
+
+function renderResults(m) {
+  const cv = S.conv, p = m.prim;
+  const mCls = m.unstableAt ? 'bad' : (m.pass ? 'good' : (m.margin > 0 ? 'warn' : 'bad'));
+  let html = '';
+  html += kpi('Peak |Zout|', fmtSI(m.peak.v, 'Ω'), `at ${fmtSI(m.peak.f, 'Hz')}${m.peakIsEdge ? ' (range edge)' : ''}`);
+  html += kpi('Middlebrook margin', `${m.margin.toFixed(1)} dB`,
+    m.unstableAt ? `UNSTABLE: Nyquist at ${fmtSI(m.unstableAt, 'Hz')}` : `need ≥ ${cv.k} dB · |Rn| ${fmtSI(Math.abs(m.rn.min), 'Ω')}`, mCls);
+  if (p) {
+    html += kpi('Z0 · f0', `${fmtSI(p.Z0, 'Ω')}`, `f0 ${fmtSI(p.f0, 'Hz')} · ${esc(p.block.name)} with ${fmtSI(p.C, 'F')}`);
+    const hPk = Math.max(...lastSweep.nom.Hopen.map(z => E.db(E.abs(z))));
+    html += kpi('Q = Z0/r (series form)', m.qSeries.toFixed(2),
+      `peak/Z0 = ${m.qeff.toFixed(2)} · H peak ${hPk > 0.05 ? '+' + hPk.toFixed(1) + ' dB' : 'none'}`);
+  }
+  html += kpi(`Attenuation @ ${fmtSI(m.ripple.fr, 'Hz')}`, `${E.db(m.ripple.hfr).toFixed(1)} dB`, `|H| at fsw ${E.db(m.ripple.hfsw).toFixed(1)} dB`);
+  const iRms = m.ripple.isrc / Math.SQRT2;
+  html += kpi('Source ripple current', fmtSI(iRms, 'A'), `rms @ ${fmtSI(m.ripple.fr, 'Hz')} · ${E.db(iRms / 1e-6).toFixed(1)} dBµA`);
+  html += kpi('DC loss (Vin min)', fmtSI(m.dc.loss, 'W'), `${m.dc.pct.toFixed(2)} % of P · drop ${fmtSI(m.dc.drop, 'V')}`);
+  document.getElementById('kpis').innerHTML = html;
+
+  const rows = [];
+  const r = (k, v) => rows.push(`<tr><td>${k}</td><td class="n">${v}</td></tr>`);
+  r('Rn at Vin min / nom / max', `${fmtSI(m.rn.min, 'Ω')} / ${fmtSI(m.rn.nom, 'Ω')} / ${fmtSI(m.rn.max, 'Ω')}`);
+  r('Peak |Zout| search range', `${fmtSI(m.fLo, 'Hz')} to ${fmtSI(m.fHi, 'Hz')}`);
+  r('|Rn| / k (limit line)', fmtSI(Math.abs(m.rn.min) / 10 ** (cv.k / 20), 'Ω'));
+  r('Nyquist (Tm = Zout/Rn, Vin min)', m.unstableAt ? `<span class="pill bad">encircles −1 at ${fmtSI(m.unstableAt, 'Hz')}</span>` : '<span class="pill good">no encirclement</span>');
+  if (p) {
+    r('Primary L / C', `${fmtSI(p.L, 'H')} / ${fmtSI(p.C, 'F')}`);
+    r('rL (DC) of primary', fmtSI(p.rL, 'Ω'));
+    r('Q from rL only = Z0/rL', (p.Z0 / Math.max(p.rL, 1e-12)).toFixed(1));
+    r('Qstab = |Rn|/(k·Z0)', (Math.abs(m.rn.min) / (10 ** (cv.k / 20) * p.Z0)).toFixed(2));
+  }
+  r('DC series R (incl. source)', fmtSI(m.dc.r, 'Ω'));
+  r('DC input current (Vin min)', fmtSI(m.dc.iin, 'A'));
+  r('Duty D (Vin nom) / Io', `${m.ripple.D.toFixed(3)} / ${fmtSI(m.ripple.io, 'A')}`);
+  r('Converter input ripple Iac (rms, all harmonics)', fmtSI(m.ripple.iacRms, 'A'));
+  r(`Converter current harmonic @ ${fmtSI(m.ripple.fr, 'Hz')} (peak)`, fmtSI(m.ripple.ih, 'A'));
+  r(`Ripple voltage at converter pins (peak)`, fmtSI(m.ripple.vout, 'V'));
+  r(`S21 @ ${fmtSI(m.ripple.fr, 'Hz')} (${S.plot.z0} Ω)`, `${E.db(m.ripple.s21fr).toFixed(1)} dB`);
+  for (const b of S.blocks) {
+    if (!b.on) continue;
+    const ac = m.ripple.perBlock[b.id], dc = m.dc.perBlock[b.id];
+    if ((ac || 0) + (dc || 0) <= 0) continue;
+    r(`Loss in ${esc(b.name)}: DC + AC @ ${fmtSI(m.ripple.fr, 'Hz')}`, `${fmtSI(dc || 0, 'W')} + ${fmtSI(ac || 0, 'W')}`);
+  }
+  document.getElementById('restab').innerHTML = rows.join('');
+
+  // Per-block info lines
+  for (const b of S.blocks) {
+    const el = document.getElementById('info-' + b.id);
+    if (!el) continue;
+    const parts = [];
+    if (b.type === 'cap') parts.push(`C eff total ${fmtSI(E.effC(b) * b.n, 'F')}, SRF ${b.esl > 0 ? fmtSI(1 / (2 * Math.PI * Math.sqrt(b.esl * E.effC(b))), 'Hz') : '–'}`);
+    if (b.type === 'bead4') parts.push(`SRF ${b.cb > 0 ? fmtSI(1 / (2 * Math.PI * Math.sqrt(b.lb * b.cb)), 'Hz') : '–'}, |Z|max ≈ ${fmtSI(b.rs + b.rp, 'Ω')}`);
+    const key = E.dampKey(b);
+    const sec = key ? E.sectionOf(S, b.id) : null;   // the LC section this damping belongs to
+    if (sec) {
+      const cf = closedFormFor(b);
+      if (cf && cf.rd) parts.push(`${esc(sec.block.name)} section · ${cf.nLabel} n = ${cf.n.toFixed(2)} · closed-form (lossless) Rd <b>${fmtSI(cf.rd, 'Ω')}</b>, peak ${fmtSI(cf.peak, 'Ω')}`);
+      if (b.type === 'rc') {
+        const rTot = b.rd + b.esr;
+        parts.push(`Rd total ${fmtSI(rTot, 'Ω')} · Cd ≥ 10/(2πf0·Rd) = ${rTot > 0 ? fmtSI(10 / (2 * Math.PI * sec.f0 * rTot), 'F') : '–'}`);
+      }
+    }
+    const ac = m.ripple.perBlock[b.id];
+    if (b.on && ac > 0 && (b.type === 'rc' || key)) parts.push(`AC loss ${fmtSI(ac, 'W')}`);
+    el.innerHTML = parts.join('<br>');
+  }
+}
+
+// ---------- Plots ----------
+const TABS = [['zout', '|Zout| vs Rn'], ['xfer', 'S21 / H'], ['zin', 'Zin'], ['tm', 'Minor loop Tm'], ['elem', 'Element |Z|'], ['sweep', 'Rd sweep']];
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function baseLayout(extra = {}) {
+  const ink = css('--ink'), line = css('--line'), muted = css('--muted');
+  // Spikes, hover box and toolbar take the theme colours. With a transparent paper
+  // Plotly falls back to a white hover box, which is unreadable in dark mode.
+  const ax = { gridcolor: line, zerolinecolor: line, linecolor: line, tickfont: { color: muted }, title: { font: { color: muted, size: 12 } },
+    spikecolor: muted, spikethickness: 1, spikedash: 'dot', hoverformat: '.4~s' };
+  return Object.assign({
+    // Opaque theme background: Plotly outlines spike lines in a colour that contrasts
+    // with plot_bgcolor, and a transparent one gives a white outline in dark mode.
+    paper_bgcolor: css('--panel'), plot_bgcolor: css('--panel'), font: { color: ink, size: 11 },
+    hoverlabel: { bgcolor: css('--panel'), bordercolor: line, font: { color: ink, size: 11 } },
+    modebar: { bgcolor: 'rgba(0,0,0,0)', color: muted, activecolor: css('--accent') },
+    margin: { l: 62, r: 16, t: 10, b: 44 }, hovermode: 'x unified', showlegend: true,
+    legend: { orientation: 'h', y: 1.02, yanchor: 'bottom', x: 0, font: { size: 11 } },
+    xaxis: Object.assign({ type: 'log', title: { text: 'Frequency (Hz)' }, exponentformat: 'SI' }, ax),
+  }, extra, { _ax: ax });
+}
+function ax(extra) { const l = baseLayout(); return Object.assign({}, l._ax, extra); }
+function vlines(list) {
+  // Merge markers that sit at the same frequency into one labelled line.
+  const merged = [];
+  for (const [f, label, color] of list.filter(([f]) => f > 0)) {
+    const m = merged.find(x => Math.abs(Math.log10(x[0] / f)) < 0.02);
+    if (m) m[1] += ' · ' + label; else merged.push([f, label, color]);
+  }
+  return merged.map(([f, label, color]) => ({
+    type: 'line', xref: 'x', yref: 'paper', x0: f, x1: f, y0: 0, y1: 1, line: { color, width: 1, dash: 'dot' }, label: { text: label, textposition: 'end', font: { size: 10, color } } }));
+}
+const mag = a => a.map(E.abs), dbs = a => a.map(z => E.db(E.abs(z))), ph = a => a.map(E.argd);
+const cfg = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] };
+
+function buildTabs() {
+  const box = document.getElementById('tabs');
+  box.innerHTML = TABS.map(([k, l]) => `<button data-t="${k}" class="${S.plot.tab === k ? 'on' : ''}">${esc(l)}</button>`).join('');
+  box.querySelectorAll('button').forEach(b => b.onclick = () => { S.plot.tab = b.dataset.t; buildTabs(); renderPlots(); saveLocal(); });
+}
+
+// Base log grid plus dense points around every local peak of |Zout| and |H|,
+// so high-Q resonances are drawn at their true height.
+function plotGrid(states) {
+  const base = Array.from(E.grid(S.plot.fmin, S.plot.fmax, S.plot.n));
+  const extra = [];
+  for (const st of states) {
+    const zm = base.map(f => { const p = E.point(st, f); return [E.abs(p.Zout), E.abs(p.Hopen)]; });
+    for (const k of [0, 1]) for (let i = 1; i < base.length - 1; i++) {
+      if (zm[i][k] >= zm[i - 1][k] && zm[i][k] > zm[i + 1][k]) {
+        const a = Math.log10(base[i - 1]), b = Math.log10(base[i + 1]);
+        for (let j = 1; j < 40; j++) extra.push(10 ** (a + (b - a) * j / 40));
+      }
+    }
+  }
+  return Float64Array.from([...base, ...extra].sort((x, y) => x - y).filter((x, i, a) => i === 0 || x !== a[i - 1]));
+}
+
+function curveSets() {
+  const hasDamp = S.plot.undamped && S.blocks.some(b => b.on && (b.type === 'rc' || (b.type === 'ind' && b.dmode !== 'none')));
+  const und = hasDamp ? E.undamped(S) : null;
+  const f = plotGrid(und ? [S, und] : [S]);
+  const nom = E.sweep(S, undefined, f);
+  const sets = { nom };
+  if (und) sets.und = E.sweep(und, undefined, nom.f);
+  if (S.plot.tol) {
+    sets.tL = E.sweep(S, { L: 1 + S.plot.dL / 100, C: 1 }, nom.f);
+    sets.tC = E.sweep(S, { L: 1, C: 1 + S.plot.dC / 100 }, nom.f);
+    sets.tLC = E.sweep(S, { L: 1 + S.plot.dL / 100, C: 1 + S.plot.dC / 100 }, nom.f);
+  }
+  return sets;
+}
+
+function renderPlots() {
+  const wrap = document.getElementById('plotwrap');
+  const tab = S.plot.tab;
+  const needPair = tab === 'tm';
+  if (wrap.dataset.mode !== (needPair ? 'pair' : 'one')) {
+    wrap.querySelectorAll('.plot').forEach(d => window.Plotly && Plotly.purge(d));
+    wrap.innerHTML = needPair ? '<div class="plotpair"><div class="plot" id="pl1"></div><div class="plot" id="pl2"></div></div>' : '<div class="plot" id="pl1"></div>';
+    wrap.dataset.mode = needPair ? 'pair' : 'one';
+  }
+  if (!window.Plotly) { document.getElementById('plotnote').textContent = 'Plotly did not load (offline?). Results and schematic still work.'; return; }
+  const sets = lastSweep, m = lastMetrics, f = Array.from(sets.nom.f);
+  const C = { a: css('--accent'), b: css('--accent-2'), c: css('--accent-3'), d: css('--accent-4'), bad: css('--bad'), muted: css('--muted') };
+  const cv = S.conv;
+  const marks = [[m.prim && m.prim.f0, 'f0', C.muted], [cv.fsw, 'fsw', C.muted]];
+  if (m.ripple.N > 1) marks.push([m.ripple.fr, 'N·fsw', C.muted]);
+  let traces = [], layout, note = '';
+  const tolTraces = (fn, yaxis) => {
+    const out = [];
+    if (sets.tL) out.push({ x: f, y: fn(sets.tL), name: `L ${S.plot.dL}%`, line: { color: C.c, width: 1, dash: 'dot' }, yaxis });
+    if (sets.tC) out.push({ x: f, y: fn(sets.tC), name: `C ${S.plot.dC}%`, line: { color: C.d, width: 1, dash: 'dot' }, yaxis });
+    if (sets.tLC) out.push({ x: f, y: fn(sets.tLC), name: 'L and C', line: { color: C.bad, width: 1, dash: 'dot' }, yaxis });
+    return out;
+  };
+  const snapTr = (key) => snapshots.map((s, i) => ({ x: s.f, y: s[key], name: s.label, line: { color: C.muted, width: 1.2, dash: i % 2 ? 'dash' : 'longdash' }, opacity: 0.8 }));
+
+  if (tab === 'zout') {
+    const zm = mag(sets.nom.Zout);
+    traces.push({ x: f, y: zm, name: '|Zout|', line: { color: C.a, width: 2.2 } });
+    if (sets.und) traces.push({ x: f, y: mag(sets.und.Zout), name: 'undamped', line: { color: C.b, width: 1.2, dash: 'dash' } });
+    traces.push(...tolTraces(s => mag(s.Zout)));
+    traces.push(...snapTr('zout'));
+    const rns = [['min', cv.vinMin], ['nom', cv.vinNom], ['max', cv.vinMax]].filter((x, i, a) => a.findIndex(y => y[1] === x[1]) === i);
+    rns.forEach(([k, v], i) => {
+      const r = Math.abs(E.rnOf(cv, v));
+      traces.push({ x: [f[0], f[f.length - 1]], y: [r, r], name: `|Rn| ${fmtSI(v, 'V')}`, mode: 'lines', line: { color: C.bad, width: 1.4, dash: i ? 'dashdot' : 'solid' }, hoverinfo: 'skip' });
+    });
+    const lim = Math.abs(m.rn.min) / 10 ** (cv.k / 20);
+    traces.push({ x: [f[0], m.fHi], y: [lim, lim], name: `|Rn|−${cv.k} dB`, mode: 'lines', line: { color: C.bad, width: 1, dash: 'dot' }, hoverinfo: 'skip' });
+    traces.push({ x: [m.peak.f], y: [m.peak.v], name: 'peak', mode: 'markers+text', marker: { color: C.a, size: 9, symbol: 'diamond' },
+      text: [`${fmtSI(m.peak.v, 'Ω')} @ ${fmtSI(m.peak.f, 'Hz')}`], textposition: 'top right', textfont: { size: 11 } });
+    traces.push({ x: f, y: ph(sets.nom.Zout), name: '∠Zout', yaxis: 'y2', line: { color: C.a, width: 1.2 }, showlegend: false });
+    if (sets.und) traces.push({ x: f, y: ph(sets.und.Zout), name: '∠ undamped', yaxis: 'y2', line: { color: C.b, width: 1, dash: 'dash' }, showlegend: false });
+    layout = baseLayout({ yaxis: ax({ type: 'log', title: { text: '|Zout| (Ω)' }, domain: [0.32, 1], exponentformat: 'SI' }),
+      yaxis2: ax({ title: { text: 'Phase (°)' }, domain: [0, 0.25], range: [-95, 95], dtick: 45 }),
+      shapes: vlines([...marks, [m.fHi, 'check max', C.bad]]) });
+    note = 'Margin is checked from f min up to "f check max". Above the converter loop crossover the converter is no longer a negative resistance.';
+  } else if (tab === 'xfer') {
+    const useS = S.plot.xfer === 'S21';
+    const pick = s => useS ? s.S21 : s.H;
+    const name = useS ? `S21 (${S.plot.z0} Ω)` : `H (${S.plot.load === 'open' ? 'open' : S.plot.load === 'conv' ? 'loaded by Rn' : 'R load'})`;
+    traces.push({ x: f, y: dbs(pick(sets.nom)), name, line: { color: C.a, width: 2.2 } });
+    if (sets.und) traces.push({ x: f, y: dbs(pick(sets.und)), name: 'undamped', line: { color: C.b, width: 1.2, dash: 'dash' } });
+    traces.push(...tolTraces(s => dbs(pick(s))));
+    traces.push(...snapTr(useS ? 's21' : 'h'));
+    const atF = [cv.fsw, m.ripple.N > 1 ? m.ripple.fr : null].filter(Boolean);
+    const pts = atF.map(fr => E.point(S, fr)).map(p => E.db(E.abs(useS ? p.S21 : p.H)));
+    traces.push({ x: atF, y: pts, mode: 'markers+text', name: 'at fsw', marker: { color: C.bad, size: 8 }, text: pts.map(v => v.toFixed(1) + ' dB'), textposition: 'bottom left' });
+    traces.push({ x: f, y: ph(pick(sets.nom)), yaxis: 'y2', name: '∠', line: { color: C.a, width: 1.2 }, showlegend: false });
+    layout = baseLayout({ yaxis: ax({ title: { text: (useS ? '|S21|' : '|H|') + ' (dB)' }, domain: [0.32, 1] }),
+      yaxis2: ax({ title: { text: 'Phase (°)' }, domain: [0, 0.25], dtick: 90 }), shapes: vlines(marks) });
+    note = useS ? 'S21 uses the filter blocks only, between two ' + S.plot.z0 + ' Ω ports. Source impedance and converter are not included.'
+      : 'H = Vout/Vsrc including the source impedance. Open load matches the NP-DR report plots. |H open| is also the source/converter ripple-current ratio.';
+  } else if (tab === 'zin') {
+    traces.push({ x: f, y: mag(sets.nom.Zin), name: '|Zin| loaded by Rn (Vin nom)', line: { color: C.a, width: 2.2 } });
+    traces.push({ x: f, y: mag(sets.nom.ZinOpen), name: '|Zin| converter side open', line: { color: C.d, width: 1.4, dash: 'dash' } });
+    if (sets.und) traces.push({ x: f, y: mag(sets.und.Zin), name: 'undamped, loaded', line: { color: C.b, width: 1.2, dash: 'dash' } });
+    traces.push(...snapTr('zin'));
+    traces.push({ x: f, y: sets.nom.Zin.map(z => z.re), name: 'Re(Zin) loaded', yaxis: 'y3', line: { color: C.c, width: 1.2 }, showlegend: true });
+    traces.push({ x: f, y: ph(sets.nom.Zin), name: '∠Zin loaded', yaxis: 'y2', line: { color: C.a, width: 1.2 }, showlegend: false });
+    layout = baseLayout({ yaxis: ax({ type: 'log', title: { text: '|Zin| (Ω)' }, domain: [0.42, 1], exponentformat: 'SI' }),
+      yaxis3: ax({ title: { text: 'Re (Ω)' }, domain: [0.22, 0.38] }),
+      yaxis2: ax({ title: { text: 'Phase (°)' }, domain: [0, 0.18], range: [-185, 185], dtick: 90 }), shapes: vlines(marks) });
+    note = 'Zin is seen by the source (excludes Rsrc/Lsrc). With the converter as −|Rn|, Re(Zin) < 0 near f0 means the filter and converter together look active from the source.';
+  } else if (tab === 'tm') {
+    const tm = sets.nom.Tm;
+    traces.push({ x: f, y: dbs(tm), name: '|Tm| = |Zout/Rn|', line: { color: C.a, width: 2.2 } });
+    if (sets.und) traces.push({ x: f, y: dbs(sets.und.Tm), name: 'undamped', line: { color: C.b, width: 1.2, dash: 'dash' } });
+    traces.push(...snapTr('tm'));
+    traces.push({ x: [f[0], f[f.length - 1]], y: [-cv.k, -cv.k], name: `−${cv.k} dB`, mode: 'lines', line: { color: C.bad, width: 1, dash: 'dot' } });
+    traces.push({ x: f, y: ph(tm), yaxis: 'y2', name: '∠Tm', line: { color: C.a, width: 1.2 }, showlegend: false });
+    layout = baseLayout({ yaxis: ax({ title: { text: '|Tm| (dB)' }, domain: [0.32, 1] }),
+      yaxis2: ax({ title: { text: 'Phase (°)' }, domain: [0, 0.25], range: [-185, 185], dtick: 90 }), shapes: vlines(marks) });
+    const ny = [{ x: tm.map(z => z.re), y: tm.map(z => z.im), name: 'Tm', mode: 'lines', line: { color: C.a, width: 2 }, text: f.map(v => fmtSI(v, 'Hz')), hovertemplate: '%{text}<br>%{x:.3f} %{y:.3f}j<extra></extra>' },
+      { x: tm.map(z => z.re), y: tm.map(z => -z.im), name: 'mirror', mode: 'lines', line: { color: C.a, width: 1, dash: 'dot' }, hoverinfo: 'skip' },
+      { x: [-1], y: [0], name: '−1', mode: 'markers', marker: { color: C.bad, size: 10, symbol: 'x' } }];
+    const circ = []; for (let i = 0; i <= 120; i++) { const a = 2 * Math.PI * i / 120; circ.push([Math.cos(a), Math.sin(a)]); }
+    ny.push({ x: circ.map(p => p[0]), y: circ.map(p => p[1]), name: '|Tm| = 1', mode: 'lines', line: { color: C.muted, width: 1, dash: 'dot' }, hoverinfo: 'skip' });
+    const lay2 = baseLayout({ hovermode: 'closest', xaxis: ax({ title: { text: 'Re(Tm)' }, zeroline: true, scaleanchor: 'y' }), yaxis: ax({ title: { text: 'Im(Tm)' }, zeroline: true }) });
+    delete lay2._ax;
+    Plotly.react('pl2', ny, lay2, cfg);
+    note = 'Tm = Zout/Zconv with Zconv = Rn at Vin min (negative). Stable when the Nyquist curve does not encircle −1. Middlebrook asks |Tm| ≪ 1 at all f.';
+  } else if (tab === 'elem') {
+    const pal = [C.a, C.b, C.c, C.d, C.bad, C.muted];
+    S.blocks.forEach((b, i) => {
+      if (!b.on) return;
+      const z = f.map(fr => E.zBlock(b, 2 * Math.PI * fr));
+      traces.push({ x: f, y: z.map(E.abs), name: `|Z| ${b.name}`, line: { color: pal[i % pal.length], width: 1.8 } });
+      if (b.type === 'bead2' || b.type === 'bead4') {
+        traces.push({ x: f, y: z.map(q => q.re), name: `R ${b.name}`, line: { color: pal[i % pal.length], width: 1, dash: 'dash' } });
+        traces.push({ x: f, y: z.map(q => Math.abs(q.im)), name: `|X| ${b.name}`, line: { color: pal[i % pal.length], width: 1, dash: 'dot' } });
+      }
+    });
+    layout = baseLayout({ yaxis: ax({ type: 'log', title: { text: '|Z| (Ω)' }, exponentformat: 'SI' }), shapes: vlines(marks) });
+    note = 'Impedance of each block on its own (series blocks: element impedance; shunt blocks: branch impedance to ground).';
+  } else if (tab === 'sweep') {
+    const cand = S.blocks.filter(b => b.on && E.dampKey(b));
+    if (!cand.length) {
+      layout = baseLayout({ annotations: [{ text: 'Add an Rd-Cd leg or inductor damping to sweep Rd.', xref: 'paper', yref: 'paper', x: 0.5, y: 0.5, showarrow: false }] });
+      note = '';
+    } else {
+      let b = cand.find(x => x.id === S.plot.sweepId) || cand[0];
+      S.plot.sweepId = b.id;
+      const key = E.dampKey(b);
+      // The x axis is the total damping R. For an Rd-Cd leg that is Rd + Cd ESR, so a leg
+      // damped only by an e-cap ESR (Rd = 0) is centred on its ESR, not on 0.
+      const esr = b.type === 'rc' ? b.esr : 0;
+      const cur = (b[key] || 0) + esr;
+      const sec = E.sectionOf(S, b.id);
+      const center = cur > 0 ? cur : (sec ? sec.Z0 : 1);
+      const lo = Math.max(center / 100, esr), hi = center * 100;   // Rd ≥ 0, so total ≥ ESR
+      const tot = []; for (let i = 0; i <= 50; i++) tot.push(lo * (hi / lo) ** (i / 50));
+      const sw = E.sweepParam(S, b.id, key, tot.map(t => Math.max(0, t - esr)));
+      const best = sw.reduce((a, c, i) => c.peak < a.peak ? { ...c, x: tot[i] } : a, { ...sw[0], x: tot[0] });
+      traces.push({ x: tot, y: sw.map(s => s.peak), name: 'peak |Zout|', line: { color: C.a, width: 2.2 } });
+      traces.push({ x: tot, y: sw.map(s => s.hfsw), name: '|H| at fsw (dB)', yaxis: 'y2', line: { color: C.d, width: 1.4, dash: 'dash' } });
+      const lim = Math.abs(m.rn.min) / 10 ** (cv.k / 20);
+      traces.push({ x: [tot[0], tot[tot.length - 1]], y: [lim, lim], name: `|Rn|−${cv.k} dB`, mode: 'lines', line: { color: C.bad, width: 1, dash: 'dot' } });
+      traces.push({ x: [cur], y: [m.peak.v], mode: 'markers', name: 'current', marker: { color: C.a, size: 10, symbol: 'diamond' } });
+      traces.push({ x: [best.x], y: [best.peak], mode: 'markers', name: 'best on grid', marker: { color: C.d, size: 9 } });
+      layout = baseLayout({ hovermode: 'x unified', xaxis: ax({ type: 'log', title: { text: `${esc(b.name)}: ${b.type === 'rc' ? 'Rd + Cd ESR' : 'Rd'} (Ω)` }, exponentformat: 'SI' }),
+        yaxis: ax({ type: 'log', title: { text: 'peak |Zout| (Ω)' }, exponentformat: 'SI' }),
+        yaxis2: ax({ title: { text: '|H| fsw (dB)' }, overlaying: 'y', side: 'right' }), margin: { l: 62, r: 56, t: 10, b: 44 } });
+      note = `Sweeps the damping R of ${esc(b.name)} from 1/100× to 100× its value. Pick another block: ` + cand.map(c => `<button data-sw="${c.id}">${esc(c.name)}</button>`).join(' ');
+    }
+  }
+  delete layout._ax;
+  Plotly.react('pl1', traces, layout, cfg);
+  const nEl = document.getElementById('plotnote');
+  nEl.innerHTML = note;
+  nEl.querySelectorAll('button[data-sw]').forEach(btn => btn.onclick = () => { S.plot.sweepId = btn.dataset.sw; renderPlots(); });
+}
+
+// ---------- Main update loop ----------
+let pending = false;
+function changed() {
+  if (pending) return;
+  pending = true;
+  requestAnimationFrame(() => { pending = false; recompute(); });
+}
+function recompute() {
+  try {
+    lastSweep = curveSets();
+    lastMetrics = E.metrics(S);
+    drawSchematic();
+    renderResults(lastMetrics);
+    renderPlots();
+    saveLocal();
+  } catch (e) {
+    console.error(e);
+    document.getElementById('plotnote').textContent = 'Error: ' + e.message;
+  }
+}
+function buildAll() {
+  buildConv(); buildPlotSet(); buildBlocks(); buildTabs();
+  document.getElementById('preset').value = '';
+  recompute();
+}
+
+// ---------- Header actions ----------
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function initHeader() {
+  const sel = document.getElementById('preset');
+  sel.innerHTML = '<option value="">Presets…</option>' + PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join('');
+  sel.onchange = () => { if (sel.value !== '') loadPreset(+sel.value); };
+  // No prompt(): some viewers block dialogs, which made the click do nothing.
+  // The label carries the key result so snapshots can be told apart in the legend.
+  const snapCount = () => {
+    document.getElementById('bSnap').textContent = snapshots.length ? `Snapshot (${snapshots.length})` : 'Snapshot';
+  };
+  document.getElementById('bSnap').onclick = () => {
+    const s = lastSweep.nom, m = lastMetrics;
+    const label = `S${snapshots.length + 1}: ${fmtSI(m.peak.v, 'Ω')} peak, ${m.margin.toFixed(1)} dB`;
+    snapshots.push({ label, f: Array.from(s.f), zout: mag(s.Zout), h: dbs(s.H), s21: dbs(s.S21), zin: mag(s.Zin), tm: dbs(s.Tm) });
+    snapCount();
+    if (!['zout', 'xfer', 'zin', 'tm'].includes(S.plot.tab)) { S.plot.tab = 'zout'; buildTabs(); }
+    renderPlots();
+  };
+  document.getElementById('bClrSnap').onclick = () => { snapshots = []; snapCount(); renderPlots(); };
+  document.getElementById('bLink').onclick = async () => {
+    // Copy only; do not put the state in this page's URL, or a reload would bring
+    // back this snapshot over later edits.
+    const url = location.href.split('#')[0] + '#d=' + encodeState();
+    try { await navigator.clipboard.writeText(url); alert('Link copied.'); } catch (e) { prompt('Copy this link', url); }
+  };
+  document.getElementById('bSave').onclick = () => download((S.name || 'filter').replace(/[^\w.-]+/g, '_') + '.json', JSON.stringify(S, null, 2), 'application/json');
+  const fi = document.getElementById('fileIn');
+  document.getElementById('bLoad').onclick = () => fi.click();
+  fi.onchange = async () => {
+    const file = fi.files[0]; if (!file) return;
+    try { adopt(JSON.parse(await file.text())); buildAll(); } catch (e) { alert('Could not load: ' + e.message); }
+    fi.value = '';
+  };
+  document.getElementById('bCsv').onclick = () => {
+    const s = lastSweep.nom;
+    const lines = ['f_Hz,Zout_mag_ohm,Zout_phase_deg,H_dB,H_phase_deg,Hopen_dB,S21_dB,S21_phase_deg,Zin_mag_ohm,Zin_phase_deg,Tm_re,Tm_im'];
+    for (let i = 0; i < s.f.length; i++) {
+      const g = k => s[k][i];
+      lines.push([s.f[i], E.abs(g('Zout')), E.argd(g('Zout')), E.db(E.abs(g('H'))), E.argd(g('H')), E.db(E.abs(g('Hopen'))),
+        E.db(E.abs(g('S21'))), E.argd(g('S21')), E.abs(g('Zin')), E.argd(g('Zin')), g('Tm').re, g('Tm').im].map(v => Number(v.toPrecision(6))).join(','));
+    }
+    download((S.name || 'filter').replace(/[^\w.-]+/g, '_') + '.csv', lines.join('\n'), 'text/csv');
+  };
+  document.getElementById('bTheme').onclick = () => {
+    const root = document.documentElement;
+    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = dark ? 'light' : 'dark';
+    try { localStorage.setItem(LS_KEY + '-theme', root.dataset.theme); } catch (e) { /* ignore */ }
+    recompute();
+  };
+  document.querySelectorAll('[data-add]').forEach(btn => btn.onclick = () => {
+    const t = btn.dataset.add, T = E.TYPES[t];
+    const count = S.blocks.filter(b => E.TYPES[b.type].prefix === T.prefix).length + 1;
+    S.blocks.push(mk(t, T.prefix + count));
+    buildBlocks(); changed();
+    document.getElementById('card-' + S.blocks[S.blocks.length - 1].id).scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => recompute());
+}
+
+function init() {
+  try { const t = localStorage.getItem(LS_KEY + '-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) { /* ignore */ }
+  initHeader();
+  let ok = false;
+  const h = location.hash.match(/^#d=(.+)$/);
+  if (h) {
+    try { adopt(decodeState(h[1])); ok = true; } catch (e) { console.warn('bad link state', e); }
+    // The link has been read; clear it so later edits (saved locally) win on reload.
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+  if (!ok) { try { const s = localStorage.getItem(LS_KEY); if (s) { adopt(JSON.parse(s)); ok = true; } } catch (e) { /* ignore */ } }
+  if (!ok) { loadPreset(1); return; }
+  buildAll();
+}
+init();
+</script>
+</body>
+</html>
