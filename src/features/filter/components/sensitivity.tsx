@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { type Design, sensitivity, type TolKey } from '../engine'
 import { fmtSI } from '../lib/si'
-import { Hint, ToolCard } from './tool-card'
+import { Hint, Note, ToolCard } from './tool-card'
 
 const th =
   'px-1.5 py-1 text-right font-medium whitespace-nowrap first:text-left'
@@ -23,7 +23,7 @@ const signed = (v: number) =>
 /** Sensitivity card (M3): +10 % in one part at a time. */
 export function Sensitivity({ st }: { st: Design }) {
   return (
-    <ToolCard id='sens' title='Sensitivity'>
+    <ToolCard id='sens' title='Sensitivity' hints>
       <SensBody st={st} />
     </ToolCard>
   )
@@ -32,7 +32,7 @@ export function Sensitivity({ st }: { st: Design }) {
 /** Only mounted while the card is open, so a closed card costs nothing. */
 function SensBody({ st }: { st: Design }) {
   const s = useMemo(() => sensitivity(st), [st])
-  if (s.rows.length === 0) return <Hint>No part values to vary.</Hint>
+  if (s.rows.length === 0) return <Note>No part values to vary.</Note>
   return (
     <>
       <div className='overflow-x-auto'>

@@ -46,6 +46,7 @@ export function Time({ st, tr }: { st: Design; tr: TranState }) {
   return (
     <ToolCard
       id='time'
+      hints
       title='Time domain'
       right={
         <label className='flex items-center gap-1 text-[11px] font-normal tracking-normal normal-case'>

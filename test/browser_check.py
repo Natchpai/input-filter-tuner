@@ -1112,6 +1112,20 @@ try:
             settle(u, 100)
             n1 = u.locator("text=negative resistance").count()
             ok(n1 == n0 + 1, f"{vw} px: Converter note shows on (i) ({n0} -> {n1})")
+            # The toolbar switch shows every hint and is kept across a reload.
+            hint = lambda: u.locator("text=Click a part to edit its value").count()
+            h0 = hint()
+            u.click("#bHints")
+            settle(u, 100)
+            h1 = hint()
+            u.reload()
+            ready(u)
+            settle(u, 200)
+            h2 = hint()
+            u.click("#bHints")
+            settle(u, 100)
+            ok((h0, h1, h2, hint()) == (0, 1, 1, 0) and u.get_attribute("#bHints", "aria-pressed") == "false",
+               f"{vw} px: Hints switch shows and hides the hints, kept after reload {(h0, h1, h2, hint())}")
             if vw == 1440:
                 # The plot follows its card when the sidebar opens or closes.
                 pw = lambda: u.eval_on_selector("#pl1 .main-svg", "e => e.getBoundingClientRect().width")

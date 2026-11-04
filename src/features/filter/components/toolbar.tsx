@@ -5,6 +5,7 @@ import {
   FileCode,
   FileText,
   FileUp,
+  Lightbulb,
   Link2,
   Redo2,
   Save,
@@ -27,6 +28,7 @@ import { PRESET_NAMES, buildPreset } from '../state/presets'
 import { dispatch, redoDesign, undoDesign } from '../state/store'
 import { ReportDialog } from './report-dialog'
 import { selectCls } from './styles'
+import { setHints, useUi } from './ui-store'
 
 export function Toolbar({
   S,
@@ -121,6 +123,7 @@ export function Toolbar({
       'text/plain'
     )
 
+  const { hints } = useUi()
   // Narrow screens: icons only, so the row fits in one line at 390 px.
   const lbl = 'max-sm:sr-only'
   return (
@@ -165,6 +168,17 @@ export function Toolbar({
         onClick={redoDesign}
       >
         <Redo2 />
+      </Button>
+      <Button
+        id='bHints'
+        size='sm'
+        variant={hints ? 'default' : 'secondary'}
+        title='Show or hide the help text in every card'
+        aria-pressed={hints}
+        onClick={() => setHints(!hints)}
+      >
+        <Lightbulb />
+        <span className={lbl}>Hints</span>
       </Button>
       <span className='hidden flex-1 sm:block' />
       <Button

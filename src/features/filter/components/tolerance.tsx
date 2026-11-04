@@ -13,7 +13,7 @@ import { PlotlyChart } from '../plots/plotly-chart'
 import type { PlotColors } from '../plots/theme-colors'
 import type { Figure } from '../plots/traces'
 import TolWorker from '../workers/tolerance.worker?worker&inline'
-import { Hint, ToolCard } from './tool-card'
+import { Hint, Note, ToolCard } from './tool-card'
 
 const th =
   'px-1.5 py-1 text-right font-medium whitespace-nowrap first:text-left'
@@ -159,9 +159,9 @@ export function Tolerance({ st, colors }: { st: Design; colors: PlotColors }) {
   if (items.length === 0)
     return (
       <ToolCard title='Tolerance' id='tolerance'>
-        <Hint>
+        <Note>
           Add a ± tolerance on a block (Tolerance section in its card).
-        </Hint>
+        </Note>
       </ToolCard>
     )
 
@@ -179,7 +179,7 @@ export function Tolerance({ st, colors }: { st: Design; colors: PlotColors }) {
   const wbMargin = mc && wb ? mc.board[wb.index] : 0
 
   return (
-    <ToolCard title='Tolerance' id='tolerance'>
+    <ToolCard title='Tolerance' id='tolerance' hints>
       <div className='flex flex-wrap items-center gap-2 text-sm'>
         <label htmlFor='tol-n' className='text-xs text-muted-foreground'>
           Draws
@@ -212,12 +212,12 @@ export function Tolerance({ st, colors }: { st: Design; colors: PlotColors }) {
           </span>
         )}
       </div>
-      <Hint>
+      <Note>
         {items.length} {items.length === 1 ? 'tolerance' : 'tolerances'}:{' '}
         {items.length > 8
           ? 'more than 8, Monte Carlo only'
           : `all ${2 ** items.length} extremes per corner`}
-      </Hint>
+      </Note>
       {error && <p className='mt-1 text-xs text-destructive'>{error}</p>}
       {stale && (
         <p id='tol-stale' className='mt-1 text-xs text-status-open'>

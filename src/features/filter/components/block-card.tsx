@@ -39,7 +39,9 @@ import { closedFormFor } from '../lib/damping'
 import { fmtIn, fmtSI, parseSI } from '../lib/si'
 import { newId } from '../state/defaults'
 import { dispatch } from '../state/store'
+import { useHintScope } from './hint-scope'
 import { inputCls, LINEAR, selectCls } from './styles'
+import { Hint, HintButton, HintScope } from './tool-card'
 import { ValueRow } from './value-row'
 
 const iconBtn = 'size-7'
@@ -204,10 +206,10 @@ function BeadHelper({ b }: { b: Bead4Block }) {
           Apply
         </Button>
       </div>
-      <p className='text-xs text-muted-foreground'>
+      <Hint className='mt-0'>
         Lb = X/(2πf) at low f, Rp = |Z|(f<sub>SRF</sub>) − Rs, Cb = 1/((2πf
         <sub>SRF</sub>)²·Lb). Leave f<sub>SRF</sub> empty for Cb = 0.
-      </p>
+      </Hint>
     </details>
   )
 }
@@ -363,10 +365,10 @@ function ToleranceEditor({ b }: { b: Block }) {
             linear
           />
         ))}
-        <p className='mt-1 text-xs text-muted-foreground'>
-          ± % on each value, 0 for none. The Tolerance card uses them; uniform
-          in Monte Carlo.
-        </p>
+        <Hint>
+          ± % on each value, 0 for none. The Tolerance tab uses them; uniform in
+          Monte Carlo.
+        </Hint>
       </CollapsibleContent>
     </Collapsible>
   )
@@ -431,6 +433,7 @@ export function BlockCard({
 }) {
   const T = TYPES[b.type]
   const [name, setName] = useState<string | null>(null)
+  const hints = useHintScope()
   const last = S.blocks.length - 1
   return (
     <Card
@@ -466,9 +469,13 @@ export function BlockCard({
           }}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
         />
-        <span className='min-w-0 flex-1 truncate text-xs text-muted-foreground'>
+        <span
+          className='min-w-0 flex-1 truncate text-xs text-muted-foreground'
+          title={`${T.kind} · ${T.label}`}
+        >
           {T.kind} · {T.label}
         </span>
+        <HintButton scope={hints} />
         <Button
           size='icon'
           variant='ghost'
@@ -512,77 +519,79 @@ export function BlockCard({
           <X />
         </Button>
       </div>
-      {T.p.map((p) => (
-        <ValueRow
-          key={p.key}
-          id={`in-${b.id}-${p.key}`}
-          label={p.label}
-          unit={p.unit}
-          value={getParam(b, p.key)}
-          onChange={(v) => dispatch({ t: 'param', id: b.id, k: p.key, v })}
-          min={p.min}
-          max={p.max}
-          zero={p.allowZero}
-          linear={LINEAR.has(p.key)}
-          int={p.key === 'n'}
-        />
-      ))}
-      {b.type === 'ind' && (
-        <>
-          <div className='my-1.5 flex flex-wrap items-center gap-1.5 text-sm'>
-            <label htmlFor={`dm-${b.id}`} className='text-muted-foreground'>
-              Damping
-            </label>
-            <select
-              id={`dm-${b.id}`}
-              className={cn(selectCls, 'min-w-0 flex-1')}
-              value={b.dmode}
-              onChange={(e) =>
-                dispatch({
-                  t: 'patch',
-                  id: b.id,
-                  patch: { dmode: e.target.value as DampMode },
-                })
-              }
-            >
-              {Object.entries(DAMP).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </div>
-          {b.dmode !== 'none' && (
-            <ValueRow
-              id={`in-${b.id}-dR`}
-              label='Rd'
-              unit='Ω'
-              value={b.dR}
-              onChange={(v) => dispatch({ t: 'param', id: b.id, k: 'dR', v })}
-              min={1e-3}
-              max={1e4}
-            />
-          )}
-          {(b.dmode === 'RLpar' || b.dmode === 'RLser') && (
-            <ValueRow
-              id={`in-${b.id}-dL`}
-              label='Ld'
-              unit='H'
-              value={b.dL}
-              onChange={(v) => dispatch({ t: 'param', id: b.id, k: 'dL', v })}
-              min={1e-9}
-              max={10e-3}
-            />
-          )}
-        </>
-      )}
-      <CurveEditor S={S} b={b} />
-      <ToleranceEditor b={b} />
-      <DampHelpers S={S} b={b} />
-      {b.type === 'bead4' && (
-        <BeadHelper key={[b.rs, b.lb, b.rp, b.cb].join()} b={b} />
-      )}
-      {m && <InfoLines S={S} b={b} m={m} />}
+      <HintScope show={hints.show}>
+        {T.p.map((p) => (
+          <ValueRow
+            key={p.key}
+            id={`in-${b.id}-${p.key}`}
+            label={p.label}
+            unit={p.unit}
+            value={getParam(b, p.key)}
+            onChange={(v) => dispatch({ t: 'param', id: b.id, k: p.key, v })}
+            min={p.min}
+            max={p.max}
+            zero={p.allowZero}
+            linear={LINEAR.has(p.key)}
+            int={p.key === 'n'}
+          />
+        ))}
+        {b.type === 'ind' && (
+          <>
+            <div className='my-1.5 flex flex-wrap items-center gap-1.5 text-sm'>
+              <label htmlFor={`dm-${b.id}`} className='text-muted-foreground'>
+                Damping
+              </label>
+              <select
+                id={`dm-${b.id}`}
+                className={cn(selectCls, 'min-w-0 flex-1')}
+                value={b.dmode}
+                onChange={(e) =>
+                  dispatch({
+                    t: 'patch',
+                    id: b.id,
+                    patch: { dmode: e.target.value as DampMode },
+                  })
+                }
+              >
+                {Object.entries(DAMP).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {b.dmode !== 'none' && (
+              <ValueRow
+                id={`in-${b.id}-dR`}
+                label='Rd'
+                unit='Ω'
+                value={b.dR}
+                onChange={(v) => dispatch({ t: 'param', id: b.id, k: 'dR', v })}
+                min={1e-3}
+                max={1e4}
+              />
+            )}
+            {(b.dmode === 'RLpar' || b.dmode === 'RLser') && (
+              <ValueRow
+                id={`in-${b.id}-dL`}
+                label='Ld'
+                unit='H'
+                value={b.dL}
+                onChange={(v) => dispatch({ t: 'param', id: b.id, k: 'dL', v })}
+                min={1e-9}
+                max={10e-3}
+              />
+            )}
+          </>
+        )}
+        <CurveEditor S={S} b={b} />
+        <ToleranceEditor b={b} />
+        <DampHelpers S={S} b={b} />
+        {b.type === 'bead4' && (
+          <BeadHelper key={[b.rs, b.lb, b.rp, b.cb].join()} b={b} />
+        )}
+        {m && <InfoLines S={S} b={b} m={m} />}
+      </HintScope>
     </Card>
   )
 }

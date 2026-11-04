@@ -81,6 +81,11 @@ export function setPanel(panel: Panel) {
 
 export const setArea = (area: Area) => set({ area })
 
+export function setHints(hints: boolean) {
+  write(HINTS_KEY, hints ? '1' : '0')
+  set({ hints })
+}
+
 /**
  * Show one analysis panel and scroll the right pane so its tab bar sits
  * under the status strip. Used by the status strip chips.

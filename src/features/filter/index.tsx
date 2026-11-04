@@ -30,7 +30,7 @@ import {
 import { StatusStrip } from './components/status-strip'
 import { Time } from './components/time'
 import { Tolerance } from './components/tolerance'
-import { ToolCard } from './components/tool-card'
+import { Hint, ToolCard } from './components/tool-card'
 import { Toolbar } from './components/toolbar'
 import { type Panel, useUi } from './components/ui-store'
 import { useTran } from './components/use-tran'
@@ -204,15 +204,9 @@ export function Tuner() {
                 area === 'analysis' && narrowHide
               )}
             >
-              <ToolCard
-                title='Circuit'
-                right={
-                  <span className='text-[11px] font-normal tracking-normal normal-case max-sm:hidden'>
-                    click a part to edit it
-                  </span>
-                }
-              >
+              <ToolCard title='Circuit' hints>
                 <Schematic S={st} />
+                <Hint>Click a part to edit its value.</Hint>
               </ToolCard>
               {calc.error && (
                 <ToolCard title='Error'>

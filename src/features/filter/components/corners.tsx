@@ -10,7 +10,7 @@ const td = 'px-1.5 py-1 text-right whitespace-nowrap first:text-left'
 export function Corners({ data }: { data: ReturnType<typeof cornerMetrics> }) {
   const { rows, worst } = data
   return (
-    <ToolCard id='cornersCard' title='Corners'>
+    <ToolCard id='cornersCard' title='Corners' hints>
       <div id='corners' className='overflow-x-auto'>
         <table className='w-full text-sm tabular-nums'>
           <thead>

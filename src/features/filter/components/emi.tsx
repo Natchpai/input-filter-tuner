@@ -10,7 +10,7 @@ import {
 import { fmtSI } from '../lib/si'
 import { dispatch } from '../state/store'
 import { selectCls } from './styles'
-import { Hint, ToolCard } from './tool-card'
+import { Hint, Note, ToolCard } from './tool-card'
 import { ValueRow } from './value-row'
 
 const th =
@@ -30,6 +30,7 @@ export function Emi({ st, data }: { st: Design; data: EmiResult | null }) {
   return (
     <ToolCard
       id='emi'
+      hints
       title='Conducted EMI'
       right={
         <label className='flex items-center gap-1 text-[11px] font-normal tracking-normal normal-case'>
@@ -206,10 +207,12 @@ function EmiBody({ st, data }: { st: Design; data: EmiResult }) {
           </tbody>
         </table>
       </div>
-      <Hint>
+      <Note>
         {data.f0Max === null
-          ? 'No filter attenuation needed. '
-          : `A 2nd-order LC needs f0 ≤ ${fmtSI(data.f0Max, 'Hz')} (40 dB/dec). `}
+          ? 'No filter attenuation needed.'
+          : `A 2nd-order LC needs f0 ≤ ${fmtSI(data.f0Max, 'Hz')} (40 dB/dec).`}
+      </Note>
+      <Hint>
         {info.lisn.name}, which replaces Rsrc and Lsrc. Every full-load Vin
         corner; fixed fsw, so the prediction is compared with every detector
         limit. Needed = attenuation versus no filter at all.

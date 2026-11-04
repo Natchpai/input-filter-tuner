@@ -25,7 +25,7 @@ import { fmtSI } from '../lib/si'
 import { newId } from '../state/defaults'
 import { dispatch } from '../state/store'
 import { selectCls } from './styles'
-import { Hint, ToolCard } from './tool-card'
+import { Hint, Note, ToolCard } from './tool-card'
 import { ValueRow } from './value-row'
 
 const th =
@@ -55,6 +55,7 @@ export function Assistant({ st }: { st: Design }) {
   return (
     <ToolCard
       id='asst'
+      hints
       title='Design assistant'
       right={
         <label className='flex items-center gap-1 text-[11px] font-normal tracking-normal normal-case'>
@@ -137,9 +138,9 @@ function AsstBody({ st }: { st: Design }) {
         </select>
       </div>
       {a.target === 'db' && a.fa === 0 && (
-        <Hint>
+        <Note>
           f = 0 uses the lowest N·fsw on the bus: {fmtSI(faOf(st), 'Hz')}.
-        </Hint>
+        </Note>
       )}
       {a.target === 'emi' && !st.emi.on && (
         <p className='my-1 text-xs text-status-open'>
@@ -372,7 +373,7 @@ function Result({
         </table>
       </div>
       {p.exact.stages.map((s, i) => (
-        <Hint key={i}>{stageLine(s, many ? i + 1 : null)}</Hint>
+        <Note key={i}>{stageLine(s, many ? i + 1 : null)}</Note>
       ))}
       <div className='mt-2 grid gap-1.5 sm:grid-cols-2'>
         <Verdict
@@ -406,10 +407,10 @@ function Result({
         </p>
       )}
       {p.rounded.moved.length > 0 && (
-        <Hint>
+        <Note>
           * Moved off the nearest E-series value to meet the targets:{' '}
           {p.rounded.moved.join(', ')}.
-        </Hint>
+        </Note>
       )}
       {p.warnings.length > 0 && (
         <ul
