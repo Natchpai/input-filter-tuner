@@ -17,10 +17,10 @@ M1a and M1b are done (`docs/M1-plan.md`). M2 is done (`docs/M2-plan.md`)
 except the user's check of the EMI limit tables. M4 is done
 (`docs/M4-plan.md`).
 
-M5, only the "several converters on one bus" item, is in progress:
-steps 0-6 are done; continue with step 7 (export) and step 8 (docs) from
-the "Progress" notes at the top of `docs/M5-plan.md`. After M5, the next
-milestone per `ROADMAP.md` is M3; plan it in detail before any code.
+M5's "several converters on one bus" item is done (`docs/M5-plan.md`);
+the other two M5 items (frequency-dependent Zin, GMPM/ESAC) are not
+planned yet. The next milestone per `ROADMAP.md` is M3; plan it in detail
+before any code.
 
 ## Git
 
@@ -77,6 +77,20 @@ and get approval before changing the fixture.
   min(f min, 10 Hz) to `fcheck` (`checkRange`); it never follows the plot
   zoom. "Vin min" is the lowest of the three Vin fields (`vinLow`), so they
   need not be typed in order.
+- Several converters (`engine/bus.ts`, `docs/M5-plan.md`): converter 1 is
+  `conv` (it also holds the bus fields Vin and k); converters 2 to 6 are
+  `loads` items (`BusConv`), counted only while `on`. `converters(st)` is
+  the one list every check uses.
+  - Bus Rn = −Vin²/Σ(P_i/η_i). Each converter counts up to its own
+    `fcheck` (`fcOf`), so the check range is split into bands at each
+    f check (`bands`); margin = lowest band margin (`marginBands`), and
+    Nyquist judges each crossing against its band's |Rn|. Zin and the
+    'conv' H load use the flat bus Rn at Vin nom.
+  - A corner sets every converter light or every one full (`pBus`,
+    `iBus`). EMI and ripple: one spectrum per converter; lines at the same
+    frequency (EMI: within RBW/2) add in phase. Load step: every converter
+    steps together, one constant-power source each (also in the netlist).
+  - With no extra converter on, every number is today's, bit for bit.
 - Zout is seen from the converter with the source voltage shorted. Rsrc and
   Lsrc stay in the path.
 - H = Vout/Vsrc, with the converter side open by default. S21 covers the

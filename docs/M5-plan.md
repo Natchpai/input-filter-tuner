@@ -1,6 +1,6 @@
 # M5 plan: several converters on one bus
 
-Status: **in progress (2026-11-04)**. Scope: only the ROADMAP M5 item "Several
+Status: **done (2026-11-04)**. Scope: only the ROADMAP M5 item "Several
 converters on one bus". The frequency-dependent Zin and the GMPM/ESAC
 criteria are not part of this plan.
 
@@ -35,11 +35,26 @@ Progress (2026-11-04):
     `components/conv-card.tsx`, ids `conv-<id>`, inputs `ld-<id>-<key>`.
   - With B's crossover below f0, the low band can still limit (|Zout| at
     its top edge); the test says so (D1 Rd-Cd: 23.8 dB, not 26.8 dB).
-- Next: step 7 (export), then step 8 (docs). Step 7 starts by reading
-  `export/report.ts` and `export/netlist.ts` in full; `netlist.ts` builds
-  corners by hand (`pLoad: cv.pout`, `B_t_conv` source at line ~240) and
-  `report.ts` prints the `conv` table (lines ~238-293) and Rn/fcheck prose
-  (~352). `export/ltspice.test.ts` runs only when `LTSPICE` is set.
+- Step 7 (export), done:
+  - Netlist: the 'conv' H load is the bus Rn at Vin nom; the load-step
+    netlist uses the bus full-load corner and one B source per converter
+    (`B_t_conv`, `B_t_conv2`, …), all stepping at the same t1 and t2.
+  - Report: with several converters, the Inputs section has the bus rows
+    and a converter table (one row per converter that is on, then a Bus
+    row); the margin row names the limiting band, with one row per band;
+    per-converter ripple rows; EMI, load-step and method lines name every
+    converter. Specs show the bus P and every fsw. Front-matter keys
+    unchanged. One converter, or extras turned off: the same text as
+    before (tested).
+  - CSV and compare: no change (compare got its rows in step 2).
+  - LTspice (`LTSPICE` set, LTspice 64-bit in `%LOCALAPPDATA%`): D1 Rd-Cd
+    and D4 as before, plus D1 Rd-Cd with a 40 W, η 0.85 second converter:
+    V light within 0.1 %, V min within 1 %, droop within 5 %. All 3 pass.
+- Step 8 (docs), done: CLAUDE.md definitions and Next, ROADMAP tick,
+  README.
+- Gates after steps 7-8: 386 Vitest passed, 3 skipped (the LTspice cases,
+  which pass with `LTSPICE` set), both builds, browser check 304 passed / 0 failed, lint, prettier
+  and knip clean. Parity unchanged.
 
 ## Context
 

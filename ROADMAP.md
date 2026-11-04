@@ -81,8 +81,10 @@ design that meets the margin and the attenuation target.
 - [ ] **Forbidden-region criteria (S).** Add GMPM and ESAC (Wildrick et al.)
   next to the Middlebrook magnitude check. Report the Tm gain and phase
   margins.
-- [ ] **Several converters on one bus (S).** Use the parallel sum of each
-  converter's Zin, with different P and fc.
+- [x] **Several converters on one bus (S).** Use the parallel sum of each
+  converter's Zin, with different P and fc. Done 2026-11-04
+  (`docs/M5-plan.md`): up to 6 converters, |Rn| bands at each f check,
+  EMI, ripple and load step per converter, report and netlists.
 
 **Done when:** the result says which criterion limits the design, with its
 margin.

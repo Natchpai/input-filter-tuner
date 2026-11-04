@@ -77,6 +77,13 @@ Conducted EMI, Time domain and Saved designs follow below.
     periods, with its peak to peak.
   - Checked against closed forms, the frequency response and LTspice
     (within 5 % on D1 Rd-Cd and D4).
+- Several converters on one bus, up to 6 ("+ Converter" under the converter
+  card). Each one has its own P, P light, η, Vout, fsw, phases and f check;
+  Vin and k are shared.
+  - Each converter counts in the bus |Rn| up to its own f check, so the
+    limit line is a staircase. The margin is the lowest over these bands,
+    and Results names the band that limits.
+  - Corners, EMI, ripple and the load step include every converter.
 - Damping helpers:
   - "Rd for Q" (NP-DR-26001 equation).
   - "Optimum Rd", a numeric search with all parasitics included.
@@ -110,6 +117,10 @@ steps a value by 5 %, and Shift+Arrow by 25 %.
 - The converter input is Rn = −Vin²·η/P, a flat negative resistance. This
   holds only below the converter loop crossover, so the peak search stops at
   "f check max".
+- Several converters: the bus Rn is −Vin²/Σ(P/η) over the converters whose
+  f check is at or above the frequency. Ripple and EMI lines at the same
+  frequency add in phase (worst case); in the load step every converter
+  steps at the same time.
 - Zout is seen from the converter with the source voltage shorted. Rsrc and
   Lsrc stay in the path.
 - H = Vout/Vsrc with the source impedance included. The load can be open
