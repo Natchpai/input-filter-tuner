@@ -1,7 +1,6 @@
 # M1 plan: real part behaviour
 
-Status: **M1a done (2026-11-04).** M1b is an outline; plan it in detail
-next. Written 2026-11-04.
+Status: **M1a and M1b done (2026-11-04).** Written 2026-11-04.
 
 M1a notes:
 - `conv.pLight` is a required number (default 0), not optional: an optional
@@ -164,24 +163,77 @@ Browser (`test/browser_check.py`):
 - All CLAUDE.md "Done means" checks pass; parity passes with the fixture
   unchanged.
 
-## M1b. Tolerances (outline, plan in detail later)
+## M1b. Tolerances (done 2026-11-04)
 
-- Per-part tolerance `tol?: number` (± %) on each block's main value. Which
-  values (C, L, Lb, R, Rd, Cd) is decided at planning time.
-- Worst case per corner: try every ± extreme when there are at most 8
-  tolerances (256 cases, peak only), else use Monte Carlo only.
-- Monte Carlo: N draws (default 1000), seeded PRNG so results repeat.
-  Report worst, 1st percentile and median margin, with a histogram.
-  Open: uniform within ±tol, or normal with tol = 3σ.
-- Runs on a button. Use a Web Worker if one run takes over about 200 ms
-  (the engine is DOM-free, so it can move).
-- Open: whether the global tolerance curves (`plot.tol`, `dL`, `dC`) stay,
-  or are driven by the per-part tolerances. Changing them touches
-  `browser_check.py` and the parity skip list.
-- Ground truth: NP-DR-26001 report.md:229-237, Rd 1.06 Ω fixed. Q is 0.71
-  nominal, 0.84 at L −30 %, 0.55 at C 6 µF, 0.66 at both.
-- Done when: the worst case and the Monte Carlo spread show per corner, and
-  the NP-DR-26001 Q table is reproduced.
+M1b notes:
+- With L1 ±30 % only on D1 Rd-Cd, the lowest margin is at L +30 %, not
+  L −30 %: with Rd fixed the peak follows Z0, which grows with L. The
+  highest Q (0.84) is at L −30 %, as in the report.
+- The histogram axis fits the board margins; the k line shows only when it
+  falls inside.
+- `qSeriesOf()` is now the one place for the series Q; `metrics()` calls it.
+- `tolLabel()` in `engine/types.ts` names a key ("Rd", "Ld" for the
+  inductor damping keys).
+
+### Decisions (user, 2026-11-04)
+
+- Monte Carlo draws are uniform within ±tol. This matches LTspice `mc()`,
+  so the M6 LTspice run can repeat it.
+- The global tolerance curves (`plot.tol`, `dL`, `dC`) stay as they are.
+  They answer a different question (one shift of every L and C).
+- Tolerances apply to main L, C and R values only: ind `L`, `dR`, `dL`;
+  bead2 and bead4 `lb`; cap `c`; rc `rd`, `cd`; res `r`. ESR, ESL, DCR,
+  Cp, Cb, Rb and Rp stay fixed.
+
+### Definitions
+
+- `tol?: {key: ±%}` on a block, symmetric. `TOL_KEYS` in `engine/types.ts`
+  lists the keys per type; `MAX_TOL` = 80 %. A tolerance counts only on an
+  ON block; `dR` only when the damping mode is not none, `dL` only for
+  RLpar and RLser.
+- The tolerance multiplies the value at the corner: C = C(Vin)·(1+δ) with a
+  `cv` curve, else c·(1−derate)·(1+δ). The same for L with `li`.
+- One draw is one board: the same δ at every corner. Board margin = the
+  lowest margin over the corners.
+- Extremes: all 2^k ± cases at each corner when 1 ≤ k ≤ 8 tolerances
+  count; k > 8 gives Monte Carlo only. Extremes are not a proof, because
+  the peak need not be monotone in each value.
+- A case gives peak |Zout|, margin and series Q (no Nyquist scan).
+- Monte Carlo: mulberry32, seed 1, N draws (default 1000, 100 to 10 000).
+  Percentiles are nearest rank: sorted[ceil(p·n) − 1]. N and the seed are
+  not stored in the design.
+
+### Facts (checked 2026-11-04)
+
+- `peakZout` takes 0.43 ms and `metrics()` 1.1 ms on D1 and LQRx 02. 1000
+  draws × 6 corners is about 2.6 s, so the run goes in a Web Worker.
+- A `?worker&inline` worker runs in a `vite-plugin-singlefile` build
+  opened over file:// (Chromium).
+- D1 Rd-Cd, series Q from `metrics()`: 0.708 nominal, 0.843 at L −30 %,
+  0.550 at C −40 % (6 µF), 0.656 at both. NP-DR-26001 report.md:232-235:
+  0.71, 0.84, 0.55, 0.66.
+- The block field `tol` and the plot setting `plot.tol` share a name.
+  `parity.test.ts` skips `tol` in the block key compare only.
+
+### Work
+
+- Engine, `engine/tolerance.ts`: `tolItems`, `applyTol`, `evalCase`,
+  `extremes`, `monteCarlo`, `rng`, `percentile`; `qSeriesOf` in
+  `metrics.ts`.
+- State: `adopt()` reads `tol` per `TOL_KEYS`; a `tol` reducer action that
+  sets or deletes one key; parity skip; D1 Rd-Cd preset gets L1 ±30 % and
+  C1 ±40 % (NP-DR-26001 report.md:229-237).
+- UI: a "Tolerance" section in each block card; a Tolerance card after
+  Corners with N, Run / Cancel, progress, a table per corner (nominal,
+  extremes worst, Q range, MC worst, P1, median) and a board-margin
+  histogram. Results show as stale after a design change.
+
+### Done when
+
+- The extremes and the Monte Carlo spread show per corner.
+- The NP-DR-26001 Q table is reproduced in `tolerance.test.ts`.
+- All CLAUDE.md "Done means" checks pass; parity passes with the fixture
+  unchanged.
 
 ## User to-do before the LQRx curves
 
