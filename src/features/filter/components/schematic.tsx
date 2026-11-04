@@ -3,6 +3,8 @@
 import type { ReactNode } from 'react'
 import { type Block, converters, type Design, kindOf, rnBus } from '../engine'
 import { fmtSI } from '../lib/si'
+import { capLabel } from './block-summary'
+import { setArea, setOpen } from './ui-store'
 
 const W_ = 'fill-none stroke-foreground/70 [stroke-width:1.4]'
 const PART = 'fill-none stroke-chart-1 [stroke-width:1.6]'
@@ -293,10 +295,8 @@ function blockShape(b: Block): Shape {
         b.l > 0 ? prim('L', 'ESL', fmtSI(b.l, 'H'), f('l'), g) : null,
       ])
     case 'cap': {
-      const cnt = b.n > 1 ? `${b.n}× ` : ''
-      const der = b.derate ? ` (−${b.derate}%)` : ''
       return ser([
-        prim('C', n, cnt + fmtSI(b.c, 'F') + der, f('c'), g),
+        prim('C', n, capLabel(b), f('c'), g),
         b.esr > 0 ? prim('R', 'ESR', fmtSI(b.esr, 'Ω'), f('esr'), g) : null,
         b.esl > 0 ? prim('L', 'ESL', fmtSI(b.esl, 'H'), f('esl'), g) : null,
       ])
@@ -311,17 +311,38 @@ function blockShape(b: Block): Shape {
   }
 }
 
-/** Scroll to the input behind a schematic part and select it. */
+/**
+ * Open the card behind a schematic part, scroll to its input and select it.
+ * Narrow screens switch to the Inputs area first. The card flashes a ring.
+ */
 function focusField(f: string) {
   const [id, k] = f.split('.')
-  const el = document.getElementById(
-    id === 'src' ? 'src-' + k : `in-${id}-${k}`
-  )
-  if (el instanceof HTMLInputElement) {
+  const src = id === 'src'
+  if (!src) setOpen(id, true)
+  setArea('inputs')
+  // The rows render after the store update: wait a frame or two for them.
+  let tries = 3
+  const go = () => {
+    const el = document.getElementById(src ? 'src-' + k : `in-${id}-${k}`)
+    if (!(el instanceof HTMLInputElement) || !el.offsetParent) {
+      if (tries-- > 0) requestAnimationFrame(go)
+      return
+    }
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     el.focus({ preventScroll: true })
     el.select()
+    document
+      .getElementById(src ? 'src-R' : 'card-' + id)
+      ?.closest('[data-slot=card]')
+      ?.animate(
+        [
+          { boxShadow: '0 0 0 2px var(--ring)' },
+          { boxShadow: '0 0 0 0 transparent' },
+        ],
+        { duration: 1000, easing: 'ease-out' }
+      )
   }
+  requestAnimationFrame(go)
 }
 
 export function Schematic({ S }: { S: Design }) {

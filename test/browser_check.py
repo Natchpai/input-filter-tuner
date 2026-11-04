@@ -69,6 +69,12 @@ def tab(page, k):
     settle(page, 100)
 
 
+def unfold(page):
+    """Open every folded block and converter card (cards start folded)."""
+    page.evaluate("document.querySelectorAll('[data-a=fold][aria-expanded=false]').forEach(b => b.click())")
+    settle(page, 150)
+
+
 def commit(page, sel, text):
     page.fill(sel, text)
     page.press(sel, "Enter")
@@ -177,6 +183,7 @@ try:
         # Edit a value by typing (D1 Rd-Cd preset), check the margin changes.
         page.select_option("#preset", "1")
         settle(page, 250)
+        unfold(page)
         before = page.inner_text("#kpis")
         first_rc = page.eval_on_selector_all("[id^=in-][id$=-rd]", "els => els[0].id")
         commit(page, f"#{first_rc}", "4.7")
@@ -288,6 +295,7 @@ try:
         # Linear fields clamp
         page.select_option("#preset", "1")
         settle(page, 250)
+        unfold(page)
         der = page.eval_on_selector_all("[id^=in-][id$=-derate]", "els => els[0].id")
         commit(page, f"#{der}", "100")
         ok(page.input_value(f"#{der}") == "90", f"DC-bias loss 100 clamps to {page.input_value(f'#{der}')}")
@@ -301,11 +309,13 @@ try:
         # Method A preset keeps a real capacitor
         page.select_option("#preset", "2")
         settle(page, 250)
+        unfold(page)
         esr = page.eval_on_selector_all("[id^=in-][id$=-esr]", "els => els[0].value")
         ok(esr == "2.08", f"Method A preset is C1 with {esr} ohm ESR")
         # 2-stage: Rd1 uses its own (L1) section
         page.select_option("#preset", "10")
         settle(page, 400)
+        unfold(page)
         info = page.eval_on_selector_all("#blocks .blk", "b => b[2].querySelector('[id^=info-]').textContent")
         ok(info.startswith("L1 section"), f"2-stage Rd1 info uses L1 section: '{info[:40]}'")
         # LQRx 02: sweep range covers the e-cap ESR (0.195 ohm)
@@ -319,6 +329,7 @@ try:
         # Bead datasheet form rejects fx = 0
         page.select_option("#preset", "8")
         settle(page, 250)
+        unfold(page)
         cb_sel = "[id^=in-][id$=-cb]"
         cb_before = page.eval_on_selector_all(cb_sel, "els => els[0].value")
         page.locator("details summary").first.click()
@@ -405,6 +416,7 @@ try:
         zt = c.eval_on_selector("#pl1", "d => d.data.map(t => t.name)")
         ok(not any("Worst corner" in (n or "") for n in zt), "no worst-corner trace without curves")
         # Paste a SimSurfing-style CSV into Cf (third block): the corner rows change
+        unfold(c)
         cf = c.locator("#blocks .blk").nth(2)
         cf.locator("[id^=curve-btn-]").click()
         box = cf.locator("textarea[id^=curve-]")
@@ -449,6 +461,7 @@ try:
         ok(len(rows()) == 2 and "250 mA" in rows()[0] and c.input_value("#cv-pLight") == "3",
            f"linked curves survive an edit and a reload {rows()}")
         # Clearing the box removes the curve
+        unfold(c)
         fb = c.locator("#blocks .blk").nth(0)
         fb.locator("[id^=curve-btn-]").click()
         fb.locator("textarea[id^=curve-]").fill("")
@@ -482,7 +495,8 @@ try:
         card = t.inner_text("#tolerance")
         ok("2 tolerances: all 4 extremes per corner" in card, "D1 Rd-Cd: L1 ±30 % and C1 ±40 % counted")
         ok("1 tol" in t.locator("#blocks .blk").nth(0).inner_text()
-           and "1 tol" in t.locator("#blocks .blk").nth(1).inner_text(), "block cards show the tol badge")
+           and "1 tol" in t.locator("#blocks .blk").nth(1).inner_text(), "folded block cards show the tol badge")
+        unfold(t)
         r = tol_run(t)
         ok(len(r) == 1 and "0.48 to 0.99" in r[0], f"D1 extremes: one corner, Q 0.48 to 0.99 {r}")
         ok(t.eval_on_selector("#tol-hist", "d => (d.data || []).length") == 1, "board-margin histogram drawn")
@@ -533,6 +547,7 @@ try:
         tab(t, "tolerance")
         settle(t, 500)
         ok("3 tolerances: all 8 extremes" in t.inner_text("#tolerance"), "#d= link keeps tol, drops bad keys")
+        unfold(t)
         c1 = blk_id(t, 1)
         t.click(f"#tol-btn-{c1}")
         ok(t.input_value(f"#tol-{c1}-c").strip().startswith("80"), f"95 % clamped to 80 % ({t.input_value(f'#tol-{c1}-c')})")
@@ -541,6 +556,7 @@ try:
         t.reload()
         ready(t)
         settle(t, 300)
+        unfold(t)
         c1 = blk_id(t, 1)
         t.click(f"#tol-btn-{c1}")
         ok("3 tolerances" in t.inner_text("#tolerance") and t.input_value(f"#tol-{c1}-c").strip().startswith("10"),
@@ -559,6 +575,7 @@ try:
         d4 = kp()
         ok("26.8 dB" in d4 and w.is_enabled("#bUndo"), "preset change can be undone")
         # A slider drag is one undo step
+        unfold(w)
         rng = w.locator("#blocks .blk input[type=range]").first
         for v in ["300", "320", "340", "360"]:
             rng.fill(v)
@@ -1097,6 +1114,24 @@ try:
             sw = u.eval_on_selector("#sch svg", "e => e.getBoundingClientRect().width")
             cw = u.eval_on_selector("#sch", "e => e.clientWidth")
             ok(sw <= cw + 1, f"{vw} px: schematic fits the card ({sw:.0f} <= {cw} px)")
+            # Block cards start folded with a value summary; a schematic click
+            # opens the card and focuses the field.
+            blk0 = u.locator("#blocks .blk").first
+            bid = blk0.get_attribute("id")[len("card-"):]
+            folded = blk0.locator("[data-a=fold]").get_attribute("aria-expanded") == "false"
+            summ = blk0.locator(".summary").inner_text()
+            ok(folded and "µH" in summ and u.locator(f"#in-{bid}-L").count() == 0,
+               f"{vw} px: block cards start folded with a summary ('{summ}')")
+            area(u, "plot")
+            u.locator(f"#sch .hit[data-f='{bid}.L']").click()
+            settle(u, 500)
+            focused = u.evaluate("document.activeElement && document.activeElement.id")
+            ok(focused == f"in-{bid}-L" and blk0.locator("[data-a=fold]").get_attribute("aria-expanded") == "true"
+               and u.locator(f"#in-{bid}-L").is_visible(),
+               f"{vw} px: a schematic click opens the folded card and focuses {focused}")
+            blk0.locator("[data-a=fold]").click()
+            settle(u, 150)
+            ok(u.locator(f"#in-{bid}-L").count() == 0, f"{vw} px: the chevron folds the card again")
             # The analysis tab is kept across a reload.
             tab(u, "corners")
             u.reload()

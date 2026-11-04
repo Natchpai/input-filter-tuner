@@ -81,6 +81,17 @@ export function setPanel(panel: Panel) {
 
 export const setArea = (area: Area) => set({ area })
 
+/** Open or fold one block or converter card; `open` undefined toggles it. */
+export function setOpen(id: string, open?: boolean) {
+  const cur = get().open
+  const want = open ?? !cur.has(id)
+  if (want === cur.has(id)) return
+  const next = new Set(cur)
+  if (want) next.add(id)
+  else next.delete(id)
+  set({ open: next })
+}
+
 export function setHints(hints: boolean) {
   write(HINTS_KEY, hints ? '1' : '0')
   set({ hints })

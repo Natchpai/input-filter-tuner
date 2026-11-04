@@ -1,16 +1,18 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Copy, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronRight, Copy, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { type BusConv, LOAD_KEYS, MAX_BLOCK_NAME, MAX_LOADS } from '../engine'
 import { newId } from '../state/defaults'
 import { dispatch } from '../state/store'
+import { convSummary } from './block-summary'
 import { CONV_FIELDS, ZERO_OK } from './fields'
 import { inputCls, LINEAR } from './styles'
+import { setOpen, useUi } from './ui-store'
 import { ValueRow } from './value-row'
 
-const iconBtn = 'size-7'
+const iconBtn = 'size-6'
 const FIELDS = CONV_FIELDS.filter(([k]) =>
   (LOAD_KEYS as readonly string[]).includes(k)
 )
@@ -28,6 +30,8 @@ export function ConvCard({
   const [name, setName] = useState<string | null>(null)
   const set = (patch: Partial<Omit<BusConv, 'id'>>) =>
     dispatch({ t: 'loadSet', id: l.id, patch })
+  const open = useUi().open.has(l.id)
+  const fold = () => setOpen(l.id)
   return (
     <Card
       id={'conv-' + l.id}
@@ -36,7 +40,21 @@ export function ConvCard({
         !l.on && 'off opacity-55'
       )}
     >
-      <div className='mb-1.5 flex items-center gap-1.5'>
+      <div className={cn('flex items-center gap-1.5', open && 'mb-1.5')}>
+        <Button
+          size='icon'
+          variant='ghost'
+          className={cn(iconBtn, '-ml-1 text-muted-foreground')}
+          data-a='fold'
+          aria-expanded={open}
+          title={open ? 'Fold the card' : 'Open the card'}
+          aria-label={`${open ? 'Fold' : 'Open'} ${l.name}`}
+          onClick={fold}
+        >
+          <ChevronRight
+            className={cn('transition-transform', open && 'rotate-90')}
+          />
+        </Button>
         <input
           type='checkbox'
           title='Enable'
@@ -46,7 +64,7 @@ export function ConvCard({
           onChange={(e) => set({ on: e.target.checked })}
         />
         <input
-          className={cn(inputCls, 'name w-24 font-semibold')}
+          className={cn(inputCls, 'name w-20 font-semibold')}
           aria-label='Converter name'
           maxLength={MAX_BLOCK_NAME}
           value={name ?? l.name}
@@ -57,9 +75,13 @@ export function ConvCard({
           }}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
         />
-        <span className='min-w-0 flex-1 truncate text-xs text-muted-foreground'>
-          on the bus
-        </span>
+        <button
+          type='button'
+          className='summary min-w-0 flex-1 truncate text-left text-xs text-muted-foreground hover:text-foreground'
+          onClick={fold}
+        >
+          {open ? 'on the bus' : convSummary(l)}
+        </button>
         <Button
           size='icon'
           variant='ghost'
@@ -86,7 +108,11 @@ export function ConvCard({
           className={iconBtn}
           title='Duplicate'
           disabled={count >= MAX_LOADS}
-          onClick={() => dispatch({ t: 'loadDup', id: l.id, newId: newId() })}
+          onClick={() => {
+            const id = newId()
+            dispatch({ t: 'loadDup', id: l.id, newId: id })
+            setOpen(id, true)
+          }}
         >
           <Copy />
         </Button>
@@ -101,21 +127,22 @@ export function ConvCard({
           <X />
         </Button>
       </div>
-      {FIELDS.map(([k, label, u, mn, mx]) => (
-        <ValueRow
-          key={k}
-          id={`ld-${l.id}-${k}`}
-          label={label}
-          unit={u}
-          value={l[k as keyof BusConv] as number}
-          onChange={(v) => set({ [k]: v })}
-          min={mn}
-          max={mx}
-          zero={ZERO_OK.has(k)}
-          linear={LINEAR.has(k)}
-          int={k === 'phases'}
-        />
-      ))}
+      {open &&
+        FIELDS.map(([k, label, u, mn, mx]) => (
+          <ValueRow
+            key={k}
+            id={`ld-${l.id}-${k}`}
+            label={label}
+            unit={u}
+            value={l[k as keyof BusConv] as number}
+            onChange={(v) => set({ [k]: v })}
+            min={mn}
+            max={mx}
+            zero={ZERO_OK.has(k)}
+            linear={LINEAR.has(k)}
+            int={k === 'phases'}
+          />
+        ))}
     </Card>
   )
 }

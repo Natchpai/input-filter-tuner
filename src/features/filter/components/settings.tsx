@@ -16,6 +16,7 @@ import { dispatch } from '../state/store'
 import { CONV_FIELDS, ZERO_OK } from './fields'
 import { LINEAR, selectCls } from './styles'
 import { ToolCard } from './tool-card'
+import { setOpen } from './ui-store'
 import { ValueRow } from './value-row'
 
 /** Vin min, nom and max share one row of text boxes, no sliders. */
@@ -36,6 +37,7 @@ function addConv(S: Design) {
   while (names.has(`Conv ${n}`)) n++
   const l = mkLoad(S.conv, `Conv ${n}`)
   dispatch({ t: 'loadAdd', load: l })
+  setOpen(l.id, true)
   requestAnimationFrame(() =>
     document
       .getElementById('conv-' + l.id)
@@ -161,6 +163,7 @@ export function AddBlockCard({ S }: { S: Design }) {
       S.blocks.filter((b) => TYPES[b.type].prefix === T.prefix).length + 1
     const b = mk(t, T.prefix + count)
     dispatch({ t: 'add', block: b })
+    setOpen(b.id, true)
     requestAnimationFrame(() =>
       document
         .getElementById('card-' + b.id)
