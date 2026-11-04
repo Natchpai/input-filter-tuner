@@ -68,12 +68,19 @@ describe.each(legacy.presets.map((p, i) => [p.name, i, p] as const))(
         else expect(got, path).toEqual(want)
       }
       expect(blocks.length).toBe(ref.state.blocks.length)
+      // cv, li and conv.pLight are M1a fields, not in the legacy tool. The
+      // state loop above walks the fixture's keys, so pLight needs no skip.
+      const M1A = ['cv', 'li']
       blocks.forEach((b, j) => {
         const r = ref.state.blocks[j] as Record<string, unknown>
-        expect(Object.keys(b).sort(), `block ${j} keys`).toEqual(
-          Object.keys(r).sort()
-        )
+        expect(
+          Object.keys(b)
+            .filter((k) => !M1A.includes(k))
+            .sort(),
+          `block ${j} keys`
+        ).toEqual(Object.keys(r).sort())
         for (const [k, v] of Object.entries(b)) {
+          if (M1A.includes(k)) continue
           if (typeof v === 'number') same(v, r[k] as number, `block ${j}.${k}`)
           else expect(v, `block ${j}.${k}`).toEqual(r[k])
         }

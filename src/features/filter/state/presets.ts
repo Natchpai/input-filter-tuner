@@ -115,7 +115,18 @@ const PRESETS: Preset[] = [
     name: 'D4 · 4-element bead + 68 mΩ + 2×10 µF',
     make: () =>
       baseState('D4 bead final', D3, {}, [
-        mk('bead4', 'FB1', { rs: 50e-3, lb: 1e-6, rp: 150, cb: 2e-12 }),
+        mk('bead4', 'FB1', {
+          rs: 50e-3,
+          lb: 1e-6,
+          rp: 150,
+          cb: 2e-12,
+          // NP-DR-26004 report.md:200: "about 0.8 µH at 0.83 A". An assumed
+          // typical value, not a datasheet value.
+          li: [
+            [0, 1.0e-6],
+            [0.83, 0.8e-6],
+          ],
+        }),
         mk('res', 'R1', { r: 68e-3 }),
         mk('cap', 'C1', { c: 10e-6, esr: 0, n: 2, derate: 30 }),
       ]),
