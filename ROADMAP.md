@@ -4,111 +4,33 @@ Proposed improvements, grouped into milestones. Each milestone stands alone,
 so you can pick any of them in any order. Effort is S (under a day),
 M (1 to 3 days) or L (more than 3 days).
 
-Order: **M0 first** (decided 2026-11-04, done 2026-11-04). Then, by value
-to a filter design review: **M1a → M1b → M2 → M4 → M3**, and the rest as
-needed. M1 was split on 2026-11-04; the detailed plan is `docs/M1-plan.md`.
-On 2026-11-04 the user moved **M6 ahead of M1a** (plan: `docs/M6-plan.md`).
-M6 was done on 2026-11-04. M1a and M1b were done on 2026-11-04.
+Order by value to a filter design review: **M2 → M4 → M3**, and the rest
+as needed.
 
 Status key: `[ ]` not started, `[x]` done.
 
 ---
 
-## M0. Port to the web-site-starter template (done 2026-11-04, legacy/ kept)
+## Done
 
-**Decision (2026-11-04):** split the single `index.html` into a Vite +
-TypeScript project, built from the user's template
-`D:\KiCAD\KiCAD Templates\web-site-starter`.
+Details are in the plan docs and the git history.
 
-**Reason:**
-- `index.html` is about 1,500 lines, and M1–M6 would add much more.
-- Types and imports make the engine math safer to extend.
+- **M0. Port to the web-site-starter template** (2026-11-04). Vite + React +
+  TypeScript, Vitest, a single-file build and GitHub Pages; same numbers as
+  the old tool on all 14 presets.
+- **M6. Workflow and reports** (2026-11-04, `docs/M6-plan.md`). Undo/redo,
+  saved designs with overlays, design notes, SPICE netlist, plot images and
+  the design report zip.
+- **M1. Real part behaviour** (2026-11-04, `docs/M1-plan.md`).
+  - M1a: operating-point corners (Vin × load), C vs DC bias and L vs DC
+    current curves, the Corners card.
+  - M1b: per-part tolerances, every ± extreme and a seeded Monte Carlo per
+    corner, the Tolerance card.
 
-**Template contents (checked 2026-11-04):**
-- Vite 8, React 19, TypeScript ~6, Tailwind CSS 4
-- shadcn/ui (Radix) and TanStack Router with hash history
-- ESLint, Prettier and knip
-- Set up for GitHub Pages: `base` in `vite.config.ts`, plus hash routing
-- Its own `CLAUDE.md` rules, which carry over:
-  - Dark theme by default, with the brand tokens.
-  - Use colour tokens, never raw hex.
-  - Build pages from cards.
-  - `npm run build`, `npm run lint` and Prettier must pass.
-  - Check at 1440 px and 390 px, in dark and light.
-
-**Gaps the template does not cover:**
-- **No test runner.** Add Vitest and port `test/engine.test.mjs`, all
-  75 checks. Port `test/browser_check.py` to run against `npm run preview`.
-- **No single-file build.** Decided: both. `npm run build:single` with
-  `vite-plugin-singlefile`, and GitHub Pages like the template.
-- **Plotly.** Decided: `plotly.js-basic-dist-min` 2.35.3 from npm (scatter
-  only, about 1 MB), loaded with a dynamic import.
-
-**Port outline (to be planned in detail and approved before any code):**
-- [x] Start a new project from the template. Keep the current `index.html`
-  as the reference until the port has parity.
-- [x] Engine as pure typed modules under `src/features/filter/engine/`:
-  - complex math
-  - block types
-  - ABCD ladder
-  - peak search (keep the Im-crossing bisection)
-  - metrics and stage lookup (`sectionOf`)
-  - closed forms
-  - presets
-- [x] State: a reducer, with URL-hash and localStorage persistence. Keep
-  `adopt()` as the only whitelist and validator for untrusted input.
-- [x] UI as React components using the template's card patterns:
-  - value rows with a slider
-  - block cards
-  - SVG schematic
-  - plot tabs
-  - results tiles
-  - snapshots
-- [x] Parity check: every engine check passes in Vitest, every browser check
-  passes, and the presets give the same numbers as the old `index.html`.
-
-**Done when:**
-- The port matches the old tool on all 14 presets.
-- All engine and browser checks pass.
-- The template's build, lint and Prettier checks pass.
-- The old `index.html` is retired. (Kept in `legacy/` for now, by choice.)
-
----
-
-## M1. Real part behaviour (model accuracy)
-
-**Why:** the biggest errors in a real design come from part behaviour that the
-tool now treats as fixed: MLCC capacitance under DC bias, inductor L under
-current, and part tolerances. Your reports already handle these by hand (D4
-re-runs at Lb 0.8 µH, LQRx derates by 33 %).
-
-Split on 2026-11-04 into M1a and M1b. Measured impedance import moved to M8.
-Plan: `docs/M1-plan.md`.
-
-### M1a. Operating point (done 2026-11-04)
-
-- [x] **MLCC C vs DC bias per capacitor (M).** Enter or paste C vs V points
-  (for example a Murata SimSurfing CSV). At each corner the cap uses C at
-  that Vin.
-- [x] **Inductor / bead L vs DC current (M).** Enter or paste L vs I points.
-  At each corner the part uses L at I = P_load/(eta·Vin).
-- [x] **Corner table (S).** Vin min/nom/max × {light load, full load}, with
-  |Rn| at full power, as in NP-DR-26004. Show peak, margin, Q and attenuation
-  at fsw per corner, and mark the worst one.
-
-**Done when:** D4 shows its margin at both Lb values (0 A and 0.83 A) without
-any manual edits, every MLCC with a curve is evaluated at its bias voltage,
-and LQRx 02 shows 21 dB at 24 V and 13 dB at 15 V.
-
-### M1b. Tolerances (done 2026-11-04)
-
-- [x] **Per-part tolerance (S).** ± % on each block's main value.
-- [x] **Worst case (S).** Every ± extreme per corner, when the count is small.
-- [x] **Monte Carlo (M).** Run N random draws within the part tolerances and
-  report the margin distribution: worst, 1st percentile and median.
-
-**Done when:** the worst case and the Monte Carlo spread show per corner, and
-the NP-DR-26001 Q table (L −30 %, C 6 µF) is reproduced.
+Still open from done milestones:
+- [ ] Remove `legacy/` and `scripts/legacy-fixture.mjs` (M0), when the user
+  says so.
+- [ ] Run the D4 netlist in LTspice by hand and compare (M6).
 
 ---
 
@@ -195,26 +117,6 @@ preset, and match LTspice within 5 % on one test case.
 
 **Done when:** the result says which criterion limits the design, with its
 margin.
-
----
-
-## M6. Workflow and reports (done 2026-11-04)
-
-Plan: `docs/M6-plan.md`.
-
-- [x] **Undo/redo (S).** A slider drag is one step; a preset change can be
-  undone.
-- [x] **Named designs (S).** Saved in the browser, merged with snapshots: each
-  saved design can be shown as an overlay, survives reloads, and can be
-  compared with the current design.
-- [x] **Design notes (S).** A free-text note saved with the design.
-- [x] **SPICE netlist export (S).** LTspice/ngspice `.cir` with every
-  parasitic, so a design can be checked in LTspice in one step. (`.asc`
-  dropped 2026-11-04.) The LTspice run on D4 is still to be done by hand.
-- [x] **Plot image export (S).** SVG/PNG of the current plot.
-- [x] **Design report export (M).** A zip with `report.md` and `fig_*.svg` in
-  the NP-DR report layout, ready to drop into `document-archive`.
-- [x] **Offline use (S).** Done in M0: the single-file build carries Plotly.
 
 ---
 
