@@ -2,6 +2,7 @@
 export * from './complex'
 export * from './model'
 export * from './types'
+export * from './bus'
 export * from './ladder'
 export * from './peak'
 export * from './sections'

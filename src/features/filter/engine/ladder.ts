@@ -1,4 +1,5 @@
 // Block impedances, the ABCD ladder and everything at one frequency.
+import { rnBus, vinLow } from './bus'
 import {
   type Complex,
   add,
@@ -13,7 +14,7 @@ import {
   abs,
   ZERO,
 } from './complex'
-import type { Block, Conv, Design, Scale } from './model'
+import type { Block, Design, Scale } from './model'
 import { effC, kindOf, SC1 } from './types'
 
 export function zBlock(b: Block, w: number, s: Scale = SC1): Complex {
@@ -90,17 +91,10 @@ export function abcd(blocks: Block[], w: number, s: Scale): ABCD {
   return { A, B, C, D }
 }
 
-/** Lowest input voltage. The fields need not be typed in order. */
-export const vinLow = (conv: Conv) =>
-  Math.min(conv.vinMin, conv.vinNom, conv.vinMax)
-
-/** Converter input as a negative resistance: Rn = −Vin²·η/P. */
-export const rnOf = (conv: Conv, vin: number) =>
-  -(vin * vin * conv.eta) / conv.pout
-
+/** H load: the bus Rn at Vin nom (all converters), a resistor, or open. */
 function loadZ(st: Design): Complex | null {
   const pl = st.plot
-  if (pl.load === 'conv') return cx(rnOf(st.conv, st.conv.vinNom))
+  if (pl.load === 'conv') return cx(rnBus(st, st.conv.vinNom))
   if (pl.load === 'res') return cx(pl.rload)
   return null // open
 }
@@ -131,10 +125,11 @@ export function point(st: Design, f: number, s: Scale = SC1): Point {
     cx(2),
     add(add(A, D), add(cx(B.re / z0, B.im / z0), cx(C.re * z0, C.im * z0)))
   )
-  const Rn = cx(rnOf(st.conv, st.conv.vinNom))
+  // Zin: every converter at Vin nom, flat (M5). Tm: the bus Rn of f's band.
+  const Rn = cx(rnBus(st, st.conv.vinNom))
   const Zin = div(add(mul(A, Rn), B), add(mul(C, Rn), D))
   const ZinOpen = div(A, C)
-  const RnMin = rnOf(st.conv, vinLow(st.conv))
+  const RnMin = rnBus(st, vinLow(st.conv), f)
   const Tm = cx(Zout.re / RnMin, Zout.im / RnMin)
   return { Zout, Hopen, H, S21, Zin, ZinOpen, Tm }
 }

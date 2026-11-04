@@ -8,6 +8,7 @@ import {
   type EmiStd,
   EMI_STDS,
 } from './emi-limits'
+import { pBus } from './bus'
 import { abcd } from './ladder'
 import type { Block, Conv, Design } from './model'
 import { atCorner, corners } from './oppoint'
@@ -191,7 +192,8 @@ export type EmiResult = {
 export function emiResult(st: Design): EmiResult {
   const { std, cls, margin: um } = st.emi
   const bands = bandsOf(std, cls)
-  const full = corners(st).filter((c) => c.pLoad === st.conv.pout)
+  const pFull = pBus(st, 'full')
+  const full = corners(st).filter((c) => c.pLoad === pFull)
   const spectra = full.map((c) => ({
     label: c.label,
     pts: emiSpectrum(atCorner(st, c)),

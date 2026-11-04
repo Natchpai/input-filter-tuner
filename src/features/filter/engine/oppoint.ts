@@ -1,6 +1,7 @@
 // Operating-point corners: Vin {min, nom, max} × load {light, full}. At each
 // corner, C-vs-V and L-vs-I curves give the part values, and the existing
 // metrics() gives the numbers. See docs/M1-plan.md (M1a).
+import { iBus, pBus } from './bus'
 import { db } from './complex'
 import { metrics } from './metrics'
 import type { Block, Curve, Design } from './model'
@@ -37,9 +38,9 @@ export function interp(points: Curve, x: number): number {
 
 export type Corner = {
   vin: number
-  /** Load power at this corner, W. Sets the DC current only. */
+  /** Bus load power at this corner, W (every converter). DC current only. */
   pLoad: number
-  /** DC input current, A: pLoad/(eta·vin). */
+  /** DC input current, A: Σ P_i/(η_i·vin). */
   i: number
   label: string
 }
@@ -71,20 +72,20 @@ export function corners(st: Design): Corner[] {
   const vins = [...new Set([cv.vinMin, cv.vinNom, cv.vinMax])].sort(
     (a, b) => a - b
   )
-  const loads: { p: number; name: string }[] = []
+  // Light: every converter at its P light; full: every one at P full.
   // Light load above full load counts as full load (as adopt() clamps it).
-  const pLight = Math.min(cv.pLight, cv.pout)
-  if (loadDependent(st) && pLight !== cv.pout)
-    loads.push({ p: pLight, name: 'light' })
-  loads.push({ p: cv.pout, name: 'full' })
+  const loads: ('light' | 'full')[] = []
+  if (loadDependent(st) && pBus(st, 'light') !== pBus(st, 'full'))
+    loads.push('light')
+  loads.push('full')
   const out: Corner[] = []
   for (const vin of vins)
     for (const l of loads)
       out.push({
         vin,
-        pLoad: l.p,
-        i: l.p / (cv.eta * vin),
-        label: `${num(vin)} V, ${l.name}`,
+        pLoad: pBus(st, l),
+        i: iBus(st, vin, l),
+        label: `${num(vin)} V, ${l}`,
       })
   return out
 }

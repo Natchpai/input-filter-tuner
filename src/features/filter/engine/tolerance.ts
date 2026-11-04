@@ -1,8 +1,6 @@
 // Part tolerances (M1b): every ± extreme and a seeded Monte Carlo, at every
 // operating-point corner. See docs/M1-plan.md (M1b).
-import { db } from './complex'
-import { rnOf } from './ladder'
-import { checkRange, qSeriesOf } from './metrics'
+import { checkRange, marginBands, qSeriesOf } from './metrics'
 import type { Block, Design } from './model'
 import { atCorner, corners } from './oppoint'
 import { peakZout } from './peak'
@@ -128,11 +126,11 @@ export function applyTol(st: Design, items: TolItem[], d: number[]): Design {
 /** Peak, margin and Q of a design that is already at one corner. */
 export function evalCase(st: Design): CaseResult {
   const [fLo, fHi] = checkRange(st)
-  const peak = peakZout(st, fLo, fHi).v
-  // Same as metrics().margin: at a corner vinMin is the corner Vin and pout
-  // is the full power.
-  const margin = db(Math.abs(rnOf(st.conv, st.conv.vinMin)) / peak)
-  return { peak, margin, q: qSeriesOf(st) }
+  const whole = peakZout(st, fLo, fHi)
+  // Same as metrics().margin: at a corner vinMin is the corner Vin and every
+  // converter is at full power.
+  const { margin } = marginBands(st, st.conv.vinMin, whole)
+  return { peak: whole.v, margin, q: qSeriesOf(st) }
 }
 
 /**

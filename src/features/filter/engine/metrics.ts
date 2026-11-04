@@ -1,6 +1,16 @@
 // Design metrics, the damping optimizer and parameter sweeps.
+import {
+  type Band,
+  bands,
+  converters,
+  fcOf,
+  iBus,
+  pBus,
+  rnBus,
+  vinLow,
+} from './bus'
 import { abs, add, cx, db, div, mul, TAU, type Complex } from './complex'
-import { dcR, point, rnOf, vinLow, zBlock } from './ladder'
+import { dcR, point, zBlock } from './ladder'
 import type { Block, Design } from './model'
 import { golden, imZero, peakZout, type Peak } from './peak'
 import { primary, type Section } from './sections'
@@ -8,12 +18,39 @@ import { kindOf, SC1, setParam } from './types'
 
 /**
  * Frequency range for the margin and the Nyquist scan: from f min (at most
- * 10 Hz) up to f check. Rn holds only up to f check. It does not follow the
- * plot zoom, so the verdict cannot change with the view. Never inverted.
+ * 10 Hz) up to the highest f check of the converters on the bus. Rn holds
+ * only up to f check. It does not follow the plot zoom, so the verdict
+ * cannot change with the view. Never inverted.
  */
 export function checkRange(st: Design): [number, number] {
   const lo = Math.min(st.plot.fmin, 10)
-  return [lo, Math.max(st.conv.fcheck || st.conv.fsw, lo * 1.01)]
+  return [lo, Math.max(...converters(st).map(fcOf), lo * 1.01)]
+}
+
+/** One band of the check range with its peak |Zout| and margin. */
+export type BandResult = Band & { peak: Peak; margin: number }
+
+/**
+ * Margin of the bus at one Vin (full power): per band, db(|Rn_band| / peak
+ * |Zout| in the band); the margin is the lowest, `limit` its band. One
+ * converter gives one band and today's margin. `whole` is the peak over the
+ * whole check range when the caller has it already (used for one band).
+ */
+export function marginBands(
+  st: Design,
+  vin: number,
+  whole?: Peak
+): { bands: BandResult[]; limit: number; margin: number } {
+  const [fLo] = checkRange(st)
+  const bs = bands(st, vin, fLo)
+  const out = bs.map((b): BandResult => {
+    const pk = bs.length === 1 && whole ? whole : peakZout(st, b.fLo, b.fHi)
+    return { ...b, peak: pk, margin: db(Math.abs(b.rn) / pk.v) }
+  })
+  let limit = 0
+  for (let j = 1; j < out.length; j++)
+    if (out[j].margin < out[limit].margin) limit = j
+  return { bands: out, limit, margin: out[limit].margin }
 }
 
 /** Which parameter is the damping resistor of a block, if any. */
@@ -93,7 +130,12 @@ export function qSeriesOf(st: Design): number | null {
 }
 
 export type Metrics = {
+  /** Bus Rn (every converter) at Vin min, nom and max, full power. */
   rn: { min: number; nom: number; max: number }
+  /** Check-range bands at Vin min (one per distinct f check). */
+  bands: BandResult[]
+  /** Band with the lowest margin. */
+  limitBand: number
   peak: Peak
   peakIsEdge: boolean
   margin: number
@@ -132,13 +174,19 @@ export function metrics(st: Design): Metrics {
   const cv = st.conv
   const [fLo, fHi] = checkRange(st)
   const rn = {
-    min: rnOf(cv, vinLow(cv)),
-    nom: rnOf(cv, cv.vinNom),
-    max: rnOf(cv, cv.vinMax),
+    min: rnBus(st, vinLow(cv)),
+    nom: rnBus(st, cv.vinNom),
+    max: rnBus(st, cv.vinMax),
   }
   const pk = peakZout(st, fLo, fHi)
   const prim = primary(st)
-  const margin = db(Math.abs(rn.min) / pk.v)
+  const mb = marginBands(st, vinLow(cv), pk)
+  const margin = mb.margin
+  // |Rn| of the band that holds f (Nyquist crossings).
+  const rnAt = (f: number) =>
+    Math.abs(
+      (mb.bands.find((b) => f <= b.fHi) ?? mb.bands[mb.bands.length - 1]).rn
+    )
   // Nyquist: Tm = Zout/Rn with Rn < 0, so Tm crosses the real axis left of -1
   // where Im(Zout) = 0 and Re(Zout) > |Rn|. Each crossing is located by
   // bisection, because Re(Zout) at a high-Q crossing is far above the grid
@@ -154,14 +202,14 @@ export function metrics(st: Design): Metrics {
     const im = point(st, 10 ** lf(i)).Zout.im
     if (Math.sign(im) !== Math.sign(prevIm)) {
       const fr = imZero(st, lf(i - 1), lf(i), SC1)
-      if (point(st, fr).Zout.re > Math.abs(rn.min)) unstableAt = fr
+      if (point(st, fr).Zout.re > rnAt(fr)) unstableAt = fr
     }
     prevIm = im
   }
   // DC
   let rdc = st.source.R
   for (const b of st.blocks) if (b.on && kindOf(b) === 'series') rdc += dcR(b)
-  const iin = cv.pout / (cv.eta * vinLow(cv))
+  const iin = iBus(st, vinLow(cv), 'full')
   // Ripple
   const N = Math.max(1, Math.round(cv.phases || 1))
   const D = Math.min(1, Math.max(0, cv.vout / (cv.vinNom * cv.eta)))
@@ -198,6 +246,8 @@ export function metrics(st: Design): Metrics {
   const qSeries = qSeriesOf(st)
   return {
     rn,
+    bands: mb.bands,
+    limitBand: mb.limit,
     peak: pk,
     peakIsEdge: pk.edge,
     margin,
@@ -213,7 +263,7 @@ export function metrics(st: Design): Metrics {
       iin,
       drop: iin * rdc,
       loss: iin * iin * rdc,
-      pct: (100 * iin * iin * rdc) / cv.pout,
+      pct: (100 * iin * iin * rdc) / pBus(st, 'full'),
       perBlock: dcLoss,
     },
     ripple: {
