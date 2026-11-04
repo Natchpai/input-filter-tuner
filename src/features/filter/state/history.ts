@@ -47,6 +47,8 @@ function keyOf(a: Action): string | null {
     case 'emi':
     case 'tran':
       return `${a.t}:${Object.keys(a.patch).sort().join(',')}`
+    case 'loadSet':
+      return `loadSet:${a.id}:${Object.keys(a.patch).sort().join(',')}`
     default:
       return null
   }

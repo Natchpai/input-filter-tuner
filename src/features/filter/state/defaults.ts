@@ -6,6 +6,7 @@ import {
   type Conv,
   type Design,
   type EmiSettings,
+  type BusConv,
   type PlotSettings,
   type Source,
   type TranSettings,
@@ -44,6 +45,29 @@ export const CONV_DEFAULTS: Conv = {
   k: 6,
   fcheck: 1e6,
   pLight: 0,
+}
+
+/** A new extra converter: converter 1's own fields, then vals on top. */
+export function mkLoad(
+  conv: Conv,
+  name: string,
+  vals: Partial<BusConv> = {},
+  id: string = newId()
+): BusConv {
+  const { pout, pLight, eta, vout, fsw, phases, fcheck } = conv
+  return {
+    id,
+    name,
+    on: true,
+    pout,
+    pLight,
+    eta,
+    vout,
+    fsw,
+    phases,
+    fcheck,
+    ...vals,
+  }
 }
 
 export const PLOT_DEFAULTS: PlotSettings = {
@@ -91,6 +115,7 @@ export function baseState(
     v: 1,
     name,
     conv: { ...CONV_DEFAULTS, ...conv },
+    loads: [],
     source: { R: 0, L: 0, ...source },
     blocks,
     plot: { ...PLOT_DEFAULTS, ...plot },

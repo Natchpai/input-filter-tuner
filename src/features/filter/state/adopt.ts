@@ -14,6 +14,8 @@ import {
   EMI_TR_MAX,
   type DampMode,
   type Design,
+  type BusConv,
+  MAX_LOADS,
   MAX_BLOCK_NAME,
   MAX_NOTES,
   MAX_TOL,
@@ -23,7 +25,7 @@ import {
   type TranView,
   TYPES,
 } from '../engine'
-import { baseState, mk } from './defaults'
+import { baseState, mk, mkLoad } from './defaults'
 
 export const TAB_KEYS: TabKey[] = [
   'zout',
@@ -113,6 +115,18 @@ function curve(v: unknown): Curve | undefined {
   return out.length ? out.slice(0, CURVE_KEEP) : undefined
 }
 
+function loadOf(o: Obj, i: number, cv: Design['conv']): BusConv {
+  const d = mkLoad(cv, '')
+  for (const k of ['pout', 'vout', 'fsw', 'fcheck'] as const)
+    d[k] = pos(o[k], d[k])
+  d.eta = num(o.eta, d.eta, 0.3, 1)
+  d.phases = Math.round(num(o.phases, d.phases, 1, 8))
+  d.pLight = num(o.pLight, 0, 0, d.pout)
+  d.name = toStr(o.name).slice(0, MAX_BLOCK_NAME) || `Conv ${i + 2}`
+  d.on = o.on !== false
+  return d
+}
+
 export function adopt(obj: unknown): Design {
   if (!isObj(obj) || !Array.isArray(obj.blocks) || !isObj(obj.conv))
     throw new Error('not a filter design')
@@ -134,6 +148,12 @@ export function adopt(obj: unknown): Design {
   cv.k = num(oc.k, cv.k, 0, 20)
   // Light-load power: 0 up to the full load power.
   cv.pLight = num(oc.pLight, 0, 0, cv.pout)
+  // Extra converters (M5): the same field rules as conv, new ids.
+  if (Array.isArray(obj.loads))
+    base.loads = obj.loads
+      .filter(isObj)
+      .slice(0, MAX_LOADS)
+      .map((o, i) => loadOf(o, i, cv))
   const os: Obj = isObj(obj.source) ? obj.source : {}
   base.source.R = num(os.R, 0, 0)
   base.source.L = num(os.L, 0, 0)

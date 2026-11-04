@@ -96,6 +96,32 @@ export type Conv = {
   pLight: number
 }
 
+/** Fields a converter on the bus has of its own (M5). Bus fields: Vin, k. */
+export const LOAD_KEYS = [
+  'pout',
+  'pLight',
+  'eta',
+  'vout',
+  'fsw',
+  'phases',
+  'fcheck',
+] as const
+export type LoadKey = (typeof LOAD_KEYS)[number]
+
+/**
+ * Converter 2 to 6 on the same bus as `conv` (M5). Its Vin and k are the
+ * bus fields in `conv`.
+ */
+export type BusConv = Pick<Conv, LoadKey> & {
+  id: string
+  name: string
+  /** Off: the converter is left out of every check. */
+  on: boolean
+}
+
+/** Most extra converters (6 converters in all, with `conv`). */
+export const MAX_LOADS = 5
+
 export type Source = { R: number; L: number }
 
 export type TabKey =
@@ -149,6 +175,8 @@ export type Design = {
   v: number
   name: string
   conv: Conv
+  /** Converters 2 to 6 on the same bus (M5). Empty: one converter. */
+  loads: BusConv[]
   source: Source
   blocks: Block[]
   plot: PlotSettings

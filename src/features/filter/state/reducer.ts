@@ -8,7 +8,9 @@ import {
   EMI_MARGIN_MAX,
   EMI_TR_MAX,
   type EmiSettings,
+  type BusConv,
   MAX_BLOCK_NAME,
+  MAX_LOADS,
   MAX_NOTES,
   MAX_TOL,
   type PlotSettings,
@@ -34,10 +36,24 @@ export type Action =
   | { t: 'notes'; v: string }
   | { t: 'emi'; patch: Partial<EmiSettings> }
   | { t: 'tran'; patch: Partial<TranSettings> }
+  | { t: 'loadAdd'; load: BusConv }
+  | { t: 'loadSet'; id: string; patch: Partial<Omit<BusConv, 'id'>> }
+  | { t: 'loadDel'; id: string }
+  | { t: 'loadMove'; id: string; dir: -1 | 1 }
+  | { t: 'loadDup'; id: string; newId: string }
 
 const mapBlock = (st: Design, id: string, fn: (b: Block) => Block): Design => ({
   ...st,
   blocks: st.blocks.map((b) => (b.id === id ? fn(b) : b)),
+})
+
+const mapLoad = (
+  st: Design,
+  id: string,
+  fn: (l: BusConv) => BusConv
+): Design => ({
+  ...st,
+  loads: st.loads.map((l) => (l.id === id ? fn(l) : l)),
 })
 
 /** Set or clear one tolerance. Same state back when nothing changes. */
@@ -119,6 +135,39 @@ export function reducer(st: Design, a: Action): Design {
       tran.rCable = Math.min(CABLE_R_MAX, Math.max(0, tran.rCable))
       // Turning it off on the Time domain tab goes back to the Zout tab.
       return withTab({ ...st, tran })
+    }
+    case 'loadAdd':
+      if (st.loads.length >= MAX_LOADS) return st
+      return { ...st, loads: [...st.loads, a.load] }
+    case 'loadSet':
+      if (!st.loads.some((l) => l.id === a.id)) return st
+      return mapLoad(st, a.id, (l) => ({
+        ...l,
+        ...a.patch,
+        name: (a.patch.name ?? l.name).slice(0, MAX_BLOCK_NAME),
+      }))
+    case 'loadDel':
+      if (!st.loads.some((l) => l.id === a.id)) return st
+      return { ...st, loads: st.loads.filter((l) => l.id !== a.id) }
+    case 'loadMove': {
+      const i = st.loads.findIndex((l) => l.id === a.id),
+        j = i + a.dir
+      if (i < 0 || j < 0 || j >= st.loads.length) return st
+      const loads = st.loads.slice()
+      ;[loads[i], loads[j]] = [loads[j], loads[i]]
+      return { ...st, loads }
+    }
+    case 'loadDup': {
+      const i = st.loads.findIndex((l) => l.id === a.id)
+      if (i < 0 || st.loads.length >= MAX_LOADS) return st
+      const l = st.loads[i]
+      const loads = st.loads.slice()
+      loads.splice(i + 1, 0, {
+        ...l,
+        id: a.newId,
+        name: (l.name + "'").slice(0, MAX_BLOCK_NAME),
+      })
+      return { ...st, loads }
     }
   }
 }

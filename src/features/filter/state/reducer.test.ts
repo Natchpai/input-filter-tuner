@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { MAX_TOL } from '../engine'
+import { MAX_BLOCK_NAME, MAX_LOADS, MAX_TOL } from '../engine'
+import { mkLoad } from './defaults'
 import { emptyHistory, record, undo } from './history'
 import { buildPreset } from './presets'
 import { type Action, reducer } from './reducer'
@@ -121,4 +122,53 @@ test('tran: cable values clamped like adopt(); off on the Time tab → Zout', ()
   })
   expect(zin.plot.tab).toBe('zin')
   expect(base.tran.on).toBe(false) // not mutated
+})
+
+test('loads: add, set, move, dup, delete; at most 5; no mutation', () => {
+  const l = (id: string, name = id) => mkLoad(base.conv, name, {}, id)
+  let st = reducer(base, { t: 'loadAdd', load: l('x1') })
+  expect(base.loads).toEqual([])
+  expect(st.loads.map((x) => x.id)).toEqual(['x1'])
+  st = reducer(st, { t: 'loadAdd', load: l('x2') })
+  st = reducer(st, { t: 'loadSet', id: 'x2', patch: { pout: 3, on: false } })
+  expect(st.loads[1]).toMatchObject({ pout: 3, on: false })
+  st = reducer(st, { t: 'loadSet', id: 'x1', patch: { name: 'n'.repeat(90) } })
+  expect(st.loads[0].name).toHaveLength(MAX_BLOCK_NAME)
+  st = reducer(st, { t: 'loadMove', id: 'x2', dir: -1 })
+  expect(st.loads.map((x) => x.id)).toEqual(['x2', 'x1'])
+  expect(reducer(st, { t: 'loadMove', id: 'x2', dir: -1 })).toBe(st)
+  st = reducer(st, { t: 'loadDup', id: 'x2', newId: 'x3' })
+  expect(st.loads.map((x) => x.id)).toEqual(['x2', 'x3', 'x1'])
+  expect(st.loads[1].pout).toBe(3)
+  st = reducer(st, { t: 'loadDel', id: 'x3' })
+  expect(st.loads.map((x) => x.id)).toEqual(['x2', 'x1'])
+  // Unknown ids leave the state as it is (no undo step).
+  for (const a of [
+    { t: 'loadSet', id: 'no', patch: { pout: 1 } },
+    { t: 'loadDel', id: 'no' },
+    { t: 'loadDup', id: 'no', newId: 'y' },
+  ] as Action[])
+    expect(reducer(st, a)).toBe(st)
+  for (let i = 4; i < 10; i++)
+    st = reducer(st, { t: 'loadAdd', load: l('x' + i) })
+  expect(st.loads).toHaveLength(MAX_LOADS)
+  expect(reducer(st, { t: 'loadDup', id: 'x1', newId: 'z' })).toBe(st)
+})
+
+test('loads: a drag on one field is one undo step; undo removes an added one', () => {
+  let h = emptyHistory()
+  let st = base
+  const step = (a: Action, now: number) => {
+    const next = reducer(st, a)
+    h = record(h, st, next, a, now)
+    st = next
+  }
+  step({ t: 'loadAdd', load: mkLoad(base.conv, 'A', {}, 'a') }, 0)
+  for (let i = 0; i < 5; i++)
+    step({ t: 'loadSet', id: 'a', patch: { pout: 1 + i } }, 5000 + i * 100)
+  expect(h.past).toHaveLength(2)
+  let u = undo(h, st)!
+  expect(u.st.loads[0].pout).toBe(base.conv.pout)
+  u = undo(u.hist, u.st)!
+  expect(u.st.loads).toEqual([])
 })

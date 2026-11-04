@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest'
+import { MAX_LOADS } from '../engine'
 import { adopt } from './adopt'
+import { mkLoad } from './defaults'
 import { buildPreset } from './presets'
 
 const bad = '<img src=x onerror="window.__pwned=1">'
@@ -395,4 +397,70 @@ test('tran round-trips through JSON; the Time tab and view need it on', () => {
     expect(adopt({ conv: {}, blocks: [], plot: { tview } }).plot.tview).toBe(
       'hot'
     )
+})
+
+test('loads: absent gives none; junk items dropped; at most 5', () => {
+  const cv = { pout: 10, blocks: [] }
+  expect(adopt({ conv: cv, blocks: [] }).loads).toEqual([])
+  for (const v of ['x', 3, {}, null])
+    expect(adopt({ conv: cv, blocks: [], loads: v }).loads).toEqual([])
+  const st = adopt({
+    conv: cv,
+    blocks: [],
+    loads: [null, 'x', 7, ...Array.from({ length: 8 }, () => ({ pout: 2 }))],
+  })
+  expect(st.loads).toHaveLength(MAX_LOADS)
+  expect(st.loads.every((l) => l.pout === 2)).toBe(true)
+})
+
+test('loads: same field rules as conv, new ids, names', () => {
+  const st = adopt({
+    conv: { pout: 50, eta: 0.9, fsw: 400e3, fcheck: 20e3 },
+    blocks: [],
+    loads: [
+      {
+        id: 'b1',
+        name: bad,
+        on: 'yes',
+        pout: 20,
+        pLight: 99,
+        eta: 5,
+        vout: -1,
+        fsw: 'abc',
+        phases: 12.6,
+        fcheck: '30k',
+        evil: 1,
+      },
+      { on: false, eta: 0.1, phases: 0, pLight: -3, name: { toString: 1 } },
+    ],
+  })
+  const [a, b] = st.loads
+  expect(a.name).toBe(bad.slice(0, 40)) // React text, never HTML
+  expect(a.on).toBe(true) // only false turns it off
+  expect(a.pout).toBe(20)
+  expect(a.pLight).toBe(20) // clamped to pout
+  expect(a.eta).toBe(1)
+  expect(a.vout).toBe(st.conv.vout) // bad: converter 1's value
+  expect(a.fsw).toBe(400e3)
+  expect(a.phases).toBe(8)
+  expect(a.fcheck).toBe(20e3) // '30k' is not a number here
+  expect('evil' in a).toBe(false)
+  expect(a.id).not.toBe('b1')
+  expect(b.on).toBe(false)
+  expect(b.eta).toBe(0.3)
+  expect(b.phases).toBe(1)
+  expect(b.pLight).toBe(0)
+  expect(b.name).toBe('Conv 3')
+  expect(new Set(st.loads.map((l) => l.id)).size).toBe(2)
+})
+
+test('loads round-trip through JSON', () => {
+  const st = buildPreset(1)
+  st.loads = [
+    mkLoad(st.conv, 'Aux 5 V', { pout: 3, eta: 0.85, fsw: 2.1e6, on: false }),
+    mkLoad(st.conv, 'Main', { pLight: 1, phases: 2, fcheck: 15e3 }),
+  ]
+  const back = adopt(JSON.parse(JSON.stringify(st)))
+  const strip = (x: typeof st) => x.loads.map(({ id: _id, ...r }) => r)
+  expect(strip(back)).toEqual(strip(st))
 })
