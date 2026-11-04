@@ -51,7 +51,7 @@ export function Tuner() {
         sets: curveSets(dst, corners.rows[corners.worst]),
         m: metrics(dst),
         corners,
-        emi: emiResult(dst),
+        emi: dst.emi.on ? emiResult(dst) : null,
         error: null,
       }
     } catch (e) {
@@ -83,19 +83,14 @@ export function Tuner() {
           canUndo={hist.past.length > 0}
           canRedo={hist.future.length > 0}
         />
-        <div className='grid gap-3 @5xl/content:grid-cols-[400px_minmax(0,1fr)]'>
-          <aside className='min-w-0 space-y-2.5'>
-            <ConverterCard S={st} />
-            <SourceCard S={st} />
-            <div id='blocks' className='space-y-2.5'>
-              {st.blocks.map((b, i) => (
-                <BlockCard key={b.id} S={st} b={b} m={calc.m} index={i} />
-              ))}
-            </div>
-            <AddBlockCard S={st} />
-            <PlotSettingsCard S={st} />
-          </aside>
-          <div className='min-w-0 space-y-2.5'>
+        {/* One DOM order for both widths. Narrow: circuit and plot, then the
+            inputs, then the rest. Wide: inputs on the left, spanning both
+            rows; circuit and plot top right; the rest below them. */}
+        <div className='grid gap-3 @5xl/content:grid-cols-[400px_minmax(0,1fr)] @5xl/content:grid-rows-[auto_1fr]'>
+          <div
+            id='top'
+            className='min-w-0 space-y-2.5 @5xl/content:col-start-2 @5xl/content:row-start-1'
+          >
             <ToolCard
               title='Circuit'
               right={
@@ -112,20 +107,35 @@ export function Tuner() {
               </ToolCard>
             )}
             {calc.m && calc.sets && (
+              <PlotCard
+                S={dst}
+                sets={calc.sets}
+                m={calc.m}
+                snapshots={snapshots}
+                colors={colors}
+              />
+            )}
+          </div>
+          <aside className='min-w-0 space-y-2.5 @5xl/content:col-start-1 @5xl/content:row-span-2 @5xl/content:row-start-1'>
+            <ConverterCard S={st} />
+            <SourceCard S={st} />
+            <div id='blocks' className='space-y-2.5'>
+              {st.blocks.map((b, i) => (
+                <BlockCard key={b.id} S={st} b={b} m={calc.m} index={i} />
+              ))}
+            </div>
+            <AddBlockCard S={st} />
+            <PlotSettingsCard S={st} />
+          </aside>
+          <div className='min-w-0 space-y-2.5 @5xl/content:col-start-2 @5xl/content:row-start-2'>
+            {calc.m && calc.sets && (
               <>
                 <ToolCard title='Results'>
                   <Results S={dst} m={calc.m} nom={calc.sets.nom} />
                 </ToolCard>
                 {calc.corners && <Corners data={calc.corners} />}
-                {calc.emi && <Emi st={st} data={calc.emi} />}
                 <Tolerance st={dst} colors={colors} />
-                <PlotCard
-                  S={dst}
-                  sets={calc.sets}
-                  m={calc.m}
-                  snapshots={snapshots}
-                  colors={colors}
-                />
+                <Emi st={st} data={calc.emi} />
               </>
             )}
             <DesignsCard S={st} m={calc.m} library={library} />
