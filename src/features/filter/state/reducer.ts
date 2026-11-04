@@ -3,7 +3,10 @@ import {
   type Block,
   type Conv,
   type Design,
+  EMI_MARGIN_MAX,
+  EMI_TR_MAX,
   type EmiSettings,
+  MAX_BLOCK_NAME,
   MAX_NOTES,
   MAX_TOL,
   type PlotSettings,
@@ -77,7 +80,11 @@ export function reducer(st: Design, a: Action): Design {
       if (i < 0) return st
       const b = st.blocks[i]
       const blocks = st.blocks.slice()
-      blocks.splice(i + 1, 0, { ...b, id: a.newId, name: b.name + "'" })
+      blocks.splice(i + 1, 0, {
+        ...b,
+        id: a.newId,
+        name: (b.name + "'").slice(0, MAX_BLOCK_NAME),
+      })
       return { ...st, blocks }
     }
     case 'remove':
@@ -88,6 +95,9 @@ export function reducer(st: Design, a: Action): Design {
       return { ...st, notes: a.v.slice(0, MAX_NOTES) }
     case 'emi': {
       const emi = { ...st.emi, ...a.patch }
+      // Same limits as adopt(), so a reload gives back what was typed.
+      emi.tr = Math.min(EMI_TR_MAX, Math.max(0, emi.tr))
+      emi.margin = Math.min(EMI_MARGIN_MAX, Math.max(0, emi.margin))
       // Turning EMI off on the EMI tab goes back to the Zout tab.
       const plot =
         !emi.on && st.plot.tab === 'emi'

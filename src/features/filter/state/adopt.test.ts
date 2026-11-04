@@ -327,3 +327,31 @@ test('emi.on: only a real boolean turns it on; the EMI tab needs it', () => {
   }
   expect(d(false, 'zin').plot.tab).toBe('zin')
 })
+
+test('objects with a bad toString fall back instead of throwing', () => {
+  const evil = { toString: 1, valueOf: 1 }
+  const st = adopt({
+    name: evil,
+    conv: { pout: evil, vinMin: evil },
+    plot: { fmin: evil, n: evil },
+    emi: { tr: evil },
+    blocks: [
+      { type: 'ind', name: evil, L: evil, dmode: evil },
+      { type: 'cap', name: 'C1', c: 10e-6 },
+    ],
+  })
+  expect(st.name).toBe('Loaded')
+  expect(st.conv.pout).toBe(10)
+  expect(st.blocks).toHaveLength(2)
+  expect(st.blocks[0].name).toBe('L')
+  expect((st.blocks[0] as { dmode: string }).dmode).toBe('none')
+})
+
+test('plot range and block count are capped', () => {
+  const st = adopt({ conv: {}, blocks: [], plot: { fmin: 1e308, fmax: 1e308 } })
+  expect(Number.isFinite(st.plot.fmin)).toBe(true)
+  expect(Number.isFinite(st.plot.fmax)).toBe(true)
+  expect(st.plot.fmax).toBeGreaterThanOrEqual(st.plot.fmin * 10)
+  const many = Array.from({ length: 200 }, () => ({ type: 'res', r: 1 }))
+  expect(adopt({ conv: {}, blocks: many }).blocks).toHaveLength(64)
+})

@@ -24,3 +24,11 @@ test('compare: blocks only in one design', () => {
   const rows = compareRows(a, metricsOf(a), b, metricsOf(b))
   expect(rows.find((r) => r[0] === a.blocks[0].name)?.[2]).toBe('absent')
 })
+
+test('compare: Vout and light load differences show', () => {
+  const a = buildPreset(1)
+  const b = { ...a, conv: { ...a.conv, vout: a.conv.vout + 1, pLight: 3 } }
+  const labels = compareRows(a, metricsOf(a), b, metricsOf(b)).map((r) => r[0])
+  expect(labels).toContain('Vout')
+  expect(labels).toContain('Light load')
+})

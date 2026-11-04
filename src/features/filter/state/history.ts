@@ -69,11 +69,15 @@ export function record(
   return { past, future: [], lastKey: key, lastAt: now }
 }
 
-/** `st` with the view fields of `cur`, so undo does not switch tabs. */
-const keepView = (st: Design, cur: Design): Design => ({
-  ...st,
-  plot: { ...st.plot, tab: cur.plot.tab, sweepId: cur.plot.sweepId },
-})
+/**
+ * `st` with the view fields of `cur`, so undo does not switch tabs. The EMI
+ * tab exists only while EMI is on, so it falls back to Zout when `st` has
+ * EMI off.
+ */
+const keepView = (st: Design, cur: Design): Design => {
+  const tab = cur.plot.tab === 'emi' && !st.emi.on ? 'zout' : cur.plot.tab
+  return { ...st, plot: { ...st.plot, tab, sweepId: cur.plot.sweepId } }
+}
 
 export function undo(h: History, cur: Design) {
   if (!h.past.length) return null

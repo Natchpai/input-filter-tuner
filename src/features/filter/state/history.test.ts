@@ -123,3 +123,35 @@ describe('history', () => {
     expect(r.h.past).toHaveLength(0)
   })
 })
+
+describe('undo with the EMI tab', () => {
+  it('falls back to Zout when the restored design has EMI off', () => {
+    const on = reducer(base, { t: 'emi', patch: { on: true } })
+    const h = record(
+      emptyHistory(),
+      base,
+      on,
+      { t: 'emi', patch: { on: true } },
+      0
+    )
+    const cur = reducer(on, { t: 'plot', patch: { tab: 'emi' } })
+    const r = undo(h, cur)!
+    expect(r.st.emi.on).toBe(false)
+    expect(r.st.plot.tab).toBe('zout')
+    const back = redo(r.hist, r.st)!
+    expect(back.st.emi.on).toBe(true)
+    expect(back.st.plot.tab).toBe('zout')
+  })
+  it('keeps any other tab', () => {
+    const on = reducer(base, { t: 'emi', patch: { on: true } })
+    const h = record(
+      emptyHistory(),
+      base,
+      on,
+      { t: 'emi', patch: { on: true } },
+      0
+    )
+    const cur = reducer(on, { t: 'plot', patch: { tab: 'zin' } })
+    expect(undo(h, cur)!.st.plot.tab).toBe('zin')
+  })
+})

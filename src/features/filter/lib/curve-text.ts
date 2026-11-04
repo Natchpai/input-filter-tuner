@@ -69,5 +69,7 @@ export function parseCurve(text: string): {
 
 /** One point per line, e.g. "12 V, 3.96 µF". Parses back via parseCurve. */
 export function formatCurve(c: Curve, xUnit: string, yUnit: string): string {
-  return c.map(([x, y]) => `${fmtSI(x, xUnit)}, ${fmtSI(y, yUnit)}`).join('\n')
+  return c
+    .map(([x, y]) => `${fmtSI(x, xUnit, 6)}, ${fmtSI(y, yUnit, 6)}`)
+    .join('\n')
 }

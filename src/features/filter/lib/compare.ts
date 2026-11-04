@@ -47,7 +47,7 @@ export function compareRows(
   )
   res('Z0', (m) => (m.prim ? fmtSI(m.prim.Z0, 'Ω') : '–'))
   res('f0', (m) => (m.prim ? fmtSI(m.prim.f0, 'Hz') : '–'))
-  res('Attenuation @ N·fsw', (m) => `${db(m.ripple.hfr).toFixed(1)} dB`)
+  res('Attenuation @ N·fsw', (m) => `${(-db(m.ripple.hfr)).toFixed(1)} dB`)
   res('DC loss', (m) => fmtSI(m.dc.loss, 'W'))
 
   const diff = (label: string, x: string, y: string) => {
@@ -58,7 +58,9 @@ export function compareRows(
     ['vinNom', 'Vin nom', 'V'],
     ['vinMax', 'Vin max', 'V'],
     ['pout', 'P out', 'W'],
+    ['pLight', 'Light load', 'W'],
     ['eta', 'Efficiency', ''],
+    ['vout', 'Vout', 'V'],
     ['fsw', 'fsw', 'Hz'],
     ['phases', 'Phases', ''],
     ['k', 'k', 'dB'],

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BACKUP_KEY,
+  loadLibrary,
   MAX_ITEMS,
   MAX_NAME,
   parseLibrary,
@@ -117,5 +119,45 @@ describe('withItem', () => {
 
   it('refuses when full of named designs', () => {
     expect(withItem(full(false), item({ id: 'new' }))).toBeNull()
+  })
+})
+
+describe('loadLibrary keeps an unreadable list', () => {
+  const mem = new Map<string, string>()
+  const fake = {
+    getItem: (k: string) => (mem.has(k) ? mem.get(k)! : null),
+    setItem: (k: string, v: string) => void mem.set(k, String(v)),
+    removeItem: (k: string) => void mem.delete(k),
+  }
+  const KEY = 'input-filter-tuner-designs-v1'
+  it('copies bad JSON and unknown versions to the backup key once', () => {
+    const old = (globalThis as { localStorage?: unknown }).localStorage
+    ;(globalThis as { localStorage?: unknown }).localStorage = fake
+    try {
+      mem.clear()
+      mem.set(KEY, '{not json')
+      expect(loadLibrary()).toEqual([])
+      expect(mem.get(BACKUP_KEY)).toBe('{not json')
+      mem.set(KEY, JSON.stringify({ v: 2, items: [] }))
+      loadLibrary()
+      expect(mem.get(BACKUP_KEY)).toBe('{not json') // first copy kept
+      mem.clear()
+      mem.set(KEY, JSON.stringify(lib([item()])))
+      expect(loadLibrary()).toHaveLength(1)
+      expect(mem.has(BACKUP_KEY)).toBe(false)
+    } finally {
+      ;(globalThis as { localStorage?: unknown }).localStorage = old
+    }
+  })
+  it('an item with a bad name or time is dropped or defaulted, not thrown', () => {
+    const out = parseLibrary(
+      lib([
+        item({ id: 'x', name: { toString: 1 } as unknown as string }),
+        item({ id: 'y', savedAt: 'soon' as unknown as number }),
+      ])
+    )
+    expect(out.map((x) => x.id)).toEqual(['x', 'y'])
+    expect(out[0].name).toBe(d.name)
+    expect(out[1].savedAt).toBe(0)
   })
 })

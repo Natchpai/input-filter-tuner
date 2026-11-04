@@ -23,6 +23,7 @@ import {
   effC,
   getParam,
   interp,
+  MAX_BLOCK_NAME,
   MAX_TOL,
   type Metrics,
   optimizeParam,
@@ -455,6 +456,7 @@ export function BlockCard({
         <input
           className={cn(inputCls, 'name w-20 font-semibold')}
           aria-label='Name'
+          maxLength={MAX_BLOCK_NAME}
           value={name ?? b.name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => {

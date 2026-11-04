@@ -39,19 +39,20 @@ export function parseLibrary(raw: unknown): SavedDesign[] {
   for (const it of raw.items) {
     if (out.length >= MAX_ITEMS) break
     if (!isObj(it)) continue
-    let design: Design
+    let design: Design, name: string, t: number
     try {
       design = adopt(it.design)
+      name = typeof it.name === 'string' ? cleanName(it.name) : ''
+      t = typeof it.savedAt === 'number' ? it.savedAt : NaN
     } catch {
       continue
     }
     let id = typeof it.id === 'string' ? it.id.slice(0, 40) : ''
     if (!id || ids.has(id)) id = newSavedId()
     ids.add(id)
-    const t = Number(it.savedAt)
     out.push({
       id,
-      name: cleanName(it.name) || design.name,
+      name: name || design.name,
       savedAt: Number.isFinite(t) ? t : 0,
       overlay: it.overlay === true,
       auto: it.auto === true,
@@ -61,13 +62,28 @@ export function parseLibrary(raw: unknown): SavedDesign[] {
   return out
 }
 
+/** Where an unreadable saved list is kept before a save overwrites it. */
+export const BACKUP_KEY = KEY + '.bak'
+
 export function loadLibrary(): SavedDesign[] {
+  let s: string | null = null
   try {
-    const s = localStorage.getItem(KEY)
-    return s ? parseLibrary(JSON.parse(s)) : []
+    s = localStorage.getItem(KEY)
+    if (!s) return []
+    const raw: unknown = JSON.parse(s)
+    if (isObj(raw) && raw.v === 1) return parseLibrary(raw)
   } catch {
-    return []
+    /* unreadable: keep a copy below */
   }
+  // Not JSON or an unknown version: keep the text once, so the next save
+  // does not lose it for good.
+  try {
+    if (s && localStorage.getItem(BACKUP_KEY) === null)
+      localStorage.setItem(BACKUP_KEY, s)
+  } catch {
+    /* storage blocked */
+  }
+  return []
 }
 
 /** False when the browser refused (quota, blocked storage). */

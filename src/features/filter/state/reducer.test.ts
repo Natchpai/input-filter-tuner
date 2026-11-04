@@ -79,3 +79,27 @@ test('emi: turning it off on the EMI tab goes back to Zout', () => {
   expect(zin.plot.tab).toBe('zin')
   expect(base.emi.on).toBe(false) // not mutated
 })
+
+test('emi: tr and margin are clamped like adopt()', () => {
+  const r = (patch: Partial<typeof base.emi>) =>
+    reducer(base, { t: 'emi', patch }).emi
+  expect(r({ tr: 2e-6 }).tr).toBe(1e-6)
+  expect(r({ tr: -1 }).tr).toBe(0)
+  expect(r({ margin: 99 }).margin).toBe(40)
+  expect(r({ margin: -3 }).margin).toBe(0)
+  expect(r({ tr: 5e-9 }).tr).toBe(5e-9)
+})
+
+test('dup keeps block names within 40 characters', () => {
+  const b0 = base.blocks[0]
+  const long = reducer(base, {
+    t: 'patch',
+    id: b0.id,
+    patch: { name: 'x'.repeat(40) },
+  })
+  const d = reducer(long, { t: 'dup', id: b0.id, newId: 'nx' })
+  const copy = d.blocks.find((b) => b.id === 'nx')!
+  expect(copy.name.length).toBe(40)
+  const short = reducer(base, { t: 'dup', id: b0.id, newId: 'ny' })
+  expect(short.blocks.find((b) => b.id === 'ny')!.name).toBe(b0.name + "'")
+})

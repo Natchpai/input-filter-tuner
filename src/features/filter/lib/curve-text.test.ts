@@ -115,3 +115,30 @@ describe('formatCurve', () => {
     expect(formatCurve([[1.5, 2.2e-6]], 'A', 'H')).toBe('1.5 A, 2.2 µH')
   })
 })
+
+describe('precision and decimal commas', () => {
+  it('formatCurve keeps 6 digits, so close points stay apart', () => {
+    const c: [number, number][] = [
+      [1.001, 4e-6],
+      [1.004, 3.9e-6],
+      [12.345, 3.9612e-6],
+    ]
+    const { points, errors } = parseCurve(formatCurve(c, 'V', 'F'))
+    expect(errors).toEqual([])
+    expect(points).toHaveLength(3)
+    points.forEach((p, i) => {
+      expect(Math.abs(p[0] / c[i][0] - 1)).toBeLessThan(1e-6)
+      expect(Math.abs(p[1] / c[i][1] - 1)).toBeLessThan(1e-6)
+    })
+  })
+  it('"12,5 3,96" is an error, not 12 and 53', () => {
+    const { points, errors } = parseCurve('12,5 3,96')
+    expect(points).toEqual([])
+    expect(errors).toHaveLength(1)
+  })
+  it('"12,5; 3,96u" still reads decimal commas', () => {
+    const { points } = parseCurve('12,5; 3,96u')
+    expect(points[0][0]).toBeCloseTo(12.5, 12)
+    expect(points[0][1]).toBeCloseTo(3.96e-6, 18)
+  })
+})

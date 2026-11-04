@@ -63,7 +63,8 @@ export function parseSI(str: string): number {
   let s = String(str)
     .trim()
     .replace(/,/g, '.')
-    .replace(/\s+/g, '')
+    // "3.96 µF" is fine; "5 3" is not a number.
+    .replace(/(\d)\s+(?=[^\d\s.+-])/g, '$1')
     .replace(/(Ω|ohms?|Hz|H|F|V|W|A|%)$/, '')
   if (/^meg/i.test(s.replace(/^[-+0-9.e]+/i, ''))) s = s.replace(/meg$/i, 'M')
   // 4u7 style

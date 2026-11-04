@@ -23,7 +23,8 @@ export function encodeState(st: Design): string {
 }
 
 function decodeState(s: string): unknown {
-  const bin = atob(s)
+  // A mail or chat client may have turned "=" into "%3D".
+  const bin = atob(decodeURIComponent(s))
   const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0))
   return JSON.parse(new TextDecoder().decode(bytes))
 }
@@ -46,14 +47,20 @@ export function takeLinkFromHash() {
 export const designLink = (st: Design) =>
   location.href.split('#')[0] + '#d=' + encodeState(st)
 
-/** First design: from a link, else localStorage, else preset 1. */
+/**
+ * First design: from a link, else localStorage, else preset 1. A design from
+ * a link is saved at once: the hash is already cleared, so a reload before
+ * any edit would otherwise lose it.
+ */
 export function initialDesign(): { st: Design; warning?: string } {
   let warning: string | undefined
   if (pendingLink) {
     const link = pendingLink
     pendingLink = null
     try {
-      return { st: adopt(decodeState(link)) }
+      const st = adopt(decodeState(link))
+      saveLocal(st)
+      return { st }
     } catch (e) {
       warning = 'Could not read the design link: ' + (e as Error).message
     }

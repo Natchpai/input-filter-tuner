@@ -7,9 +7,12 @@ import {
   type BlockType,
   type Curve,
   DAMP,
+  EMI_MARGIN_MAX,
   EMI_STDS,
+  EMI_TR_MAX,
   type DampMode,
   type Design,
+  MAX_BLOCK_NAME,
   MAX_NOTES,
   MAX_TOL,
   type TabKey,
@@ -34,15 +37,28 @@ const has = (o: unknown, k: string) =>
   !!o && Object.prototype.hasOwnProperty.call(o, k)
 const isObj = (o: unknown): o is Obj => !!o && typeof o === 'object'
 
+const scalar = (v: unknown) => typeof v === 'number' || typeof v === 'string'
+/** A number from a number, string or boolean; NaN for anything else. */
+const toNum = (v: unknown) =>
+  scalar(v) || typeof v === 'boolean' ? Number(v) : NaN
+/** A string from a string or number; '' for anything else. */
+const toStr = (v: unknown) =>
+  typeof v === 'string' ? v : typeof v === 'number' ? String(v) : ''
+
 function num(v: unknown, def: number, lo = -Infinity, hi = Infinity) {
-  const x = Number(v)
+  const x = toNum(v)
   return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : def
 }
-const scalar = (v: unknown) => typeof v === 'number' || typeof v === 'string'
 const pos = (v: unknown, def: number) => {
-  const x = Number(v)
+  const x = toNum(v)
   return Number.isFinite(x) && x > 0 ? x : def
 }
+
+/** Most blocks a design may hold. */
+const MAX_BLOCKS = 64
+/** Plot range limits, Hz. */
+const F_MIN = 1e-3,
+  F_MAX = 1e10
 
 // Tolerances (tol). Only the keys listed in TOL_KEYS for the block type are
 // read, each as a number or a non-empty string that gives a finite value > 0,
@@ -93,7 +109,7 @@ function curve(v: unknown): Curve | undefined {
 export function adopt(obj: unknown): Design {
   if (!isObj(obj) || !Array.isArray(obj.blocks) || !isObj(obj.conv))
     throw new Error('not a filter design')
-  const base = baseState(String(obj.name || 'Loaded').slice(0, 80), {}, {}, [])
+  const base = baseState((toStr(obj.name) || 'Loaded').slice(0, 80), {}, {}, [])
   const cv = base.conv,
     oc = obj.conv
   for (const k of [
@@ -116,8 +132,8 @@ export function adopt(obj: unknown): Design {
   base.source.L = num(os.L, 0, 0)
   const pl = base.plot,
     op: Obj = isObj(obj.plot) ? obj.plot : {}
-  pl.fmin = pos(op.fmin, pl.fmin)
-  pl.fmax = Math.max(pos(op.fmax, pl.fmax), pl.fmin * 10)
+  pl.fmin = Math.min(Math.max(pos(op.fmin, pl.fmin), F_MIN), F_MAX / 10)
+  pl.fmax = Math.min(Math.max(pos(op.fmax, pl.fmax), pl.fmin * 10), F_MAX)
   pl.n = Math.round(num(op.n, pl.n, 100, 4000))
   pl.rload = pos(op.rload, pl.rload)
   pl.z0 = pos(op.z0, pl.z0)
@@ -142,9 +158,9 @@ export function adopt(obj: unknown): Design {
   // The EMI tab exists only while EMI is on.
   if (pl.tab === 'emi' && !em.on) pl.tab = 'zout'
   if (oe.lines === 1 || oe.lines === 2) em.lines = oe.lines
-  if (scalar(oe.tr) && oe.tr !== '') em.tr = num(oe.tr, em.tr, 0, 1e-6)
+  if (scalar(oe.tr) && oe.tr !== '') em.tr = num(oe.tr, em.tr, 0, EMI_TR_MAX)
   if (scalar(oe.margin) && oe.margin !== '')
-    em.margin = num(oe.margin, em.margin, 0, 40)
+    em.margin = num(oe.margin, em.margin, 0, EMI_MARGIN_MAX)
   if (typeof obj.notes === 'string' && obj.notes)
     base.notes = obj.notes.slice(0, MAX_NOTES)
   base.blocks = obj.blocks
@@ -160,7 +176,7 @@ export function adopt(obj: unknown): Design {
       const T = TYPES[type]
       const n = mk(
         type,
-        String(b.name ?? '').slice(0, 40) || T.prefix
+        toStr(b.name).slice(0, MAX_BLOCK_NAME) || T.prefix
       ) as unknown as Obj
       for (const p of T.p)
         n[p.key] = p.allowZero ? num(b[p.key], p.def, 0) : pos(b[p.key], p.def)
@@ -182,12 +198,16 @@ export function adopt(obj: unknown): Design {
       }
       n.on = b.on !== false
       if (type === 'ind') {
-        n.dmode = has(DAMP, b.dmode as string) ? (b.dmode as DampMode) : 'none'
+        n.dmode =
+          typeof b.dmode === 'string' && has(DAMP, b.dmode)
+            ? (b.dmode as DampMode)
+            : 'none'
         n.dR = pos(b.dR, n.dR as number)
         n.dL = pos(b.dL, n.dL as number)
       }
       if (has(b, '_q')) n._q = pos(b._q, 0.707)
       return n as unknown as Block
     })
+    .slice(0, MAX_BLOCKS)
   return base
 }

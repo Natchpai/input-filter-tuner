@@ -30,3 +30,12 @@ test('fmtIn and fmtSI', () => {
   expect(fmtSI(Infinity, 'Ω')).toBe('∞ Ω')
   expect(fmtSI(null)).toBe('–')
 })
+
+test('parseSI: a space is allowed before the prefix or unit only', () => {
+  expect(parseSI('3.96 µF')).toBeCloseTo(3.96e-6, 18)
+  expect(parseSI('12 V')).toBe(12)
+  expect(parseSI('2.2 u')).toBeCloseTo(2.2e-6, 18)
+  expect(parseSI('5 3')).toBeNaN()
+  expect(parseSI('1 .5')).toBeNaN()
+  expect(parseSI('- 5')).toBeNaN()
+})
