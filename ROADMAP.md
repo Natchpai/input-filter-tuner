@@ -4,8 +4,8 @@ Proposed improvements, grouped into milestones. Each milestone stands alone,
 so you can pick any of them in any order. Effort is S (under a day),
 M (1 to 3 days) or L (more than 3 days).
 
-Order by value to a filter design review: **M3** next, and the rest as
-needed.
+Order by value to a filter design review: **M3b** (the optimizer) next,
+and the rest as needed.
 
 Status key: `[ ]` not started, `[x]` done.
 
@@ -51,18 +51,18 @@ Still open from done milestones:
 **Why:** the tool analyses a design you type in. It can also propose one from
 the requirements.
 
-- [ ] **Auto-design single and 2-stage (M).**
+- [x] **Auto-design single and 2-stage (M).** Done 2026-11-04 (M3a).
   - Input: Vin range, P, η, fsw, the attenuation or EMI target, and margin k.
   - Output: L, C, Cd/C ratio n, Rd and Cd, following the Middlebrook and
     Erickson procedure.
   - For 2-stage, the attenuation is split between the stages.
-- [ ] **E-series rounding (S).** Snap every value to E12, E24 or E96, as in
+- [x] **E-series rounding (S).** Done 2026-11-04 (M3a). Snap every value to E12, E24 or E96, as in
   `LQRx/Images/Resistor_E96.png`, and recheck the margin after rounding.
 - [ ] **Multi-goal optimizer (M).**
   - Minimize one goal: Cd, total C, DC loss or size.
   - Subject to: margin ≥ k, attenuation ≥ target, and the Q window
     (Qpeak, Qloss and Qstab, as in NP-DR-26004 §5).
-- [ ] **Sensitivity table (S).** Show how much the margin and the attenuation
+- [x] **Sensitivity table (S).** Done 2026-11-04 (M3a). Show how much the margin and the attenuation
   change, in dB, for a +10 % change in each part. This shows which part
   matters most.
 - Uses the parts library from M8 when it exists (moved there 2026-11-04).

@@ -19,8 +19,9 @@ except the user's check of the EMI limit tables. M4 is done
 
 M5's "several converters on one bus" item is done (`docs/M5-plan.md`);
 the other two M5 items (frequency-dependent Zin, GMPM/ESAC) are not
-planned yet. The next milestone per `ROADMAP.md` is M3; plan it in detail
-before any code.
+planned yet. M3a is done (`docs/M3-plan.md`): design assistant, E-series
+rounding, sensitivity table. M3b (multi-goal optimizer) is next; plan it
+in detail before any code.
 
 ## Git
 
@@ -149,10 +150,35 @@ and get approval before changing the fixture.
     `emi.tr`) through Hopen at Vin nom, full load.
   - There is no report ground truth; `export/ltspice.test.ts` compares with
     LTspice when `LTSPICE` points to LTspice.exe.
+- Design assistant (`engine/design.ts`, `docs/M3-plan.md`):
+  - Inputs in `asst` (off by default, card only, no tab or report
+    section). `clampAsst()` is the one set of limits for `adopt()` and the
+    reducer. The proposal is UI state: never saved, linked or undone.
+  - Target: A dB at fa (fa 0 = lowest N·fsw on the bus), A = −20·log10
+    |Hopen(fa)| of the whole design; or EMI margin ≥ 0 in every band.
+  - Zmax = lowest band |Rn| at Vin min, full power, × 10^(−k/20);
+    Qstab = Zmax/Z0 per stage. Stage 1 is the source side.
+  - Per stage the user fixes L or C; f0_i = fa·10^(−A_i/40) starts it, then
+    one scale on every f0 is bisected until the exact check holds.
+  - Rule 'q' (reports): Rd = Z0²/(Z0/Q − rL); Rd-Cd adds Cd = 10/(2π·f0·Rd);
+    Rd-Ld forms take n from closedForm peak = Q·Z0. Rule 'leastCd'
+    (Erickson): peak target Qstab·Z0, then the peak target is lowered until
+    the nominal margin is k + 0.1 dB. A DCR that alone gives Q means no
+    damping part.
+  - E-series: log-nearest, then greedy one-step moves while a target
+    fails. Rd is rounded as the part value (total minus Cd ESR).
+  - Apply replaces `blocks` (one undo step). Parasitics come from the old
+    block in the same role counted from the converter side; `cv`, `li`,
+    `tol` and `derate` are dropped. Corners are checked, not designed for.
+- Sensitivity (`engine/sensitivity.ts`): each main value (`TOL_KEYS` in
+  use) +10 % alone; Δmargin at Vin min, full power, and ΔA at the ripple fr
+  of the converter with the least attenuation. Card and report section.
 
 ## Look (template rules)
 
 - Dark theme by default, with the brand tokens in `src/styles/theme.css`.
+  The dark surfaces are neutral greys around `#191a1b` (user, 2026-11-04);
+  `index.html` and `theme-switch.tsx` carry the same theme-color.
 - Colours come from tokens (`--chart-1`…`--chart-6`, `--status-*`,
   `--destructive`), never raw hex. Plotly gets them through
   `plots/theme-colors.ts`.

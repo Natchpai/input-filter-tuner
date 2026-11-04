@@ -84,6 +84,17 @@ Conducted EMI, Time domain and Saved designs follow below.
     limit line is a staircase. The margin is the lowest over these bands,
     and Results names the band that limits.
   - Corners, EMI, ripple and the load step include every converter.
+- Design assistant, off by default (checkbox in its card header).
+  - Input: an attenuation in dB at a frequency (default N·fsw) or the EMI
+    limits, 1 or 2 stages, the fixed L or C per stage, and the damping form
+    (Rd-Cd, parallel or series Rd-Ld, R across L).
+  - Damping sized for a target Q (as in the reports) or to just meet
+    margin k (Erickson).
+  - Shows exact and E-series values (E6 to E96 per part type), margin,
+    attenuation and the worst corner. Apply replaces the filter blocks as
+    one undo step.
+- Sensitivity table: the margin and attenuation change for +10 % in each
+  part, largest first. Also in the report.
 - Damping helpers:
   - "Rd for Q" (NP-DR-26001 equation).
   - "Optimum Rd", a numeric search with all parasitics included.

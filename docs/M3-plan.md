@@ -1,8 +1,36 @@
 # M3 plan: design assistant
 
-Status: **in progress (2026-11-04)**. Scope: M3a (auto-design, E-series
+Status: **M3a done (2026-11-04)**. Scope: M3a (auto-design, E-series
 rounding, sensitivity table). M3b (multi-goal optimizer) is planned after
 M3a ships.
+
+Progress (2026-11-04):
+- Done: step 0 plan (`bd9c8ae`), steps 1-6 engine and state (`2e23581`),
+  steps 7-9 UI, report, browser check and docs.
+- Gates: 471 Vitest passed (3 skipped, the LTspice cases), both builds,
+  browser check 319 passed / 0 failed, lint, prettier and knip clean.
+  Parity unchanged. Two browser-check runs out of five had one flaky
+  console error each, in code M3 does not touch (a Plotly redraw after a
+  page closed; a refused resource load in the M2 shots); both reruns
+  passed.
+- Deviations from the plan text below:
+  - `nForPeak` is the exact inverse (each peak formula is a quadratic in
+    n), not a bisection.
+  - "Just meet margin k" also works for R across L: it uses Q = Qstab.
+  - When the DCR alone gives the target Q, the stage gets no damping part
+    (rd = null) instead of a 1 kΩ leg.
+  - A warning when an f0 reaches fa: C and the source alone almost meet
+    the target, so L is very small.
+  - E-series retry: each round tries one step up and one step down for
+    every part and keeps the best move.
+  - No worker: Propose takes 9-14 ms in the browser (EMI target on D4 with
+    2 stages included); sensitivity runs on the main thread while its card
+    is open.
+  - The report's Sensitivity section follows Results, so every later
+    section number moves up by one.
+- Not in M3, done on request the same day: the dark theme is neutral
+  greys around `#191a1b` instead of navy (`src/styles/theme.css`,
+  theme-color in `index.html` and `theme-switch.tsx`).
 
 ## Context
 
