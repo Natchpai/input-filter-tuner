@@ -15,9 +15,17 @@ React and TypeScript from the web-site-starter template.
 
 ## What it does
 
-The page shows the circuit and the plots first, with the inputs on the left
-(on a phone: circuit, plots, then the inputs). Results, Corners, Tolerance,
-Conducted EMI, Time domain and Saved designs follow below.
+The page has two panes that scroll on their own:
+
+- Left: the converter, the source and the filter blocks. Block cards start
+  folded to one line with their main values; the chevron opens one.
+- Right: the status strip, the circuit and the plots, then the analysis
+  tabs (Results, Corners, Tolerance, Sensitivity, EMI, Time, Assistant,
+  Designs). The strip and the tab bar stay at the top while you scroll. A
+  strip chip opens its tab.
+- On a phone: Inputs, Plot and Analysis tabs show one area at a time.
+- Help text is hidden. The Hints button in the toolbar shows all of it, and
+  each card's (i) shows that card's hints.
 
 - Builds the filter as a ladder of blocks from source to converter. Each block
   is series or shunt, and you can add, remove, reorder, duplicate or switch it off.
@@ -26,7 +34,8 @@ Conducted EMI, Time domain and Saved designs follow below.
   - Shunt blocks: capacitor bank (C, ESR, ESL, count, DC-bias loss %) and
     Rd-Cd leg (Rd, Cd, Cd ESR, Cd ESL).
   - Inductor damping: R across L, parallel Rd-Ld, or series Rd∥Ld.
-- Draws the circuit with every parasitic. Click a part to jump to its value.
+- Draws the circuit with every parasitic. Click a part to open its card and
+  jump to its value.
 - Plot tabs:
   - |Zout| against |Rn| at Vin min/nom/max, with the margin line.
   - H or 50 Ω S21.
@@ -46,11 +55,11 @@ Conducted EMI, Time domain and Saved designs follow below.
   - Vin min/nom/max × {light load, full load}. |Rn| always uses full power.
   - C vs DC bias per capacitor and L vs DC current per inductor or bead.
     Paste points one per line, or a Murata SimSurfing CSV.
-  - A Corners card with peak, |Rn|, margin, Q and attenuation at fsw per
+  - A Corners tab with peak, |Rn|, margin, Q and attenuation at fsw per
     corner, the worst one marked, and its |Zout| on the Zout tab.
 - Part tolerances:
   - ± % on each main L, C and R value, in the block card.
-  - A Tolerance card: every ± extreme (up to 8 tolerances) and a seeded
+  - A Tolerance tab: every ± extreme (up to 8 tolerances) and a seeded
     Monte Carlo (uniform, N draws) at every corner, run in a Web Worker.
   - Worst, 1st percentile and median margin per corner, and a histogram of
     the board margin (lowest over the corners).
@@ -60,7 +69,7 @@ Conducted EMI, Time domain and Saved designs follow below.
     with harmonics up to 108 MHz.
   - The LISN follows the standard: CISPR 25 (5 µH / 50 Ω AN, class 1 to 5)
     or CISPR 32 (50 µH / 50 Ω V-AMN, class A/B). 1 or 2 lines.
-  - An EMI card with pass or fail per band, the worst harmonic and its
+  - An EMI tab with pass or fail per band, the worst harmonic and its
     corner, the margin, the attenuation needed and the LC corner frequency
     that would meet the limits.
   - The limit values come from public summaries and are not yet checked
@@ -95,10 +104,12 @@ Conducted EMI, Time domain and Saved designs follow below.
     one undo step.
 - Sensitivity table: the margin and attenuation change for +10 % in each
   part, largest first. Also in the report.
-- Damping helpers:
-  - "Rd for Q" (NP-DR-26001 equation).
-  - "Optimum Rd", a numeric search with all parasitics included.
-  - "Closed-form Rd" (lossless Middlebrook/Erickson optimum).
+- Damping helpers, under each damping part:
+  - Rd-Cd leg: type Q, then "Set Rd for Q" (NP-DR-26001 equation).
+  - The Rd menu: "Optimum (numeric)", a search with all parasitics
+    included, and "Closed form" (lossless Middlebrook/Erickson optimum).
+  - One line shows the closed-form Rd and peak, and warns when Cd is below
+    10/(2π·f0·Rd). The section details are in the block's hints.
 - Other tools:
   - Tolerance curves (ΔL, ΔC).
   - Undo and redo (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y). A slider drag is one
@@ -120,8 +131,15 @@ Conducted EMI, Time domain and Saved designs follow below.
   - LQRx 02 and LQRx 03.
   - Also parallel and series Rd-Ld, Pi/CLC, and 2-stage LC.
 
-Value inputs take SI prefixes: `22u`, `4u7`, `1.5m`, `10k`. Arrow Up/Down
-steps a value by 5 %, and Shift+Arrow by 25 %.
+Value inputs take SI prefixes: `22u`, `4u7`, `1.5m`, `10k`. Escape puts the
+value back. Arrow Up/Down, or the wheel while the box has focus, steps a
+value:
+
+- L, C and R: one E24 value (Shift: one E6 value).
+- Other values: 5 % (Shift: 25 %), or 1 % of the range on linear fields.
+
+The slider covers ÷10 to ×10 around the value and re-centres when you let
+go, so small moves stay fine.
 
 ## Definitions
 
@@ -169,7 +187,8 @@ npm run knip
   single-file tool, to 1e-9.
 - `browser_check.py` loads every preset and tab, edits values, uses the
   helpers, tries a hostile link, and checks 1440 px and 390 px in dark and
-  light. It also checks undo/redo, saved designs and overlays after a
+  light: both panes, the analysis and area tabs, folded cards, hints, E-series
+  stepping and the slider window. It also checks undo/redo, saved designs and overlays after a
   reload, and every export (SPICE, plot SVG/PNG, report zip). Screenshots
   go to `%TEMP%\filter-shots`.
 

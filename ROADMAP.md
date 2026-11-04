@@ -21,6 +21,9 @@ Details are in the plan docs and the git history.
 - **M6. Workflow and reports** (2026-11-04, `docs/M6-plan.md`). Undo/redo,
   saved designs with overlays, design notes, SPICE netlist, plot images and
   the design report zip.
+- **UX rework** (2026-11-04, `docs/UX-plan.md`). Two panes that scroll on
+  their own, analysis tabs, folded block cards, hints you can show or hide,
+  E-series step keys and a value-centred slider, one damping control.
 - **M1. Real part behaviour** (2026-11-04, `docs/M1-plan.md`).
   - M1a: operating-point corners (Vin × load), C vs DC bias and L vs DC
     current curves, the Corners card.

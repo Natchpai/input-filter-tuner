@@ -20,8 +20,8 @@ except the user's check of the EMI limit tables. M4 is done
 M5's "several converters on one bus" item is done (`docs/M5-plan.md`);
 the other two M5 items (frequency-dependent Zin, GMPM/ESAC) are not
 planned yet. M3a is done (`docs/M3-plan.md`): design assistant, E-series
-rounding, sensitivity table. M3b (multi-goal optimizer) is next; plan it
-in detail before any code.
+rounding, sensitivity table. The UX rework is done (`docs/UX-plan.md`).
+M3b (multi-goal optimizer) is next; plan it in detail before any code.
 
 ## Git
 
@@ -111,9 +111,10 @@ and get approval before changing the fixture.
   Rd∥Ld forms are used. Each one was verified against the numeric optimizer.
   A new closed form needs the same check in `engine.test.ts`.
 - EMI (`engine/emi.ts`, `engine/emi-limits.ts`, `docs/M2-plan.md`):
-  - An option, off by default (`emi.on`). While off: no EMI tab, the card
-    shows one line, no EMI section or figure in the report, and
-    `emiResult` is not run. Turning it off on the EMI tab goes to Zout.
+  - An option, off by default (`emi.on`). While off: no EMI plot tab, the
+    EMI analysis tab shows only its on switch, no EMI section or figure in
+    the report, and `emiResult` is not run. Turning it off on the EMI plot
+    tab goes to Zout.
   - Input current: each phase is a trapezoid of height Io/N, width D·T at
     the 50 % points, edge time tr. c_n = 2·Io·|sin(nπD)|/(nπ)·
     |sinc(nπ·tr·fsw)| for n a multiple of N, else 0. An exact null is 0.
@@ -133,7 +134,7 @@ and get approval before changing the fixture.
   - An option, off by default (`tran.on`), same rules as EMI. Runs in
     `workers/transient.worker.ts` through `components/use-tran.ts`; its key
     leaves out the plot settings. `tabOf()` in `engine/model.ts` is the one
-    place that hides the EMI and Time tabs.
+    place that hides the EMI and Time plot tabs.
   - Circuit: the element graph of `engine/circuit.ts` (shared with the
     SPICE export). MNA, trapezoidal steps, one tiny backward-Euler step for
     the 0+ point and two backward-Euler half steps after each step change.
@@ -151,8 +152,8 @@ and get approval before changing the fixture.
   - There is no report ground truth; `export/ltspice.test.ts` compares with
     LTspice when `LTSPICE` points to LTspice.exe.
 - Design assistant (`engine/design.ts`, `docs/M3-plan.md`):
-  - Inputs in `asst` (off by default, card only, no tab or report
-    section). `clampAsst()` is the one set of limits for `adopt()` and the
+  - Inputs in `asst` (off by default, Assistant analysis tab only, no plot
+    tab or report section). `clampAsst()` is the one set of limits for `adopt()` and the
     reducer. The proposal is UI state: never saved, linked or undone.
   - Target: A dB at fa (fa 0 = lowest N·fsw on the bus), A = −20·log10
     |Hopen(fa)| of the whole design; or EMI margin ≥ 0 in every band.
@@ -172,7 +173,8 @@ and get approval before changing the fixture.
     `tol` and `derate` are dropped. Corners are checked, not designed for.
 - Sensitivity (`engine/sensitivity.ts`): each main value (`TOL_KEYS` in
   use) +10 % alone; Δmargin at Vin min, full power, and ΔA at the ripple fr
-  of the converter with the least attenuation. Card and report section.
+  of the converter with the least attenuation. Sensitivity tab and report
+  section.
 
 ## Look (template rules)
 
@@ -183,9 +185,21 @@ and get approval before changing the fixture.
   `--destructive`), never raw hex. Plotly gets them through
   `plots/theme-colors.ts`.
 - Build pages from cards; long text reads as lists.
-- The Tuner page leads with the circuit and the plot card (top right; first
-  on narrow screens, before the inputs). New cards go below Results, not
-  above the plot. `index.tsx` places the three blocks with grid rows.
+- The Tuner page (`index.tsx`, `docs/UX-plan.md`) has two panes that
+  scroll on their own; the page does not scroll (`<Main fixed>`).
+  - Left (`#inputs`): converter, source, block cards, add block, plot
+    settings. Block and converter cards start folded (one line of values
+    from `block-summary.ts`).
+  - Right (`#right`): status strip (sticky), circuit, plot, then the
+    analysis tabs (`analysis-tabs.tsx`, bar sticky under the strip). A new
+    analysis section is a new tab in `PANELS`, never a card above the plot.
+    Panels stay mounted and are hidden with `hidden`.
+  - Narrow screens: Inputs / Plot / Analysis area tabs.
+- View state (analysis tab, area, hints switch, open cards) lives in
+  `components/ui-store.ts`, never in the design, links or undo.
+- Help text is a `<Hint>` (hidden unless the toolbar Hints switch or the
+  card's (i) is on); status and computed text is a `<Note>`. A card with
+  hints passes `hints` to `ToolCard`.
 - Propose larger visual changes before making them.
 
 ## Gotchas
