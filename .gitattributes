@@ -1,0 +1,4 @@
+# Prettier wants LF; keep it on Windows checkouts too.
+* text=auto eol=lf
+*.pdf binary
+*.png binary

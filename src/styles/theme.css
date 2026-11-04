@@ -1,0 +1,181 @@
+/*
+ * Site theme. Dark is the default. Two brand colours set the look:
+ * --brand (accent, links, focus ring) and --navy (tint of the dark
+ * surfaces and the hero gradient). To rebrand, change --brand, --navy,
+ * --primary and --ring in both blocks, then tint the dark surfaces
+ * (--background, --card, --sidebar ...) toward the new navy.
+ */
+:root {
+  --radius: 0.625rem;
+  --brand: #529ad6;
+  --navy: #35496a;
+
+  --background: #f7f9fc;
+  --foreground: #14213a;
+  --card: #ffffff;
+  --card-foreground: #14213a;
+  --popover: #ffffff;
+  --popover-foreground: #14213a;
+  --primary: #2e78bd;
+  --primary-foreground: #ffffff;
+  --secondary: #e9eff8;
+  --secondary-foreground: #1d2d4a;
+  --muted: #edf1f7;
+  --muted-foreground: #5b6b85;
+  --accent: #e3edf9;
+  --accent-foreground: #1d3b63;
+  --destructive: #d43c3c;
+  --border: #d9e1ec;
+  --input: #d3dce9;
+  --ring: #529ad6;
+
+  /* Accent palette for icons, chips, bars and charts */
+  --chart-1: #2563eb;
+  --chart-2: #16a34a;
+  --chart-3: #d97706;
+  --chart-4: #9333ea;
+  --chart-5: #db2777;
+  --chart-6: #0891b2;
+
+  /* Hardware colour sets, for block diagrams, pinouts and legends.
+     Power rails, one colour each: battery red, 6 V orange, 5 V yellow,
+     3.3 V pink, 3.3 VA (analog) indigo. Rename or add rails per project. */
+  --rail-batt: #dc2626;
+  --rail-6v: #ea580c;
+  --rail-5v: #ca8a04;
+  --rail-3v3: #db2777;
+  --rail-3v3a: #4f46e5;
+
+  /* Interface (bus) colours; --bus-power is for parts with more than one
+     output rail */
+  --bus-power: #dc2626;
+  --bus-spi: #2563eb;
+  --bus-i2c: #16a34a;
+  --bus-uart: #9333ea;
+  --bus-pwm: #d97706;
+  --bus-usb: #0891b2;
+  --bus-sdmmc: #0d9488;
+  --bus-debug: #64748b;
+  --bus-gpio: #0284c7;
+  --bus-analog: #ea580c;
+
+  --sidebar: #eef3fa;
+  --sidebar-foreground: #1d2d4a;
+  --sidebar-primary: #2e78bd;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dbe8f7;
+  --sidebar-accent-foreground: #1d3b63;
+  --sidebar-border: #d9e1ec;
+  --sidebar-ring: #529ad6;
+
+  /* Item state: done, open (needs work), candidate (not decided) */
+  --status-done: #16a34a;
+  --status-open: #d97706;
+  --status-candidate: #64748b;
+}
+
+.dark {
+  --background: #0c1422;
+  --foreground: #e6edf7;
+  --card: #121c30;
+  --card-foreground: #e6edf7;
+  --popover: #15213a;
+  --popover-foreground: #e6edf7;
+  --primary: #529ad6;
+  --primary-foreground: #071223;
+  --secondary: #1b2843;
+  --secondary-foreground: #e6edf7;
+  --muted: #182540;
+  --muted-foreground: #8d9fbc;
+  --accent: #1c2e4f;
+  --accent-foreground: #e6edf7;
+  --destructive: #ef6b6b;
+  --border: #24324d;
+  --input: #2a3a58;
+  --ring: #529ad6;
+
+  --chart-1: #60a5fa;
+  --chart-2: #4ade80;
+  --chart-3: #fbbf24;
+  --chart-4: #c084fc;
+  --chart-5: #f472b6;
+  --chart-6: #22d3ee;
+
+  --rail-batt: #ef4444;
+  --rail-6v: #f97316;
+  --rail-5v: #facc15;
+  --rail-3v3: #f472b6;
+  --rail-3v3a: #818cf8;
+
+  --bus-power: #f87171;
+  --bus-spi: #60a5fa;
+  --bus-i2c: #4ade80;
+  --bus-uart: #c084fc;
+  --bus-pwm: #fbbf24;
+  --bus-usb: #22d3ee;
+  --bus-sdmmc: #2dd4bf;
+  --bus-debug: #94a3b8;
+  --bus-gpio: #38bdf8;
+  --bus-analog: #fb923c;
+
+  --sidebar: #0a111d;
+  --sidebar-foreground: #c9d5e8;
+  --sidebar-primary: #529ad6;
+  --sidebar-primary-foreground: #071223;
+  --sidebar-accent: #172a49;
+  --sidebar-accent-foreground: #d7e8fa;
+  --sidebar-border: #1d2a42;
+  --sidebar-ring: #529ad6;
+
+  --status-done: #4ade80;
+  --status-open: #fbbf24;
+  --status-candidate: #94a3b8;
+}
+
+@theme inline {
+  --font-inter: 'Inter', 'sans-serif';
+  --font-manrope: 'Manrope', 'sans-serif';
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-brand: var(--brand);
+  --color-navy: var(--navy);
+  --color-status-done: var(--status-done);
+  --color-status-open: var(--status-open);
+  --color-status-candidate: var(--status-candidate);
+}
