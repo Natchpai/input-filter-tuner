@@ -10,8 +10,10 @@ description and the folder layout.
 
 M0 (the port) is done except one item: `legacy/` (the old single-file tool
 and its tests) is kept until the user says to remove it, together with
-`scripts/legacy-fixture.mjs`. The user picks the next milestone from
-`ROADMAP.md`; plan it and get approval before writing code.
+`scripts/legacy-fixture.mjs`.
+
+M1a is planned in `docs/M1-plan.md` and waits for the user's approval
+before any code. Read that file first.
 
 ## Git
 

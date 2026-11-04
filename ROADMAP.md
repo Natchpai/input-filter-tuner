@@ -5,7 +5,8 @@ so you can pick any of them in any order. Effort is S (under a day),
 M (1 to 3 days) or L (more than 3 days).
 
 Order: **M0 first** (decided 2026-11-04, done 2026-11-04). Then, by value
-to a filter design review: **M1 → M2 → M4 → M3**, and the rest as needed.
+to a filter design review: **M1a → M1b → M2 → M4 → M3**, and the rest as
+needed. M1 was split on 2026-11-04; the detailed plan is `docs/M1-plan.md`.
 
 Status key: `[ ]` not started, `[x]` done.
 
@@ -76,26 +77,36 @@ TypeScript project, built from the user's template
 
 **Why:** the biggest errors in a real design come from part behaviour that the
 tool now treats as fixed: MLCC capacitance under DC bias, inductor L under
-current, and ESR that changes with frequency. Your reports already handle
-these by hand (D4 re-runs at Lb 0.8 µH, LQRx derates by 33 %).
+current, and part tolerances. Your reports already handle these by hand (D4
+re-runs at Lb 0.8 µH, LQRx derates by 33 %).
 
-- [ ] **MLCC DC-bias curve per capacitor (M).** Enter C vs V points, as on
-  the Murata curves in `LQRx/Images`. The tool picks C at Vin min, nom and
-  max, so the margin uses the real C at each voltage.
-- [ ] **Inductor / bead L vs DC current (M).** Enter L vs I points, or Isat
-  with a roll-off. The tool takes the DC input current at each Vin and uses
-  that L.
-- [ ] **Corner sweep (S).** Run Vin min/nom/max, each with its own C, L and
-  Rn, and report the worst-case margin and the corner it comes from. This
-  replaces the single "tolerance curves" option.
+Split on 2026-11-04 into M1a and M1b. Measured impedance import moved to M8.
+Plan: `docs/M1-plan.md`.
+
+### M1a. Operating point
+
+- [ ] **MLCC C vs DC bias per capacitor (M).** Enter or paste C vs V points
+  (for example a Murata SimSurfing CSV). At each corner the cap uses C at
+  that Vin.
+- [ ] **Inductor / bead L vs DC current (M).** Enter or paste L vs I points.
+  At each corner the part uses L at I = P_load/(eta·Vin).
+- [ ] **Corner table (S).** Vin min/nom/max × {light load, full load}, with
+  |Rn| at full power, as in NP-DR-26004. Show peak, margin, Q and attenuation
+  at fsw per corner, and mark the worst one.
+
+**Done when:** D4 shows its margin at both Lb values (0 A and 0.83 A) without
+any manual edits, every MLCC with a curve is evaluated at its bias voltage,
+and LQRx 02 shows 21 dB at 24 V and 13 dB at 15 V.
+
+### M1b. Tolerances
+
+- [ ] **Per-part tolerance (S).** ± % on each block's main value.
+- [ ] **Worst case (S).** Every ± extreme per corner, when the count is small.
 - [ ] **Monte Carlo (M).** Run N random draws within the part tolerances and
   report the margin distribution: worst, 1st percentile and median.
-- [ ] **Measured impedance import (M).** Load a part's |Z| and phase from CSV
-  or Touchstone `.s1p`/`.s2p`, as exported by Murata SimSurfing or Würth
-  REDEXPERT. Use that data in place of the R-L-C model.
 
-**Done when:** a D4-style design shows its margin at both Lb values without
-any manual edits, and every MLCC is evaluated at its bias voltage.
+**Done when:** the worst case and the Monte Carlo spread show per corner, and
+the NP-DR-26001 Q table (L −30 %, C 6 µF) is reproduced.
 
 ---
 
@@ -141,9 +152,7 @@ the requirements.
 - [ ] **Sensitivity table (S).** Show how much the margin and the attenuation
   change, in dB, for a +10 % change in each part. This shows which part
   matters most.
-- [ ] **Parts library (M).** A JSON list of real parts: inductors with L,
-  DCR and Isat, MLCCs with their DC-bias curve, and beads with the
-  4-element model. Pick a part instead of typing its values.
+- Uses the parts library from M8 when it exists (moved there 2026-11-04).
 
 **Done when:** given only the requirements, the tool proposes an E-series
 design that meets the margin and the attenuation target.
@@ -208,6 +217,24 @@ margin.
   compares Zout and H with the engine within 0.5 dB.
 - [ ] **CI (S).** Run both test suites on every change. The Pages workflow
   runs `npm test` before it builds; the browser check is not in CI yet.
+
+---
+
+## M8. Part data
+
+Added 2026-11-04 from M1 (measured impedance) and M3 (parts library). No
+report uses measured data yet, so this needs its own ground truth.
+
+- [ ] **Parts library (M).** A JSON list of real parts: inductors with L,
+  DCR, Isat and L vs I, MLCCs with their C vs DC bias, and beads with the
+  4-element model. Pick a part instead of typing its values.
+- [ ] **Measured impedance import (M).** Load a part's |Z| and phase from CSV
+  or Touchstone `.s1p`/`.s2p`, as exported by Murata SimSurfing or Würth
+  REDEXPERT. Use that data in place of the R-L-C model. Needs a size limit
+  for `#d=` links and localStorage.
+
+**Done when:** a design can use a library part and a measured |Z| file, and
+both survive a link and a reload.
 
 ---
 
