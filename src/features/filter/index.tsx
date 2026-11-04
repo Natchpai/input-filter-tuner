@@ -5,6 +5,7 @@ import { SiteHeader } from '@/components/layout/site-header'
 import { BlockCard } from './components/block-card'
 import { Corners } from './components/corners'
 import { DesignsCard } from './components/designs'
+import { Emi } from './components/emi'
 import { PlotCard } from './components/plot-card'
 import { Results } from './components/results'
 import { Schematic } from './components/schematic'
@@ -17,7 +18,7 @@ import {
 import { Tolerance } from './components/tolerance'
 import { ToolCard } from './components/tool-card'
 import { Toolbar } from './components/toolbar'
-import { cornerMetrics, metrics } from './engine'
+import { cornerMetrics, emiResult, metrics } from './engine'
 import { curveSets, overlaysOf } from './plots/curves'
 import { readColors } from './plots/theme-colors'
 import { takeWarning, useTuner } from './state/store'
@@ -50,10 +51,17 @@ export function Tuner() {
         sets: curveSets(dst, corners.rows[corners.worst]),
         m: metrics(dst),
         corners,
+        emi: emiResult(dst),
         error: null,
       }
     } catch (e) {
-      return { sets: null, m: null, corners: null, error: (e as Error).message }
+      return {
+        sets: null,
+        m: null,
+        corners: null,
+        emi: null,
+        error: (e as Error).message,
+      }
     }
   }, [dst])
 
@@ -109,6 +117,7 @@ export function Tuner() {
                   <Results S={dst} m={calc.m} nom={calc.sets.nom} />
                 </ToolCard>
                 {calc.corners && <Corners data={calc.corners} />}
+                {calc.emi && <Emi st={st} data={calc.emi} />}
                 <Tolerance st={dst} colors={colors} />
                 <PlotCard
                   S={dst}

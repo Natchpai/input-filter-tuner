@@ -2,10 +2,16 @@
 import {
   abs,
   argd,
+  bandLimit,
+  bandsOf,
   type Complex,
   dampKey,
   db,
+  dbuv,
   type Design,
+  EMI_STDS,
+  emiResult,
+  limVal,
   type Metrics,
   point,
   rnOf,
@@ -26,6 +32,7 @@ export const TABS: [TabKey, string][] = [
   ['tm', 'Minor loop Tm'],
   ['elem', 'Element |Z|'],
   ['sweep', 'Rd sweep'],
+  ['emi', 'Conducted EMI'],
 ]
 
 /** Tabs that draw snapshot curves. */
@@ -161,6 +168,7 @@ export function buildPlot(
   C: PlotColors
 ): PlotResult {
   const tab = S.plot.tab
+  if (tab === 'emi') return emiPlot(S, C)
   const f = Array.from(sets.nom.f)
   const cv = S.conv
   const ax = (extra: Obj) => ({ ...axisBase(C), ...extra })
@@ -653,4 +661,142 @@ export function buildPlot(
     }
   }
   return { main: { traces, layout }, side, note, sweep: sweepInfo }
+}
+
+/**
+ * Conducted EMI tab: predicted harmonics at the worst full-load Vin corner,
+ * the no-filter spectrum and the limit lines; beside it, the filter
+ * attenuation against the attenuation needed per harmonic. The plot shows
+ * single harmonics; the card applies the RBW sum.
+ */
+function emiPlot(S: Design, C: PlotColors): PlotResult {
+  const r = emiResult(S)
+  const { std, cls, margin } = S.emi
+  const info = EMI_STDS[std]
+  const bands = bandsOf(std, cls)
+  const sp = r.spectra[r.worstCorner]
+  const pts = (sp?.pts ?? []).filter((p) => p.c > 0)
+  const f = pts.map((p) => p.f)
+  const ax = (extra: Obj) => ({ ...axisBase(C), ...extra })
+  const xaxis = ax({
+    type: 'log',
+    title: { text: 'Frequency (Hz)' },
+    exponentformat: 'SI',
+    range: [Math.log10(150e3), Math.log10(info.fMax)],
+  })
+  const traces: Obj[] = [
+    {
+      x: f,
+      y: pts.map((p) => dbuv(p.vBare)),
+      name: 'no filter',
+      mode: 'lines',
+      line: { color: C.muted, width: 1, dash: 'dot' },
+    },
+    {
+      x: f,
+      y: pts.map((p) => dbuv(p.vPred)),
+      name: 'predicted',
+      mode: 'markers',
+      marker: { color: C.a, size: 5 },
+    },
+  ]
+  // Limit lines per band and detector; one legend entry per detector.
+  const dets = [
+    ['pk', 'peak limit', 'solid'],
+    ['qp', 'QP limit', 'dot'],
+    ['av', 'AV limit', 'dash'],
+  ] as const
+  for (const [k, name, dash] of dets) {
+    let first = true
+    for (const b of bands) {
+      const l = b[k]
+      if (l === undefined) continue
+      traces.push({
+        x: [b.fLo, b.fHi],
+        y: [limVal(l, b, b.fLo), limVal(l, b, b.fHi)],
+        name,
+        legendgroup: k,
+        showlegend: first,
+        mode: 'lines',
+        hoverinfo: 'skip',
+        line: { color: C.bad, width: 1.5, dash },
+      })
+      first = false
+    }
+  }
+  if (margin > 0) {
+    let first = true
+    for (const b of bands) {
+      const lo = bandLimit(b, b.fLo) - margin,
+        hi = bandLimit(b, b.fHi) - margin
+      traces.push({
+        x: [b.fLo, b.fHi],
+        y: [lo, hi],
+        name: `limit − ${margin} dB`,
+        legendgroup: 'margin',
+        showlegend: first,
+        mode: 'lines',
+        hoverinfo: 'skip',
+        line: { color: C.c, width: 1, dash: 'dot' },
+      })
+      first = false
+    }
+  }
+  // Deep sinc nulls would stretch the axis; show 80 dB below the lowest limit.
+  const lows = bands.map((b) =>
+    Math.min(bandLimit(b, b.fLo), bandLimit(b, b.fHi))
+  )
+  const highs = pts.map((p) => dbuv(p.vBare))
+  const yLo = (lows.length ? Math.min(...lows) : 0) - 80
+  const yHi = Math.max(yLo + 100, ...highs, ...lows) + 10
+  const main: Figure = {
+    traces,
+    layout: makeLayout(C, {
+      hovermode: 'closest',
+      xaxis,
+      yaxis: ax({ title: { text: 'dBµV' }, range: [yLo, yHi] }),
+    }),
+  }
+  // Strictest limit per harmonic over the bands that hold it.
+  const need: { f: number; a: number }[] = []
+  for (const p of pts) {
+    const lims = bands
+      .filter((b) => p.f >= b.fLo && p.f <= b.fHi)
+      .map((b) => bandLimit(b, p.f))
+    if (lims.length)
+      need.push({ f: p.f, a: dbuv(p.vBare) - (Math.min(...lims) - margin) })
+  }
+  const side: Figure = {
+    traces: [
+      {
+        x: f,
+        y: pts.map((p) => db(p.vBare / p.vPred)),
+        name: 'filter attenuation',
+        mode: 'lines',
+        line: { color: C.a, width: 1.4 },
+      },
+      {
+        x: need.map((n) => n.f),
+        y: need.map((n) => n.a),
+        name: 'needed',
+        mode: 'markers',
+        marker: { color: C.bad, size: 5 },
+      },
+    ],
+    layout: makeLayout(C, {
+      hovermode: 'closest',
+      xaxis,
+      yaxis: ax({ title: { text: 'attenuation (dB)' } }),
+    }),
+  }
+  const parts = [
+    `${info.label}, class ${cls}, ${info.lisn.name}, ${S.emi.lines} line${S.emi.lines > 1 ? 's' : ''}.`,
+    sp ? `Worst corner: ${sp.label}.` : '',
+    'Fixed fsw: one harmonic reads the same on every detector.',
+    r.rbwSum
+      ? 'Harmonics closer than RBW/2 are summed in the card, not here.'
+      : '',
+    'Limits ASSUMED until checked against the standard.',
+  ]
+  return { main, side, note: parts.filter(Boolean).join(' ') }
 }

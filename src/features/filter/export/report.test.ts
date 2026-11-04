@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { db, metrics, type Design } from '../engine'
+import { db, emiResult, metrics, type Design } from '../engine'
 import { fmtSI } from '../lib/si'
 import { buildPreset, PRESET_NAMES } from '../state/presets'
 import { REPORT_FIGURES, reportMarkdown, type ReportOptions } from './report'
@@ -72,7 +72,12 @@ describe('reportMarkdown', () => {
     expect(md).toContain(`${db(m.ripple.hfsw).toFixed(1)} dB`)
     expect(md).toContain(fmtSI(m.dc.loss, 'W'))
     for (const f of REPORT_FIGURES) expect(md).toContain(`](${f}){width=92%}`)
-    expect(md).toContain('## 6. Method')
+    expect(md).toContain('## 7. Method')
+    expect(md).toContain('## 4. Conducted EMI')
+    const r = emiResult(st)
+    const w = r.rows[r.worst]
+    expect(md).toContain(`margin ${w.margin!.toFixed(1)} dB (${w.corner})`)
+    expect(md).toContain('| MW | 530 kHz – 1.8 MHz | 54 / 41 / 34 |')
     expect(md).toContain(OPTS.link)
     const kv = parseKv(front(md))
     expect(kv.title).toBe('D4 bead final')
@@ -83,7 +88,7 @@ describe('reportMarkdown', () => {
 
   it('notes appear, empty notes give None.', () => {
     const st = d4()
-    expect(reportMarkdown(st, OPTS)).toMatch(/## 5\. Notes\n\nNone\.\n/)
+    expect(reportMarkdown(st, OPTS)).toMatch(/## 6\. Notes\n\nNone\.\n/)
     const noted = { ...st, notes: 'first line\n# Heading\n---\nlast' }
     const md = reportMarkdown(noted as Design, OPTS)
     expect(md).toContain('first line')

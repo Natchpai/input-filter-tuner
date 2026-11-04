@@ -1,6 +1,16 @@
 // Design report text (report.md) for the PDF builder of the report archive.
 // Pure: no DOM. The zip, the dialog and the figures are made elsewhere.
-import { DAMP, TYPES, db, metrics, type Block, type Design } from '../engine'
+import {
+  DAMP,
+  EMI_STDS,
+  TYPES,
+  db,
+  emiResult,
+  metrics,
+  type Block,
+  type Design,
+  type Lim,
+} from '../engine'
 import { fmtSI } from '../lib/si'
 
 export const REPORT_FIGURES = [
@@ -8,6 +18,7 @@ export const REPORT_FIGURES = [
   'fig_zout.svg',
   'fig_xfer.svg',
   'fig_zin.svg',
+  'fig_emi.svg',
 ] as const
 
 export type ReportOptions = {
@@ -24,6 +35,7 @@ const CAPTIONS: Record<(typeof REPORT_FIGURES)[number], string> = {
   'fig_zout.svg': '|Zout| against |Rn|',
   'fig_xfer.svg': 'Transfer function',
   'fig_zin.svg': 'Input impedance Zin',
+  'fig_emi.svg': 'Predicted conducted emissions against the limits',
 }
 
 const CTRL = /[\p{Cc}\p{Zl}\p{Zp}]/gu
@@ -93,6 +105,47 @@ function notesText(st: Design): string {
     .filter((l) => l.trim() !== '')
     .map(safeLine)
   return lines.length ? lines.join('\n\n') : 'None.'
+}
+
+const limText = (l: Lim | undefined) =>
+  l === undefined ? '–' : typeof l === 'number' ? String(l) : `${l[0]}→${l[1]}`
+
+/** Section 4: EMI settings, verdict and the per-band table. */
+function emiText(st: Design): string {
+  const e = st.emi,
+    info = EMI_STDS[e.std]
+  const r = emiResult(st)
+  const w = r.worst >= 0 ? r.rows[r.worst] : null
+  const dB = (v: number) => `${v.toFixed(1)} dB`
+  const head = [
+    `- Standard: ${info.label}, class ${cell(e.cls)}; ${info.lisn.name}, ${e.lines} line(s). The AN replaces Rsrc and Lsrc.`,
+    `- Converter current: trapezoid, edge time ${fmtSI(e.tr, 's')}, ${st.conv.phases} phase(s); every full-load Vin corner.`,
+    `- Design margin below the limit: ${e.margin} dB.`,
+    w
+      ? `- Result: **${r.pass ? 'Pass' : 'Fail'}**. Worst ${cell(w.band.name)} at ${fmtSI(w.f!, 'Hz')}, margin ${dB(w.margin!)} (${cell(w.corner)}).`
+      : '- Result: no harmonic falls inside a limit band.',
+    r.f0Max === null
+      ? '- No filter attenuation needed.'
+      : `- A 2nd-order LC needs f0 ≤ ${fmtSI(r.f0Max, 'Hz')} (40 dB/dec).`,
+  ]
+  if (r.rbwSum)
+    head.push('- Harmonics closer than RBW/2 are added in amplitude.')
+  const rows = r.rows.map((x) => {
+    const lims = `${limText(x.band.pk)} / ${limText(x.band.qp)} / ${limText(x.band.av)}`
+    const range = `${fmtSI(x.band.fLo, 'Hz')} – ${fmtSI(x.band.fHi, 'Hz')}`
+    if (x.margin === null)
+      return `| ${cell(x.band.name)} | ${range} | ${lims} | – | – | no harmonic | – |`
+    return `| ${cell(x.band.name)} | ${range} | ${lims} | ${fmtSI(x.f!, 'Hz')} | ${x.pred!.toFixed(1)} dBµV | ${dB(x.margin)} | ${dB(Math.max(0, x.aReq!))} |`
+  })
+  return [
+    ...head,
+    '',
+    '| Band | Range | Pk / QP / AV (dBµV) | Worst f | Predicted | Margin | Needed |',
+    '|---|---|---|---|---|---|---|',
+    ...rows,
+    '',
+    'Limit values are taken from public summaries of the standards and must be checked against the standard text.',
+  ].join('\n')
 }
 
 export function reportMarkdown(st: Design, opts: ReportOptions): string {
@@ -228,19 +281,24 @@ export function reportMarkdown(st: Design, opts: ReportOptions): string {
     '',
     table(['Quantity', 'Value'], res),
     '',
-    '## 4. Figures',
+    '## 4. Conducted EMI',
+    '',
+    emiText(st),
+    '',
+    '## 5. Figures',
     '',
     figures,
     '',
-    '## 5. Notes',
+    '## 6. Notes',
     '',
     notesText(st),
     '',
-    '## 6. Method',
+    '## 7. Method',
     '',
     '- Rn = −Vin²·η/P is flat and holds up to fcheck, so the peak search and the Nyquist scan stop there.',
     '- Zout is seen from the converter with the source voltage shorted. Rsrc and Lsrc stay in the path.',
     '- Q is the series form Re(Zout(f0))/Z0.',
+    '- EMI: harmonic n of the trapezoid input current, c_n = 2·Io·|sin(nπD)|/(nπ)·|sinc(nπ·tr·fsw)| (multiples of N only), through the filter into the AN impedance (jωL + R) ∥ 50 Ω. Fixed fsw, so one harmonic reads the same on every detector.',
     '',
     `Made with Input Filter Tuner: ${oneLine(opts.toolUrl)}. Reopen this design: ${oneLine(opts.link)}`,
     '',

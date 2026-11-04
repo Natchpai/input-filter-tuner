@@ -15,6 +15,7 @@ const PLOT_FIGS: [(typeof REPORT_FIGURES)[number], TabKey][] = [
   ['fig_zout.svg', 'zout'],
   ['fig_xfer.svg', 'xfer'],
   ['fig_zin.svg', 'zin'],
+  ['fig_emi.svg', 'emi'],
 ]
 
 /** Folder (and zip) name: the doc no, else the design name. */

@@ -27,6 +27,7 @@ function designKey(st: Design): string {
     ...st,
     name: undefined,
     notes: undefined,
+    emi: undefined,
     plot: { ...st.plot, tab: undefined, sweepId: undefined },
   })
 }
