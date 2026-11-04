@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_ITEMS, MAX_NAME, parseLibrary, withItem } from './library'
-import type { SavedDesign } from './library'
+import {
+  MAX_ITEMS,
+  MAX_NAME,
+  parseLibrary,
+  type SavedDesign,
+  withItem,
+} from './library'
 import { buildPreset } from './presets'
 
 const d = buildPreset(1)

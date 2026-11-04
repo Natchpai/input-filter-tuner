@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import {
   Camera,
   Download,
+  FileCode,
   FileUp,
   Link2,
   Redo2,
@@ -12,6 +13,7 @@ import {
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { abs, argd, db, type Design, type Metrics } from '../engine'
+import { spiceNetlist } from '../export/netlist'
 import { fmtSI } from '../lib/si'
 import type { CurveSets } from '../plots/curves'
 import { SNAPSHOT_TABS } from '../plots/traces'
@@ -225,6 +227,25 @@ export function Toolbar({
       <Button id='bCsv' size='sm' variant='secondary' onClick={exportCsv}>
         <Download />
         Export CSV
+      </Button>
+      <Button
+        id='bSpice'
+        size='sm'
+        variant='secondary'
+        title='SPICE netlist (.cir) with H and Zout copies of the filter'
+        onClick={() =>
+          download(
+            fileName(S, 'cir'),
+            spiceNetlist(S, {
+              date: new Date().toISOString().slice(0, 10),
+              link: designLink(S),
+            }),
+            'text/plain'
+          )
+        }
+      >
+        <FileCode />
+        Export SPICE
       </Button>
       <input
         ref={fileRef}
