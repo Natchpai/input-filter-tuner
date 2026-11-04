@@ -18,14 +18,12 @@ import type {
   StageIn,
 } from './model'
 import { cornerMetrics } from './oppoint'
-import { TYPES } from './types'
+import { type ParamSpec, TYPES } from './types'
 
 // ---- Inputs and their limits (shared by adopt() and the reducer) ----
 
 const spec = (t: 'ind' | 'cap' | 'rc', k: string) =>
-  (TYPES[t].p as readonly { key: string; min: number; max: number }[]).find(
-    (p) => p.key === k
-  )!
+  (TYPES[t].p as readonly ParamSpec<string>[]).find((p) => p.key === k)!
 const L_LIM = spec('ind', 'L'),
   C_LIM = spec('cap', 'c'),
   RD_LIM = spec('rc', 'rd'),
@@ -55,7 +53,8 @@ function clampStage(s: StageIn, def: StageIn): StageIn {
   const lim = fix === 'L' ? L_LIM : C_LIM
   return {
     fix,
-    val: clamp(s.val, [lim.min, lim.max], fix === def.fix ? def.val : lim.min),
+    // A bad value falls back to the part default, as the Fix switch does.
+    val: clamp(s.val, [lim.min, lim.max], fix === def.fix ? def.val : lim.def),
     damp: DAMP_FORMS.includes(s.damp) ? s.damp : def.damp,
   }
 }
@@ -239,8 +238,9 @@ export function blocksOf(
       name: 'C' + tag,
       on: true,
       c: v.C,
-      esr: c.cap ? c.cap.esr : TYPES.cap.p[1].def,
-      esl: c.cap ? c.cap.esl : 0,
+      // The new bank is one part: the old bank's ESR and ESL, not one part's.
+      esr: c.cap ? c.cap.esr / Math.max(1, c.cap.n) : TYPES.cap.p[1].def,
+      esl: c.cap ? c.cap.esl / Math.max(1, c.cap.n) : 0,
       n: 1,
       derate: 0,
     })
@@ -369,6 +369,14 @@ export function propose(st: Design): Proposal {
     const bare = emiResult({ ...st, blocks: [] })
     aTot = bare.f0Max ? 40 * Math.log10(fa / bare.f0Max) : 20
     if (!st.emi.on) warn('EMI is off; the target uses its current settings.')
+    // Lesson 12: corners with no switching are not judged; say so.
+    if (bare.dropout.length)
+      warn(
+        `Out of regulation at ${bare.dropout.join('; ')} (Vout ≥ Vin·η): ` +
+          'the EMI target does not judge it.'
+      )
+    if (!bare.rows.some((r) => r.margin !== null))
+      warn('No EMI line is judged, so the EMI target sets nothing.')
   }
   const share = S === 1 ? [1] : [a.split / 100, 1 - a.split / 100]
   const f0s = share.map((s) => fa * 10 ** (-(aTot * s) / 40))
@@ -383,17 +391,26 @@ export function propose(st: Design): Proposal {
       return sizeStage(inp, f0, a.rule, r, zMax, dcrOf(carry[i]), w)
     })
   const quiet = () => {}
-  const attOk = (u: number, g: number) => {
-    const ss = size(u, g, quiet)
-    if (ss.some((s) => outOfRange(s))) return false
-    return attShort(withVals(st, ss), fa) === 0
+  const inRange = (u: number, g: number) =>
+    !size(u, g, quiet).some((s) => outOfRange(s))
+  const attOk = (u: number, g: number) =>
+    inRange(u, g) && attShort(withVals(st, size(u, g, quiet)), fa) === 0
+  const belowFa = (u: number) => f0s.every((f) => f * u < fa)
+  /** u0, or the lowest scale above it that keeps every part in range. */
+  const upToRange = (u0: number, g: number) => {
+    let u = u0
+    while (!inRange(u, g) && belowFa(u * 2)) u *= 2
+    return u
   }
 
   // The search stops when an f0 reaches fa: C and the source alone
   // already meet the target.
   let atFa = false
   /** Largest f0 scale u that meets the attenuation target, or null. */
-  const solveU = (g: number, u0: number): number | null => {
+  const solveU = (g: number, start: number): number | null => {
+    // A higher f0 scale makes the parts smaller: when a part is above its
+    // range at the start, look upwards first.
+    const u0 = upToRange(start, g)
     let lo: number, hi: number
     if (attOk(u0, g)) {
       lo = u0
@@ -428,10 +445,9 @@ export function propose(st: Design): Proposal {
   let u = solveU(g, 1)
   if (u === null) {
     reachable = false
-    u = 1
     // The lowest scale that keeps every part in range.
-    while (u > U_MIN && !size(u / 2, g, quiet).some((s) => outOfRange(s)))
-      u /= 2
+    u = upToRange(1, g)
+    while (u > U_MIN && inRange(u / 2, g)) u /= 2
     warn(
       a.target === 'emi'
         ? 'The EMI target cannot be met within the part ranges.'
@@ -441,6 +457,8 @@ export function propose(st: Design): Proposal {
   // Margin polish ('leastCd' only): lower the peak target until the
   // nominal margin holds with 0.1 dB to spare, then solve f0 again.
   const marginOk = (uu: number, gg: number) => {
+    // A lower peak target makes Cd or Ld larger: keep it in range.
+    if (!inRange(uu, gg)) return false
     const d = withVals(st, size(uu, gg, quiet))
     const mb = marginBands(d, vinLow(d.conv))
     return mb.margin >= st.conv.k + 0.1 && nyquistAt(d, mb.bands) === null
@@ -465,10 +483,17 @@ export function propose(st: Design): Proposal {
   const exactStages = size(u, g)
   const exactDesign = withVals(st, exactStages)
   const exactCheck = checkOf(exactDesign, fa)
-  for (const s of exactStages) {
+  exactStages.forEach((s, i) => {
     const o = outOfRange(s)
     if (o) warn(`${o} is above its largest value.`)
-  }
+    // The Rd part is the total minus the carried Cd ESR; it cannot go below 0.
+    const esr = carry[i].rc?.esr ?? 0
+    if (s.form === 'rc' && s.rd !== null && s.rd - esr < RD_LIM.min)
+      warn(
+        `The Cd ESR (${esr.toPrecision(3)} Ω) is above the damping R the ` +
+          `stage needs (${s.rd.toPrecision(3)} Ω): use a Cd with less ESR.`
+      )
+  })
   if (a.rule === 'q' && exactCheck.margin < st.conv.k) {
     const qs = Math.min(...exactStages.map((s) => s.qStab))
     warn(
@@ -496,10 +521,13 @@ export function propose(st: Design): Proposal {
 
 type PartRef = { i: number; key: 'L' | 'C' | 'rd' | 'cd' | 'ld'; ser: ESeries }
 
-function partsOf(stages: StageVals[], ser: AsstSettings['ser']): PartRef[] {
+function partsOf(stages: StageVals[], a: AsstSettings): PartRef[] {
   const out: PartRef[] = []
+  const ser = a.ser
   stages.forEach((s, i) => {
-    out.push({ i, key: 'L', ser: ser.L }, { i, key: 'C', ser: ser.C })
+    // The fixed L or C is the user's part: keep it as typed.
+    if (a.st[i].fix !== 'L') out.push({ i, key: 'L', ser: ser.L })
+    if (a.st[i].fix !== 'C') out.push({ i, key: 'C', ser: ser.C })
     if (s.rd !== null) out.push({ i, key: 'rd', ser: ser.R })
     if (s.cd !== null) out.push({ i, key: 'cd', ser: ser.C })
     if (s.ld !== null) out.push({ i, key: 'ld', ser: ser.L })
@@ -519,7 +547,7 @@ function roundE(
   exact: StageVals[],
   fa: number
 ): { stages: StageVals[]; check: Check; moved: string[] } {
-  const parts = partsOf(exact, st.asst.ser)
+  const parts = partsOf(exact, st.asst)
   const carry = carryOf(st, exact.length)
   // Rd is rounded as the part value: total minus the Cd ESR of the leg.
   const esr = (i: number) =>
@@ -541,6 +569,7 @@ function roundE(
       const now = partVal(cur, p)
       for (const v of [stepE(now, p.ser, 1), stepE(now, p.ser, -1)]) {
         const s = setPart(cur, p, v)
+        if (outOfRange(s[p.i])) continue
         const c = checkOf(withVals(st, s), fa)
         if (c.short < (best?.c.short ?? check.short)) best = { s, c }
       }

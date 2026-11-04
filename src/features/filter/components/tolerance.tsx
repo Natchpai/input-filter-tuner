@@ -23,7 +23,7 @@ type Run = { key: string; ext: ExtremeRow[] | null; mc: McResult }
 
 /**
  * Key of what the run depends on: the converter, source and blocks, plus
- * f min and n (check range and grid). View settings do not count.
+ * f min (check range). View settings do not count.
  */
 function designKey(st: Design): string {
   return JSON.stringify({
@@ -32,7 +32,6 @@ function designKey(st: Design): string {
     source: st.source,
     blocks: st.blocks,
     fmin: st.plot.fmin,
-    n: st.plot.n,
   })
 }
 

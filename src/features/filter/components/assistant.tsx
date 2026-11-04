@@ -44,7 +44,6 @@ const keyOf = (st: Design) =>
     asst: { ...st.asst, on: true },
     emi: st.emi,
     fmin: st.plot.fmin,
-    n: st.plot.n,
   })
 
 /**

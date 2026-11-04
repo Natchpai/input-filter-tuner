@@ -3,6 +3,7 @@
 // Ported 1:1 from legacy/test/engine.test.mjs: same names, same tolerances.
 import { expect, test } from 'vitest'
 import { baseState } from '../state/defaults'
+import { buildPreset } from '../state/presets'
 import * as E from './index'
 import type { BlockOf, BlockType, Conv, Design, Source } from './index'
 
@@ -472,3 +473,13 @@ for (const mode of ['rc', 'RLpar', 'RLser'] as const) {
     0.01
   )
 }
+
+// Lesson 1: the plot's Points setting must not change the Nyquist verdict.
+// With n = NaN the old grid (max(400, n)) had no points and found nothing.
+test('Nyquist scan does not read plot.n', () => {
+  const st = buildPreset(0) // D1 LC undamped: Nyquist encircles -1
+  const at = (n: number) =>
+    E.metrics({ ...st, plot: { ...st.plot, n } }).unstableAt
+  expect(at(800)).not.toBeNull()
+  for (const n of [50, 5000, NaN]) expect(at(n)).toBe(at(800))
+})

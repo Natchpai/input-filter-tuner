@@ -55,6 +55,12 @@ export function marginBands(
 }
 
 /**
+ * Grid points of the Nyquist scan. Fixed (the plot's default), so the plot's
+ * Points setting cannot change the verdict (Lesson 1).
+ */
+const NQ = 800
+
+/**
  * Nyquist: Tm = Zout/Rn with Rn < 0, so Tm crosses the real axis left of -1
  * where Im(Zout) = 0 and Re(Zout) > |Rn|. Each crossing is located by
  * bisection, because Re(Zout) at a high-Q crossing is far above the grid
@@ -66,7 +72,7 @@ export function nyquistAt(st: Design, bs: BandResult[]): number | null {
   const [fLo, fHi] = checkRange(st)
   const rnAt = (f: number) =>
     Math.abs((bs.find((b) => f <= b.fHi) ?? bs[bs.length - 1]).rn)
-  const nq = Math.max(400, st.plot.n)
+  const nq = NQ
   const la = Math.log10(fLo),
     lb = Math.log10(fHi),
     lf = (i: number) => la + ((lb - la) * i) / (nq - 1)

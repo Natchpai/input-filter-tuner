@@ -345,3 +345,110 @@ describe('clampAsst', () => {
     expect(a.st[1]).toEqual({ fix: 'C', val: 1e-12, damp: 'R' })
   })
 })
+
+// Bug hunt 2026-11-05 (docs/BUGLOG.md).
+describe('bug fixes 2026-11-05', () => {
+  test('apply: a 4-part bank gives its bank ESR and ESL, not one part’s', () => {
+    const st = withAsst(
+      {
+        ...buildPreset(1),
+        blocks: [
+          mk('ind', 'L', {}),
+          mk('cap', 'C', { esr: 4e-3, esl: 2e-9, n: 4 }),
+        ],
+      },
+      {}
+    )
+    let n = 0
+    const d = applyProposal(st, propose(st), () => 'b' + n++)
+    const C = d.blocks.find((b) => b.type === 'cap')!
+    expect(C).toMatchObject({ n: 1 })
+    near((C as { esr: number }).esr, 1e-3, 1e-9)
+    near((C as { esl: number }).esl, 0.5e-9, 1e-9)
+  })
+
+  test('rounding keeps the fixed C as typed', () => {
+    const st = withAsst(buildPreset(1), {
+      st: [{ fix: 'C', val: 9.4e-6, damp: 'rc' }, ASST_DEFAULTS.st[1]],
+    })
+    expect(propose(st).rounded.stages[0].C).toBe(9.4e-6)
+  })
+
+  test('rounding keeps the fixed L as typed', () => {
+    const st = withAsst(buildPreset(1), {
+      st: [{ fix: 'L', val: 3.9e-6 * 1.01, damp: 'rc' }, ASST_DEFAULTS.st[1]],
+    })
+    expect(propose(st).rounded.stages[0].L).toBe(3.9e-6 * 1.01)
+  })
+
+  test('EMI target: a corner out of regulation is reported', () => {
+    const base = buildPreset(1)
+    const st = withAsst(
+      {
+        ...base,
+        conv: { ...base.conv, vinMin: 5, vinNom: 5, vinMax: 5, vout: 5 },
+        emi: { ...base.emi, on: true },
+      },
+      { target: 'emi' }
+    )
+    const w = propose(st).warnings.join(' ')
+    expect(w).toContain('Out of regulation')
+    expect(w).toContain('No EMI line is judged')
+  })
+
+  test('Cd ESR above the damping R the stage needs is reported', () => {
+    const st = withAsst(
+      {
+        ...buildPreset(1),
+        blocks: [
+          mk('ind', 'L', {}),
+          mk('cap', 'C', {}),
+          mk('rc', 'Rd', { esr: 10 }),
+        ],
+      },
+      {}
+    )
+    expect(propose(st).warnings.join(' ')).toContain('Cd ESR')
+  })
+
+  // L fixed at 1 µH, 80 dB at 100 kHz: at the 40 dB/dec start C is 25 mF,
+  // above its 10 mF limit. A source L adds attenuation, so a higher f0 works.
+  const smallL = (Ls: number) => {
+    const base = buildPreset(1)
+    return withAsst(
+      { ...base, source: { ...base.source, L: Ls } },
+      {
+        aDb: 80,
+        fa: 100e3,
+        st: [{ fix: 'L', val: 1e-6, damp: 'rc' }, ASST_DEFAULTS.st[1]],
+      }
+    )
+  }
+  test('parts above range at the start: the search looks at higher f0', () => {
+    const p = propose(smallL(10e-6))
+    expect(p.reachable).toBe(true)
+    expect(p.exact.stages[0].C).toBeLessThanOrEqual(10e-3)
+    expect(p.exact.check.att).toBeGreaterThanOrEqual(80 - 1e-6)
+  })
+  test('unreachable: the proposal still keeps its parts in range', () => {
+    const p = propose(smallL(0))
+    expect(p.reachable).toBe(false)
+    expect(p.exact.stages[0].C).toBeLessThanOrEqual(10e-3)
+    expect(p.warnings.join(' ')).not.toContain('above its largest value')
+  })
+
+  test('clampAsst: a bad value with the other fix gets that part’s default', () => {
+    const a = clampAsst(
+      {
+        ...ASST_DEFAULTS,
+        st: [
+          { fix: 'L', val: NaN, damp: 'rc' },
+          { fix: 'C', val: NaN, damp: 'rc' },
+        ],
+      },
+      ASST_DEFAULTS
+    )
+    expect(a.st[0].val).toBe(10e-6) // TYPES.ind L default, not 1 nH
+    expect(a.st[1].val).toBe(10e-6)
+  })
+})
