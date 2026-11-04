@@ -52,8 +52,7 @@ export function Notes() {
             </li>
             <li>
               <b>Rd for Q</b> uses Rd = Z<sub>0</sub>²/(Z<sub>0</sub>/Q − r
-              <sub>L</sub>) (NP-DR-26001 eq. for the Rd-Cd leg). The same
-              formula sets Rd ∥ L.
+              <sub>L</sub>) (NP-DR-26001 eq. for the Rd-Cd leg).
             </li>
             <li>
               <b>Set Rd, Ld</b> (Rd-Ld forms): the box is a peak target r =

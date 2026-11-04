@@ -380,7 +380,7 @@ try:
         unfold(page)
         esr = page.eval_on_selector_all("[id^=in-][id$=-esr]", "els => els[0].value")
         ok(esr == "2.08", f"Method A preset is C1 with {esr} ohm ESR")
-        # Inductor damping: Set Rd for Q on Rd ∥ L, Set Rd, Ld on the Rd-Ld forms
+        # Inductor damping: no target box on Rd ∥ L, Set Rd, Ld on the Rd-Ld forms
         pnames = page.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
 
         def pick_p(prefix):
@@ -390,12 +390,9 @@ try:
             return page.eval_on_selector_all("[id^=in-][id$=-dR]", "els => els[0].id").split("-")[1]
 
         lid = pick_p("D1 · Method B")
-        commit(page, f"#in-{lid}-dR", "3")
-        page.fill(f"#qv-{lid}", "0.707")
-        page.click(f"#card-{lid} button[data-h=q]")
-        settle(page)
-        rd_b = page.input_value(f"#in-{lid}-dR")
-        ok(rd_b == "1.06", f"Rd ∥ L: Rd for Q = 0.707 gives {rd_b} (D1 Method B: 1.06)")
+        menu_b = page.inner_text(f"#card-{lid} button[data-h=menu]")
+        ok(page.locator(f"#card-{lid} [data-h=q]").count() == 0 and "Set Rd" in menu_b,
+           f"Rd ∥ L: no target box, only the Set Rd menu ('{menu_b}')")
         lid = pick_p("LC + parallel Rd-Ld")
         before = (page.input_value(f"#in-{lid}-dL"), page.input_value(f"#in-{lid}-dR"))
         commit(page, f"#in-{lid}-dL", "4.7u")
@@ -416,7 +413,8 @@ try:
         page.click(f"#card-{lid} button[data-h=q]")
         settle(page)
         got = (page.input_value(f"#in-{lid}-dL"), page.input_value(f"#in-{lid}-dR"))
-        ok(box == "3.46" and got == ("22u", "0.76"),
+        # 3.46 is rounded, so n = 1.002 and Rd = 0.761 (the preset's n = 1 gives 0.760)
+        ok(box == "3.46" and got[0] == "22u" and got[1] in ("760m", "761m"),
            f"series Rd∥Ld: box starts at {box}, a first press gives Ld, Rd {got}")
         # 2-stage: Rd1 uses its own (L1) section
         page.select_option("#preset", "10")

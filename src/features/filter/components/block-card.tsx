@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   ChevronRight,
   Copy,
   Ellipsis,
@@ -78,6 +79,8 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
   // and only moves Rd (a fixed start like 1.5 asks series Rd∥Ld for n ≈ 25).
   // The parent keys this component by dmode, so a new form starts fresh.
   const isRL = b.type === 'ind' && (b.dmode === 'RLpar' || b.dmode === 'RLser')
+  // Rd ∥ L has no target box: only the Set Rd menu.
+  const hasBox = isRc || isRL
   const [q, setQ] = useState(() => {
     if (!isRL) return String(b._q || 0.707)
     const cf = closedFormFor(S, b),
@@ -162,38 +165,45 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
   return (
     <div className='my-1.5'>
       <div className='flex flex-wrap items-center gap-1.5'>
-        <label htmlFor={`qv-${b.id}`} className='text-sm text-muted-foreground'>
-          {isRL ? 'peak/Z0' : 'Q'}
-        </label>
-        <input
-          id={`qv-${b.id}`}
-          data-h='qv'
-          aria-label={isRL ? 'Target peak/Z0' : 'Target Q'}
-          className={cn(
-            inputCls,
-            'w-14 text-right',
-            qErr && 'border-destructive ring-1 ring-destructive'
-          )}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) =>
-            e.key === 'Enter' && !off && (isRL ? forPk() : forQ())
-          }
-        />
-        <Button
-          size='sm'
-          variant='secondary'
-          data-h='q'
-          disabled={off}
-          title={title(
-            isRL
-              ? 'Ld and Rd for peak = r·Z0: n from the closed-form peak, Ld = n·L, Rd closed form'
-              : 'Rd for this Q, from Rd = Z0²/(Z0/Q − rL)'
-          )}
-          onClick={isRL ? forPk : forQ}
-        >
-          {isRL ? 'Set Rd, Ld' : 'Set Rd for Q'}
-        </Button>
+        {hasBox && (
+          <>
+            <label
+              htmlFor={`qv-${b.id}`}
+              className='text-sm text-muted-foreground'
+            >
+              {isRL ? 'peak/Z0' : 'Q'}
+            </label>
+            <input
+              id={`qv-${b.id}`}
+              data-h='qv'
+              aria-label={isRL ? 'Target peak/Z0' : 'Target Q'}
+              className={cn(
+                inputCls,
+                'w-14 text-right',
+                qErr && 'border-destructive ring-1 ring-destructive'
+              )}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) =>
+                e.key === 'Enter' && !off && (isRL ? forPk() : forQ())
+              }
+            />
+            <Button
+              size='sm'
+              variant='secondary'
+              data-h='q'
+              disabled={off}
+              title={title(
+                isRL
+                  ? 'Ld and Rd for peak = r·Z0: n from the closed-form peak, Ld = n·L, Rd closed form'
+                  : 'Rd for this Q, from Rd = Z0²/(Z0/Q − rL)'
+              )}
+              onClick={isRL ? forPk : forQ}
+            >
+              {isRL ? 'Set Rd, Ld' : 'Set Rd for Q'}
+            </Button>
+          </>
+        )}
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button
@@ -201,10 +211,17 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
               variant='secondary'
               data-h='menu'
               disabled={off}
-              title={title('Other ways to set Rd')}
-              aria-label='Other ways to set Rd'
+              title={title(hasBox ? 'Other ways to set Rd' : 'Set Rd')}
+              aria-label={hasBox ? 'Other ways to set Rd' : undefined}
             >
-              <Ellipsis />
+              {hasBox ? (
+                <Ellipsis />
+              ) : (
+                <>
+                  Set Rd
+                  <ChevronDown />
+                </>
+              )}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start'>
