@@ -110,6 +110,7 @@ try:
             n_rows = page.eval_on_selector_all("#corners tbody tr", "r => r.length")
             n_worst = page.eval_on_selector_all("#corners tr[data-worst=true]", "r => r.length")
             ok(n_rows >= 1 and n_worst == 1, f"  corners card: {n_rows} rows, one marked worst")
+            ok(page.locator("#tolerance").count() == 1, "  tolerance card shown")
             for t in tabs:
                 page.click(f"#tabs button[data-t={t}]")
                 settle(page, 120 if t != "sweep" else 400)
@@ -404,6 +405,88 @@ try:
         c.screenshot(path=str(SHOTS / "m1a_corners.png"), full_page=True)
         c.close()
 
+        # ---- M1b: part tolerances ----
+        t = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(t, "m1b: ")
+        t.goto(URL)
+        ready(t)
+        tnames = t.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
+        d1rc = str(next(i for i, n in enumerate(tnames) if n.startswith("D1 · LC + Rd-Cd")))
+
+        def tol_run(pg, n="200"):
+            pg.fill("#tol-n", n)
+            pg.click("#tol-run")
+            pg.wait_for_function("() => !document.querySelector('#tol-cancel') && document.querySelector('#tol-table')", timeout=60000)
+            settle(pg, 300)
+            return pg.eval_on_selector_all("#tol-table tbody tr", r"rs => rs.map(r => r.innerText.replace(/\s+/g, ' '))")
+
+        def blk_id(pg, i):
+            return pg.locator("#blocks .blk").nth(i).locator("[id^=tol-btn-]").get_attribute("id")[len("tol-btn-"):]
+
+        t.select_option("#preset", d1rc)
+        settle(t, 300)
+        card = t.inner_text("#tolerance")
+        ok("2 tolerances: all 4 extremes per corner" in card, "D1 Rd-Cd: L1 ±30 % and C1 ±40 % counted")
+        ok("1 tol" in t.locator("#blocks .blk").nth(0).inner_text()
+           and "1 tol" in t.locator("#blocks .blk").nth(1).inner_text(), "block cards show the tol badge")
+        r = tol_run(t)
+        ok(len(r) == 1 and "0.48 to 0.99" in r[0], f"D1 extremes: one corner, Q 0.48 to 0.99 {r}")
+        ok(t.eval_on_selector("#tol-hist", "d => (d.data || []).length") == 1, "board-margin histogram drawn")
+        ok("Worst board" in t.inner_text("#tol-worst") and "L1 L" in t.inner_text("#tol-worst"), "worst board lists its parts")
+        ok(tol_run(t) == r, "same draws give the same numbers")
+        # C1 tolerance to 0: the result goes stale, then L only (NP-DR-26001: Q 0.84 at L -30 %)
+        c1 = blk_id(t, 1)
+        t.click(f"#tol-btn-{c1}")
+        commit(t, f"#tol-{c1}-c", "0")
+        settle(t, 300)
+        ok(t.locator("#tol-stale").count() == 1, "editing a tolerance marks the result stale")
+        ok("1 tolerance: all 2 extremes" in t.inner_text("#tolerance")
+           and "tol" not in t.locator("#blocks .blk").nth(1).locator(f"#tol-btn-{c1}").inner_text(),
+           "C1 tolerance cleared")
+        r = tol_run(t)
+        ok("0.62 to 0.84" in r[0] and t.locator("#tol-stale").count() == 0, f"L1 ±30 % only: Q up to 0.84 (report) {r}")
+        t.set_viewport_size({"width": 390, "height": 900})
+        settle(t, 300)
+        no_hscroll(t, 390, "tolerance card at 390 px")
+        for theme in ["Light", "Dark"]:
+            set_theme(t, theme)
+            for vw in [390, 1440]:
+                t.set_viewport_size({"width": vw, "height": 1000})
+                settle(t, 300)
+                t.locator("#tolerance").screenshot(path=str(SHOTS / f"m1b_tolerance_{vw}_{theme.lower()}.png"))
+                t.locator("#blocks .blk").nth(0).screenshot(path=str(SHOTS / f"m1b_editor_{vw}_{theme.lower()}.png"))
+        t.close()
+        # A #d= link with tolerances (95 % is clamped to 80 %), then an edit and a reload
+        tlink = {
+            "name": "Tol link",
+            "conv": {"vinMin": 48, "vinNom": 48, "vinMax": 48, "pout": 100, "eta": 1, "vout": 12, "fsw": 5e5, "fcheck": 5e5},
+            "source": {"R": 0, "L": 0},
+            "blocks": [
+                {"type": "ind", "name": "L1", "L": 22e-6, "dcr": 0.02, "tol": {"L": 20, "esr": 5}},
+                {"type": "cap", "name": "C1", "c": 10e-6, "esr": 0, "tol": {"c": 95}},
+                {"type": "rc", "name": "Rd1", "rd": 1.06, "cd": 150e-6, "tol": {"rd": 1, "cd": "x"}},
+            ],
+        }
+        t = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(t, "m1b link: ")
+        t.goto(URL + "#d=" + base64.b64encode(json.dumps(tlink).encode()).decode())
+        ready(t)
+        settle(t, 500)
+        ok("3 tolerances: all 8 extremes" in t.inner_text("#tolerance"), "#d= link keeps tol, drops bad keys")
+        c1 = blk_id(t, 1)
+        t.click(f"#tol-btn-{c1}")
+        ok(t.input_value(f"#tol-{c1}-c").strip().startswith("80"), f"95 % clamped to 80 % ({t.input_value(f'#tol-{c1}-c')})")
+        commit(t, f"#tol-{c1}-c", "10")
+        settle(t, 200)
+        t.reload()
+        ready(t)
+        settle(t, 300)
+        c1 = blk_id(t, 1)
+        t.click(f"#tol-btn-{c1}")
+        ok("3 tolerances" in t.inner_text("#tolerance") and t.input_value(f"#tol-{c1}-c").strip().startswith("10"),
+           "tolerances survive an edit and a reload")
+        t.close()
+
         # ---- M6: undo/redo, saved designs, exports ----
         w = browser.new_page(viewport={"width": 1440, "height": 1000})
         watch(w, "m6: ")
@@ -559,6 +642,11 @@ try:
         ext = s.evaluate("performance.getEntriesByType('resource').map(r => r.name).filter(n => !n.startsWith('data:') && !n.includes('fonts.g'))")
         ok(not ext, f"single file: no other files loaded {ext[:3]}")
         s.screenshot(path=str(SHOTS / "single_file.png"), full_page=False)
+        # The tolerance run uses an inline worker; check it works over file://.
+        s.select_option("#preset", d1rc)
+        settle(s, 300)
+        r = tol_run(s, "100")
+        ok(len(r) == 1 and "0.48 to 0.99" in r[0], f"single file: tolerance run in the worker {r}")
         s.close()
 
         browser.close()

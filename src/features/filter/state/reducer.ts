@@ -4,9 +4,11 @@ import {
   type Conv,
   type Design,
   MAX_NOTES,
+  MAX_TOL,
   type PlotSettings,
   setParam,
   type Source,
+  type TolKey,
 } from '../engine'
 
 export type Action =
@@ -15,6 +17,7 @@ export type Action =
   | { t: 'source'; k: keyof Source; v: number }
   | { t: 'plot'; patch: Partial<PlotSettings> }
   | { t: 'param'; id: string; k: string; v: number }
+  | { t: 'tol'; id: string; k: TolKey; v: number }
   | { t: 'patch'; id: string; patch: Partial<Block> }
   | { t: 'move'; id: string; dir: -1 | 1 }
   | { t: 'dup'; id: string; newId: string }
@@ -26,6 +29,22 @@ const mapBlock = (st: Design, id: string, fn: (b: Block) => Block): Design => ({
   ...st,
   blocks: st.blocks.map((b) => (b.id === id ? fn(b) : b)),
 })
+
+/** Set or clear one tolerance. Same state back when nothing changes. */
+function setTol(st: Design, id: string, k: TolKey, v: number): Design {
+  const b = st.blocks.find((x) => x.id === id)
+  if (!b) return st
+  const cur = (b.tol ?? {}) as Record<string, number>
+  const set = Number.isFinite(v) && v > 0
+  if (set ? cur[k] === Math.min(v, MAX_TOL) : !(k in cur)) return st
+  const tol = { ...cur }
+  if (set) tol[k] = Math.min(v, MAX_TOL)
+  else delete tol[k]
+  return mapBlock(st, id, (x) => {
+    const { tol: _old, ...rest } = x
+    return (Object.keys(tol).length ? { ...rest, tol } : rest) as Block
+  })
+}
 
 export function reducer(st: Design, a: Action): Design {
   switch (a.t) {
@@ -39,6 +58,8 @@ export function reducer(st: Design, a: Action): Design {
       return { ...st, plot: { ...st.plot, ...a.patch } }
     case 'param':
       return mapBlock(st, a.id, (b) => setParam(b, a.k, a.v))
+    case 'tol':
+      return setTol(st, a.id, a.k, a.v)
     case 'patch':
       return mapBlock(st, a.id, (b) => ({ ...b, ...a.patch }) as Block)
     case 'move': {

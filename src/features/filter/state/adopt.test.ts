@@ -174,3 +174,83 @@ test('cv, li and pLight round-trip through JSON', () => {
   expect(bc?.type === 'cap' && bc.cv).toEqual(cvPts)
   expect(bi?.type === 'ind' && bi.li).toEqual(liPts)
 })
+
+// M1b tolerances.
+const one = (type: string, tol: unknown, extra: object = {}) =>
+  adopt({
+    ...JSON.parse(JSON.stringify(hostile)),
+    blocks: [{ type, name: 'X', tol, ...extra }],
+  }).blocks[0] as unknown as { tol?: Record<string, number> }
+
+test('tol: valid case per block type', () => {
+  expect(one('ind', { L: 20, dR: 5, dL: 10 }).tol).toEqual({
+    L: 20,
+    dR: 5,
+    dL: 10,
+  })
+  expect(one('bead2', { lb: 25 }).tol).toEqual({ lb: 25 })
+  expect(one('bead4', { lb: '25' }).tol).toEqual({ lb: 25 })
+  expect(one('res', { r: 1 }).tol).toEqual({ r: 1 })
+  expect(one('cap', { c: 40 }).tol).toEqual({ c: 40 })
+  expect(one('rc', { rd: 5, cd: 20 }).tol).toEqual({ rd: 5, cd: 20 })
+})
+
+test('tol: hostile shapes and values are dropped', () => {
+  for (const t of [[], [5], 'abc', '5', 5, true, null, undefined])
+    expect(one('cap', t)).not.toHaveProperty('tol')
+  for (const v of [
+    NaN,
+    Infinity,
+    -Infinity,
+    -5,
+    0,
+    '',
+    '  ',
+    'abc',
+    {},
+    [5],
+    [],
+    null,
+    true,
+  ])
+    expect(one('cap', { c: v })).not.toHaveProperty('tol')
+  // NaN and Infinity become null in JSON; also test the raw objects.
+  const raw = adopt({
+    blocks: [{ type: 'cap', name: 'C', tol: { c: Infinity } }],
+    conv: hostile.conv,
+  }).blocks[0]
+  expect(raw).not.toHaveProperty('tol')
+})
+
+test('tol: only keys of that block type are read', () => {
+  expect(one('cap', { esr: 5 })).not.toHaveProperty('tol')
+  expect(one('ind', { c: 5 })).not.toHaveProperty('tol')
+  expect(one('res', { L: 5, r: 3 }).tol).toEqual({ r: 3 })
+  const t = one(
+    'cap',
+    JSON.parse('{"__proto__":{"c":5},"constructor":{"c":5}}')
+  )
+  expect(t).not.toHaveProperty('tol')
+  expect(({} as Record<string, unknown>).c).toBeUndefined()
+  // an inherited key is not read
+  expect(one('cap', Object.create({ c: 5 }))).not.toHaveProperty('tol')
+})
+
+test('tol: clamped to 80, strings accepted, bad keys dropped one by one', () => {
+  expect(one('cap', { c: 500 }).tol).toEqual({ c: 80 })
+  expect(one('cap', { c: 80 }).tol).toEqual({ c: 80 })
+  expect(one('ind', { L: '12.5', dR: -1, dL: NaN }).tol).toEqual({ L: 12.5 })
+})
+
+test('tol round-trips through JSON; plot.tol boolean still reads', () => {
+  const st = buildPreset(1)
+  const cap = st.blocks.find((b) => b.type === 'cap')
+  expect(cap?.tol).toEqual({ c: 40 })
+  st.plot.tol = true
+  const back = adopt(JSON.parse(JSON.stringify(st)))
+  expect(back.blocks.find((b) => b.type === 'cap')?.tol).toEqual({ c: 40 })
+  expect(back.blocks.find((b) => b.type === 'ind')?.tol).toEqual({ L: 30 })
+  expect(back.plot.tol).toBe(true)
+  st.plot.tol = false
+  expect(adopt(JSON.parse(JSON.stringify(st))).plot.tol).toBe(false)
+})

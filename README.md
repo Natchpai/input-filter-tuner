@@ -41,6 +41,12 @@ React and TypeScript from the web-site-starter template.
     Paste points one per line, or a Murata SimSurfing CSV.
   - A Corners card with peak, |Rn|, margin, Q and attenuation at fsw per
     corner, the worst one marked, and its |Zout| on the Zout tab.
+- Part tolerances:
+  - ± % on each main L, C and R value, in the block card.
+  - A Tolerance card: every ± extreme (up to 8 tolerances) and a seeded
+    Monte Carlo (uniform, N draws) at every corner, run in a Web Worker.
+  - Worst, 1st percentile and median margin per corner, and a histogram of
+    the board margin (lowest over the corners).
 - Damping helpers:
   - "Rd for Q" (NP-DR-26001 equation).
   - "Optimum Rd", a numeric search with all parasitics included.

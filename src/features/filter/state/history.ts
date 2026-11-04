@@ -38,6 +38,8 @@ function keyOf(a: Action): string | null {
       return `${a.t}:${a.k}`
     case 'param':
       return `param:${a.id}:${a.k}`
+    case 'tol':
+      return `tol:${a.id}:${a.k}`
     case 'patch':
       return `patch:${a.id}:${Object.keys(a.patch).sort().join(',')}`
     case 'plot':

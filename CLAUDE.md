@@ -13,8 +13,8 @@ and its tests) is kept until the user says to remove it, together with
 `scripts/legacy-fixture.mjs`.
 
 M6 is done (`docs/M6-plan.md`); its LTspice run on D4 is still open.
-M1a is done. M1b (tolerances) comes next: plan it in detail in
-`docs/M1-plan.md` before any code. Read that file first.
+M1a and M1b are done (`docs/M1-plan.md`). The next milestone per
+`ROADMAP.md` is M2; plan it in detail before any code.
 
 ## Git
 
@@ -79,6 +79,10 @@ and get approval before changing the fixture.
   C(Vin) instead of `derate`, and an inductor or bead with `li` uses L(I),
   I = P_load/(eta·Vin). |Rn| always uses full power. The nominal tiles keep
   the typed values. `engine/oppoint.ts`.
+- A tolerance is ± % on a main L, C or R value (`TOL_KEYS`), applied after
+  the corner values. Monte Carlo is uniform, seed 1; one draw is one board,
+  the same parts at every corner. `engine/tolerance.ts`, run in
+  `workers/tolerance.worker.ts`.
 - Closed-form optimum damping: only the Rd-Cd, parallel Rd-Ld and series
   Rd∥Ld forms are used. Each one was verified against the numeric optimizer.
   A new closed form needs the same check in `engine.test.ts`.

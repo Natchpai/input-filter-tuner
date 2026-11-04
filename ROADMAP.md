@@ -8,7 +8,7 @@ Order: **M0 first** (decided 2026-11-04, done 2026-11-04). Then, by value
 to a filter design review: **M1a → M1b → M2 → M4 → M3**, and the rest as
 needed. M1 was split on 2026-11-04; the detailed plan is `docs/M1-plan.md`.
 On 2026-11-04 the user moved **M6 ahead of M1a** (plan: `docs/M6-plan.md`).
-M6 was done on 2026-11-04. M1a was done on 2026-11-04.
+M6 was done on 2026-11-04. M1a and M1b were done on 2026-11-04.
 
 Status key: `[ ]` not started, `[x]` done.
 
@@ -100,11 +100,11 @@ Plan: `docs/M1-plan.md`.
 any manual edits, every MLCC with a curve is evaluated at its bias voltage,
 and LQRx 02 shows 21 dB at 24 V and 13 dB at 15 V.
 
-### M1b. Tolerances
+### M1b. Tolerances (done 2026-11-04)
 
-- [ ] **Per-part tolerance (S).** ± % on each block's main value.
-- [ ] **Worst case (S).** Every ± extreme per corner, when the count is small.
-- [ ] **Monte Carlo (M).** Run N random draws within the part tolerances and
+- [x] **Per-part tolerance (S).** ± % on each block's main value.
+- [x] **Worst case (S).** Every ± extreme per corner, when the count is small.
+- [x] **Monte Carlo (M).** Run N random draws within the part tolerances and
   report the margin distribution: worst, 1st percentile and median.
 
 **Done when:** the worst case and the Monte Carlo spread show per corner, and

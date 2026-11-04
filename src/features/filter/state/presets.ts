@@ -43,8 +43,11 @@ const PRESETS: Preset[] = [
     name: 'D1 · LC + Rd-Cd, Q = 0.707',
     make: () =>
       baseState('D1 LC + Rd-Cd', D1, {}, [
-        mk('ind', 'L1', { L: 22e-6, dcr: 20e-3 }),
-        mk('cap', 'C1', { c: 10e-6, esr: 0 }),
+        // Tolerances from NP-DR-26001 report.md:229-237 (section 8): L -30 %
+        // at full load, C 6 uF at 48 V bias, Rd 1.06 ohm fixed. Q is
+        // 0.71 / 0.84 / 0.55 / 0.66 in the four cases of its table.
+        mk('ind', 'L1', { L: 22e-6, dcr: 20e-3, tol: { L: 30 } }),
+        mk('cap', 'C1', { c: 10e-6, esr: 0, tol: { c: 40 } }),
         mk('rc', 'Rd1', { rd: 1.06, cd: 150e-6 }),
       ]),
   },

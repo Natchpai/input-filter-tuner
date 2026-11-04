@@ -10,7 +10,9 @@ import {
   type DampMode,
   type Design,
   MAX_NOTES,
+  MAX_TOL,
   type TabKey,
+  TOL_KEYS,
   TYPES,
 } from '../engine'
 import { baseState, mk } from './defaults'
@@ -27,9 +29,30 @@ function num(v: unknown, def: number, lo = -Infinity, hi = Infinity) {
   const x = Number(v)
   return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : def
 }
+const scalar = (v: unknown) => typeof v === 'number' || typeof v === 'string'
 const pos = (v: unknown, def: number) => {
   const x = Number(v)
   return Number.isFinite(x) && x > 0 ? x : def
+}
+
+// Tolerances (tol). Only the keys listed in TOL_KEYS for the block type are
+// read, each as a number or a non-empty string that gives a finite value > 0,
+// clamped to MAX_TOL (± %). Anything else is dropped. No valid key: undefined.
+function tolOf(
+  v: unknown,
+  type: BlockType
+): Record<string, number> | undefined {
+  if (!isObj(v) || Array.isArray(v)) return undefined
+  const out: Record<string, number> = {}
+  for (const k of TOL_KEYS[type] as readonly string[]) {
+    if (!has(v, k)) continue
+    const raw = v[k]
+    if (!scalar(raw)) continue
+    if (typeof raw === 'string' && raw.trim() === '') continue
+    const x = Number(raw)
+    if (Number.isFinite(x) && x > 0) out[k] = Math.min(MAX_TOL, x)
+  }
+  return Object.keys(out).length ? out : undefined
 }
 
 // Bias curves (cv, li). Reads at most CURVE_READ raw items and keeps at most
@@ -38,7 +61,6 @@ const pos = (v: unknown, def: number) => {
 // duplicate x dropped (first one wins). No valid point: undefined.
 const CURVE_READ = 256
 const CURVE_KEEP = 64
-const scalar = (v: unknown) => typeof v === 'number' || typeof v === 'string'
 function curve(v: unknown): Curve | undefined {
   if (!Array.isArray(v)) return undefined
   const pts: Curve = []
@@ -128,6 +150,10 @@ export function adopt(obj: unknown): Design {
       if (type === 'ind' || type === 'bead2' || type === 'bead4') {
         const c = curve(b.li)
         if (c) n.li = c
+      }
+      {
+        const t = tolOf(b.tol, type)
+        if (t) n.tol = t
       }
       n.on = b.on !== false
       if (type === 'ind') {

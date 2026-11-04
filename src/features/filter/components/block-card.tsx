@@ -23,10 +23,14 @@ import {
   effC,
   getParam,
   interp,
+  MAX_TOL,
   type Metrics,
   optimizeParam,
   rdForQ,
   sectionOf,
+  TOL_KEYS,
+  tolLabel,
+  type TolKey,
   TYPES,
 } from '../engine'
 import { formatCurve, parseCurve } from '../lib/curve-text'
@@ -314,6 +318,59 @@ function CurveEditor({ S, b }: { S: Design; b: Block }) {
   )
 }
 
+/** Tolerance keys shown for a block. Ind damping values only when in use. */
+function shownTolKeys(b: Block): TolKey[] {
+  const keys = [...TOL_KEYS[b.type]] as TolKey[]
+  if (b.type !== 'ind') return keys
+  return keys.filter(
+    (k) =>
+      k === 'L' ||
+      (k === 'dR' && b.dmode !== 'none') ||
+      (k === 'dL' && (b.dmode === 'RLpar' || b.dmode === 'RLser'))
+  )
+}
+
+function ToleranceEditor({ b }: { b: Block }) {
+  const keys = shownTolKeys(b)
+  const tol = (b.tol ?? {}) as Record<string, number>
+  const set = keys.filter((k) => tol[k] > 0).length
+  return (
+    <Collapsible className='mt-1.5'>
+      <CollapsibleTrigger
+        id={`tol-btn-${b.id}`}
+        className='group flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground'
+      >
+        <ChevronRight className='size-4 transition-transform group-data-[state=open]:rotate-90' />
+        Tolerance
+        {set > 0 && (
+          <span className='rounded bg-secondary px-1.5 text-xs text-secondary-foreground'>
+            {set} tol
+          </span>
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        {keys.map((k) => (
+          <ValueRow
+            key={k}
+            id={`tol-${b.id}-${k}`}
+            label={`${tolLabel(b.type, k)} ±%`}
+            unit='%'
+            value={tol[k] ?? 0}
+            onChange={(v) => dispatch({ t: 'tol', id: b.id, k, v })}
+            min={0}
+            max={MAX_TOL}
+            linear
+          />
+        ))}
+        <p className='mt-1 text-xs text-muted-foreground'>
+          ± % on each value, 0 for none. The Tolerance card uses them; uniform
+          in Monte Carlo.
+        </p>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
 /** Hint lines under a block: effective C, SRF, its LC section, losses. */
 function InfoLines({ S, b, m }: { S: Design; b: Block; m: Metrics }) {
   const parts: React.ReactNode[] = []
@@ -518,6 +575,7 @@ export function BlockCard({
         </>
       )}
       <CurveEditor S={S} b={b} />
+      <ToleranceEditor b={b} />
       <DampHelpers S={S} b={b} />
       {b.type === 'bead4' && (
         <BeadHelper key={[b.rs, b.lb, b.rp, b.cb].join()} b={b} />
