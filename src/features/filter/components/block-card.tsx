@@ -1,25 +1,35 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Copy, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronRight, Copy, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Textarea } from '@/components/ui/textarea'
+import {
   type Block,
   type Bead4Block,
   beadFromDatasheet,
+  corners,
+  type Curve,
   DAMP,
   type DampMode,
   dampKey,
   type Design,
   effC,
   getParam,
+  interp,
   type Metrics,
   optimizeParam,
   rdForQ,
   sectionOf,
   TYPES,
 } from '../engine'
+import { formatCurve, parseCurve } from '../lib/curve-text'
 import { closedFormFor } from '../lib/damping'
 import { fmtIn, fmtSI, parseSI } from '../lib/si'
 import { newId } from '../state/defaults'
@@ -194,6 +204,113 @@ function BeadHelper({ b }: { b: Bead4Block }) {
         <sub>SRF</sub>)²·Lb). Leave f<sub>SRF</sub> empty for Cb = 0.
       </p>
     </details>
+  )
+}
+
+/** Which curve a block can carry: C against DC bias, or L against DC current. */
+function curveKind(b: Block) {
+  if (b.type === 'cap')
+    return { key: 'cv', title: 'C vs DC bias', x: 'V', y: 'F' } as const
+  if (b.type === 'ind' || b.type === 'bead2' || b.type === 'bead4')
+    return { key: 'li', title: 'L vs DC current', x: 'A', y: 'H' } as const
+  return null
+}
+
+function CurveEditor({ S, b }: { S: Design; b: Block }) {
+  const kind = curveKind(b)
+  const [text, setText] = useState<string | null>(null)
+  if (!kind) return null
+  const stored = (b as { cv?: Curve; li?: Curve })[kind.key]
+  const shown = text ?? (stored ? formatCurve(stored, kind.x, kind.y) : '')
+  const { errors } = parseCurve(shown)
+
+  const commit = () => {
+    if (text === null) return
+    const r = parseCurve(text)
+    if (r.points.length > 0) {
+      dispatch({ t: 'patch', id: b.id, patch: { [kind.key]: r.points } })
+    } else if (r.errors.length === 0) {
+      // Empty text removes the curve. Build a copy without the key, so no
+      // own key with value undefined is left in the design.
+      if (stored) {
+        const nb = { ...b } as Record<string, unknown>
+        delete nb[kind.key]
+        dispatch({
+          t: 'replace',
+          st: {
+            ...S,
+            blocks: S.blocks.map((x) => (x.id === b.id ? (nb as Block) : x)),
+          },
+        })
+      }
+    } else return // only bad lines: keep the draft and the old curve
+    if (r.errors.length === 0) setText(null)
+  }
+
+  const rows: string[] = []
+  if (stored) {
+    const cs = corners(S)
+    if (kind.key === 'cv') {
+      for (const vin of new Set(cs.map((c) => c.vin)))
+        rows.push(`${fmtSI(vin, 'V')}: ${fmtSI(interp(stored, vin), 'F')}`)
+    } else {
+      for (const c of cs)
+        rows.push(
+          `${c.label} (${fmtSI(c.i, 'A')}): ${fmtSI(interp(stored, c.i), 'H')}`
+        )
+    }
+  }
+
+  return (
+    <Collapsible className='mt-1.5'>
+      <CollapsibleTrigger
+        id={`curve-btn-${b.id}`}
+        className='group flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground'
+      >
+        <ChevronRight className='size-4 transition-transform group-data-[state=open]:rotate-90' />
+        {kind.title}
+        {stored && (
+          <span className='rounded bg-secondary px-1.5 text-xs text-secondary-foreground'>
+            {stored.length} pts
+          </span>
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <Textarea
+          id={`curve-${b.id}`}
+          aria-label={kind.title}
+          spellCheck={false}
+          rows={5}
+          placeholder={`One point per line: ${kind.x === 'V' ? '12 V, 3.96 µF' : '1.5 A, 2.2 µH'}`}
+          aria-invalid={errors.length > 0 || undefined}
+          className='mt-1.5 max-h-48 min-h-20 px-2 py-1 font-mono text-xs md:text-xs'
+          value={shown}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+        />
+        <div className='mt-1 text-xs text-muted-foreground'>
+          {stored && (
+            <>
+              <p>{stored.length} points. Value at each corner:</p>
+              <ul className='ml-4 list-disc break-words'>
+                {rows.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {errors.length > 0 && (
+            <ul className='mt-1 ml-4 list-disc break-words text-destructive'>
+              {errors.map((e) => (
+                <li key={e.line}>
+                  Line {e.line}: {e.msg}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -400,6 +517,7 @@ export function BlockCard({
           )}
         </>
       )}
+      <CurveEditor S={S} b={b} />
       <DampHelpers S={S} b={b} />
       {b.type === 'bead4' && (
         <BeadHelper key={[b.rs, b.lb, b.rp, b.cb].join()} b={b} />

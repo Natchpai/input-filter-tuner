@@ -225,6 +225,13 @@ export function buildPlot(
         name: 'undamped',
         line: { color: C.b, width: 1.2, dash: 'dash' },
       })
+    if (sets.worst)
+      traces.push({
+        x: f,
+        y: mag(sets.worst.Zout),
+        name: esc(sets.worstLabel ?? 'Worst corner'),
+        line: { color: C.e, width: 1.6, dash: 'dash' },
+      })
     traces.push(...tolTraces((s) => mag(s.Zout)))
     traces.push(...snapTr('zout'))
     const rns = (

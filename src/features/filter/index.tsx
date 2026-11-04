@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { Main } from '@/components/layout/main'
 import { SiteHeader } from '@/components/layout/site-header'
 import { BlockCard } from './components/block-card'
+import { Corners } from './components/corners'
 import { DesignsCard } from './components/designs'
 import { PlotCard } from './components/plot-card'
 import { Results } from './components/results'
@@ -15,7 +16,7 @@ import {
 } from './components/settings'
 import { ToolCard } from './components/tool-card'
 import { Toolbar } from './components/toolbar'
-import { metrics } from './engine'
+import { cornerMetrics, metrics } from './engine'
 import { curveSets, overlaysOf } from './plots/curves'
 import { readColors } from './plots/theme-colors'
 import { takeWarning, useTuner } from './state/store'
@@ -43,9 +44,15 @@ export function Tuner() {
   const colors = useThemeColors()
   const calc = useMemo(() => {
     try {
-      return { sets: curveSets(dst), m: metrics(dst), error: null }
+      const corners = cornerMetrics(dst)
+      return {
+        sets: curveSets(dst, corners.rows[corners.worst]),
+        m: metrics(dst),
+        corners,
+        error: null,
+      }
     } catch (e) {
-      return { sets: null, m: null, error: (e as Error).message }
+      return { sets: null, m: null, corners: null, error: (e as Error).message }
     }
   }, [dst])
 
@@ -100,6 +107,7 @@ export function Tuner() {
                 <ToolCard title='Results'>
                   <Results S={dst} m={calc.m} nom={calc.sets.nom} />
                 </ToolCard>
+                {calc.corners && <Corners data={calc.corners} />}
                 <PlotCard
                   S={dst}
                   sets={calc.sets}

@@ -5,6 +5,7 @@ export type PlotColors = {
   b: string
   c: string
   d: string
+  e: string
   bad: string
   muted: string
   ink: string
@@ -22,6 +23,7 @@ export function readColors(el: Element = document.documentElement): PlotColors {
     b: v('--chart-3'),
     c: v('--chart-4'),
     d: v('--chart-2'),
+    e: v('--chart-5'),
     bad: v('--destructive'),
     muted: v('--muted-foreground'),
     ink: v('--foreground'),
