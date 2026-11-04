@@ -3,6 +3,9 @@
 
 export type DampMode = 'none' | 'R' | 'RLpar' | 'RLser'
 
+/** Points [x, y], sorted by x. Linear between points, flat beyond the ends. */
+export type Curve = [number, number][]
+
 type BlockBase = {
   id: string
   name: string
@@ -19,12 +22,16 @@ export type IndBlock = BlockBase & {
   dmode: DampMode
   dR: number
   dL: number
+  /** L against DC current, [A, H] points (operating-point corners). */
+  li?: Curve
 }
 export type Bead2Block = BlockBase & {
   type: 'bead2'
   rdc: number
   lb: number
   rb: number
+  /** Lb against DC current, [A, H] points (operating-point corners). */
+  li?: Curve
 }
 export type Bead4Block = BlockBase & {
   type: 'bead4'
@@ -32,6 +39,8 @@ export type Bead4Block = BlockBase & {
   lb: number
   rp: number
   cb: number
+  /** Lb against DC current, [A, H] points (operating-point corners). */
+  li?: Curve
 }
 export type ResBlock = BlockBase & { type: 'res'; r: number; l: number }
 export type CapBlock = BlockBase & {
@@ -41,6 +50,8 @@ export type CapBlock = BlockBase & {
   esl: number
   n: number
   derate: number
+  /** C per part against DC bias, [V, F] points. Replaces derate at corners. */
+  cv?: Curve
 }
 export type RcBlock = BlockBase & {
   type: 'rc'
@@ -67,6 +78,8 @@ export type Conv = {
   phases: number
   k: number
   fcheck: number
+  /** Light-load power in W for the operating-point corners. Default 0. */
+  pLight: number
 }
 
 export type Source = { R: number; L: number }

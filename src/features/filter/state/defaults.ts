@@ -41,6 +41,7 @@ export const CONV_DEFAULTS: Conv = {
   phases: 1,
   k: 6,
   fcheck: 1e6,
+  pLight: 0,
 }
 
 export const PLOT_DEFAULTS: PlotSettings = {
