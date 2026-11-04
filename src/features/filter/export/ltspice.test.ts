@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { hotPlugAt, loadStepAt } from '../engine'
+import { mkLoad } from '../state/defaults'
 import { buildPreset, PRESET_NAMES } from '../state/presets'
 import { spiceHotPlug, spiceLoadStep } from './netlist'
 
@@ -54,4 +55,26 @@ describe.skipIf(!LT)('LTspice cross-check (test 9)', () => {
       }
     })
   }
+
+  it('D1 Rd-Cd with two converters: load step V min within 1 % (M5)', () => {
+    const i = PRESET_NAMES.findIndex((n) => n.startsWith('D1 · LC + Rd-Cd'))
+    const st0 = buildPreset(i)
+    const st = {
+      ...st0,
+      loads: [
+        mkLoad(st0.conv, 'Aux', { pout: 40, pLight: 5, eta: 0.85 }, 'x1'),
+      ],
+    }
+    const vin = st.conv.vinNom
+    const dir = mkdtempSync(join(tmpdir(), 'filter-lt-'))
+    try {
+      const s = loadStepAt(st, vin)
+      const b = run(dir, 'step2', spiceLoadStep(st, s, OPTS))
+      expect(rel(s.vLight, b.vlight)).toBeLessThan(1e-3)
+      expect(rel(s.vMin, b.vmin)).toBeLessThan(0.01)
+      expect(rel(s.droop, b.vlight - b.vmin)).toBeLessThan(TOL)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })

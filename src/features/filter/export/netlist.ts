@@ -3,11 +3,14 @@
 // engine/ladder.ts element for element.
 import {
   atCorner,
+  converters,
   type Design,
   type HotPlugRow,
+  iBus,
   kindOf,
   type LoadStepRow,
-  rnOf,
+  pBus,
+  rnBus,
   withCable,
 } from '../engine'
 import {
@@ -60,7 +63,7 @@ function copy(st: Design, which: 'h' | 'z', tok: string[]): CircuitCopy {
 
 /** The load on the H copy as set in the plot settings, or null (open). */
 function loadR(st: Design): number | null {
-  if (st.plot.load === 'conv') return rnOf(st.conv, st.conv.vinNom)
+  if (st.plot.load === 'conv') return rnBus(st, st.conv.vinNom)
   if (st.plot.load === 'res') return st.plot.rload
   return null
 }
@@ -94,8 +97,11 @@ function line(e: CircuitElement): string {
 
 function loadText(st: Design): string {
   const rl = loadR(st)
+  const n = converters(st).length
   if (st.plot.load === 'conv')
-    return `converter, Rn = ${spiceNum(rl ?? 0)} ohm at Vin = ${spiceNum(st.conv.vinNom)} V`
+    return n > 1
+      ? `${n} converters, bus Rn = ${spiceNum(rl ?? 0)} ohm at Vin = ${spiceNum(st.conv.vinNom)} V`
+      : `converter, Rn = ${spiceNum(rl ?? 0)} ohm at Vin = ${spiceNum(st.conv.vinNom)} V`
   if (st.plot.load === 'res') return `resistor, ${spiceNum(rl ?? 0)} ohm`
   return 'open'
 }
@@ -205,39 +211,55 @@ export function spiceHotPlug(
 }
 
 /**
- * Load step as a .tran netlist at the row's Vin: a constant-power B source
- * I = P/(eta·max(V, Vin/2)) steps P_light → P_full at t1 and back at t2.
- * .meas: the light-load voltage, the lowest V after t1, the highest after t2.
+ * Load step as a .tran netlist at the row's Vin: one constant-power B source
+ * per converter, I = P/(eta·max(V, Vin/2)), each stepping P_light → P_full at
+ * t1 and back at t2, all together (M5). .meas: the light-load voltage, the
+ * lowest V after t1, the highest after t2.
  */
 export function spiceLoadStep(
   st: Design,
   row: LoadStepRow,
   opts: { date: string; link: string }
 ): string {
-  const cv = st.conv
   const vin = row.vin
   const d = atCorner(st, {
     vin,
-    pLoad: cv.pout,
-    i: cv.pout / (cv.eta * vin),
+    pLoad: pBus(st, 'full'),
+    i: iBus(st, vin, 'full'),
     label: '',
   })
   const c = tranCopy(d)
-  const pFull = cv.pout
-  const pLight = Math.min(Math.max(0, cv.pLight), pFull)
   const t1 = 0.1 * row.tDown
   const t2 = t1 + row.tDown
   const tStop = t1 + row.wave.t[row.wave.t.length - 1]
   const n = (v: number) => spiceNum(v)
-  const p = `if(time<${n(t1)},${n(pLight)},if(time<${n(t2)},${n(pFull)},${n(pLight)}))`
+  const us = converters(st)
+  const srcs = us.map((u, k) => {
+    const pFull = u.pout
+    const pLight = Math.min(Math.max(0, u.pLight), pFull)
+    const p = `if(time<${n(t1)},${n(pLight)},if(time<${n(t2)},${n(pFull)},${n(pLight)}))`
+    return {
+      name: clean(u.name, 40),
+      step: `P ${n(pLight)} W -> ${n(pFull)} W`,
+      line: `B_t_conv${k === 0 ? '' : k + 1} ${c.out} 0 I=${p}/(${n(u.eta)}*max(V(${c.out}),${n(0.5 * vin)}))`,
+    }
+  })
+  const at = `at t1 = ${n(t1)} s, back at t2 = ${n(t2)} s.`
+  const steps =
+    srcs.length === 1
+      ? [`* Vin = ${n(vin)} V, ${srcs[0].step} ${at}`]
+      : [
+          `* Vin = ${n(vin)} V, ${srcs.length} converters step together ${at}`,
+          ...srcs.map((x) => `*   ${x.name}: ${x.step}`),
+        ]
   return [
     ...header(st, 'load-step transient', opts),
-    `* Vin = ${n(vin)} V, P ${n(pLight)} W -> ${n(pFull)} W at t1 = ${n(t1)} s, back at t2 = ${n(t2)} s.`,
+    ...steps,
     `* Tool result: V min ${n(row.vMin)} V, V max ${n(row.vMax)} V.`,
     '',
     `V_t_src t_vs 0 ${n(vin)}`,
     ...c.elements.map(line),
-    `B_t_conv ${c.out} 0 I=${p}/(${n(cv.eta)}*max(V(${c.out}),${n(0.5 * vin)}))`,
+    ...srcs.map((x) => x.line),
     '',
     `.tran 0 ${n(tStop)} 0 ${n(row.dt)}`,
     `.meas TRAN vlight FIND V(${c.out}) AT ${n(t1 / 2)}`,

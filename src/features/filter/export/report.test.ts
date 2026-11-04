@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { db, emiResult, metrics, type Design, tranResult } from '../engine'
 import { fmtSI } from '../lib/si'
+import { mkLoad } from '../state/defaults'
 import { buildPreset, PRESET_NAMES } from '../state/presets'
 import {
   REPORT_FIGURES,
@@ -192,6 +193,76 @@ describe('reportMarkdown', () => {
     const st = d4()
     st.blocks = st.blocks.map((b, i) => (i === 0 ? { ...b, name: 'a|b' } : b))
     expect(reportMarkdown(st, OPTS)).toContain('Table: a|b')
+  })
+})
+
+describe('several converters (M5)', () => {
+  const d1 = () => buildPreset(1)
+  const two = (): Design => {
+    const st = d1()
+    return {
+      ...st,
+      loads: [
+        mkLoad(
+          st.conv,
+          'Aux',
+          { pout: 30, pLight: 3, eta: 0.9, fsw: 2.1e6, fcheck: 20e3 },
+          'x1'
+        ),
+      ],
+    }
+  }
+
+  it('an extra converter that is off changes nothing', () => {
+    const st = d1()
+    const off = {
+      ...two(),
+      loads: two().loads.map((l) => ({ ...l, on: false })),
+    }
+    expect(reportMarkdown(off, OPTS)).toBe(reportMarkdown(st, OPTS))
+  })
+
+  it('lists each converter and the bus, and names the limiting band', () => {
+    const st = two()
+    const m = metrics(st)
+    expect(m.bands).toHaveLength(2)
+    const md = reportMarkdown(st, OPTS)
+    expect(md).toContain(
+      '| Converter | P | P light | η | Vout | fsw | Phases | f check | Rn |'
+    )
+    expect(md).toMatch(/^\| Conv 1 \| 100 W \|/m)
+    expect(md).toMatch(/^\| Aux \| 30 W \| 3 W \| 0\.900 \|/m)
+    const bus = md.split('\n').find((l) => l.startsWith('| Bus |'))!
+    expect(bus.startsWith('| Bus | 130 W | ')).toBe(true)
+    expect(bus.endsWith(` | ${fmtSI(m.rn.min, 'Ω')} |`)).toBe(true)
+    expect(md).toContain('| Converters on the bus | 2 |')
+    const lb = m.bands[m.limitBand]
+    expect(md).toContain(
+      `limited by band ${fmtSI(lb.fLo, 'Hz')} to ${fmtSI(lb.fHi, 'Hz')} (${lb.names.join(', ')})`
+    )
+    expect(md).toContain('Band 1: ')
+    expect(md).toContain('Band 2: ')
+    expect(md).toContain('Aux: fr / ripple harmonic / attenuation')
+    expect(md).toContain('- Several converters: each one counts in the bus Rn')
+    const kv = parseKv(front(md))
+    expect(kv.specs).toContain('130 W')
+    expect(kv.specs).toContain('fsw = 500 kHz, 2.1 MHz')
+    expect(kv.specs.split('|')).toHaveLength(3)
+    expect(Object.keys(kv).every((k) => ALLOWED.includes(k))).toBe(true)
+  })
+
+  it('EMI and time domain name every converter', () => {
+    const st0 = two()
+    const st = {
+      ...st0,
+      emi: { ...st0.emi, on: true },
+      tran: { ...st0.tran, on: true },
+    }
+    const md = reportMarkdown(st, OPTS)
+    expect(md).toContain('Conv 1 500 kHz × 1, Aux 2.1 MHz × 1')
+    expect(md).toContain(
+      '- Load step: every converter steps together, bus total 3 W → 130 W'
+    )
   })
 })
 

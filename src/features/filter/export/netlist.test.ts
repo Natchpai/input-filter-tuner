@@ -11,9 +11,10 @@ import {
   loadStepAt,
   mul,
   point,
+  rnBus,
   TAU,
 } from '../engine'
-import { baseState, mk } from '../state/defaults'
+import { baseState, mk, mkLoad } from '../state/defaults'
 import { buildPreset, PRESET_COUNT, PRESET_NAMES } from '../state/presets'
 import {
   spiceElements,
@@ -146,6 +147,12 @@ function compare(st: Design) {
 const withLoad = (st: Design, load: (typeof LOADS)[number]): Design => ({
   ...st,
   plot: { ...st.plot, load },
+})
+
+/** Extra converters on the bus (M5). */
+const withConvs = (st: Design, ...vals: Parameters<typeof mkLoad>[2][]) => ({
+  ...st,
+  loads: vals.map((v, i) => mkLoad(st.conv, `X${i + 2}`, v, `x${i}`)),
 })
 
 describe('SPICE netlist', () => {
@@ -318,6 +325,57 @@ describe('SPICE netlist', () => {
     expect(text).toContain('.ac dec 200 10 100000000')
     expect(text).toContain('R_h_load_R h_out 0 -23.04')
     expect(text).toContain('I_z_src 0 z_out AC 1')
+  })
+})
+
+describe('several converters (M5)', () => {
+  it('H with the converter load uses the bus Rn and matches the engine', () => {
+    const st = withLoad(
+      withConvs(buildPreset(1), { pout: 30, eta: 0.9, fcheck: 50e3 }),
+      'conv'
+    )
+    const { ez, eh, text } = compare(st)
+    expect(ez).toBeLessThan(1e-6)
+    expect(eh).toBeLessThan(1e-6)
+    const rn = rnBus(st, st.conv.vinNom)
+    expect(rn).not.toBeCloseTo(-23.04, 3)
+    expect(text).toContain(
+      `* Load on H: 2 converters, bus Rn = ${Number(rn.toPrecision(12))} ohm`
+    )
+  })
+
+  it('an extra converter that is off changes nothing', () => {
+    const st = withLoad(buildPreset(1), 'conv')
+    const off = withConvs(st, { pout: 30, on: false })
+    expect(spiceNetlist(off, OPTS)).toBe(spiceNetlist(st, OPTS))
+    const row = loadStepAt(st, 48)
+    expect(spiceLoadStep(off, row, OPTS)).toBe(spiceLoadStep(st, row, OPTS))
+  })
+
+  it('load step: one constant-power B source per converter', () => {
+    const st = withConvs(buildPreset(1), {
+      name: 'Aux',
+      pout: 20,
+      pLight: 5,
+      eta: 0.8,
+    })
+    const row = loadStepAt(st, 48)
+    const text = spiceLoadStep(st, row, OPTS)
+    const bs = text.split('\n').filter((l) => l.startsWith('B_'))
+    expect(bs).toHaveLength(2)
+    expect(bs[0]).toMatch(
+      /^B_t_conv t_out 0 I=if\(time<\S+,0,if\(time<\S+,100,0\)\)\/\(1\*max\(V\(t_out\),24\)\)$/
+    )
+    expect(bs[1]).toMatch(
+      /^B_t_conv2 t_out 0 I=if\(time<\S+,5,if\(time<\S+,20,5\)\)\/\(0\.8\*max\(V\(t_out\),24\)\)$/
+    )
+    expect(text).toContain('* Vin = 48 V, 2 converters step together at t1 = ')
+    expect(text).toContain('*   Aux: P 5 W -> 20 W')
+    // Both sources step at the same times.
+    const times = bs.map((b) =>
+      [...b.matchAll(/time<([^,]+)/g)].map((m) => m[1])
+    )
+    expect(times[1]).toEqual(times[0])
   })
 })
 

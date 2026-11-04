@@ -4,9 +4,15 @@ import {
   DAMP,
   EMI_STDS,
   TYPES,
+  converters,
   db,
   emiResult,
+  fcOf,
   metrics,
+  pBus,
+  rnOf,
+  vinLow,
+  type Band,
   type Block,
   type Design,
   type Lim,
@@ -149,7 +155,7 @@ function emiText(st: Design): string {
   const dB = (v: number) => `${v.toFixed(1)} dB`
   const head = [
     `- Standard: ${info.label}, class ${cell(e.cls)}; ${info.lisn.name}, ${e.lines} line(s). The AN replaces Rsrc and Lsrc.`,
-    `- Converter current: trapezoid, edge time ${fmtSI(e.tr, 's')}, ${st.conv.phases} phase(s); every full-load Vin corner.`,
+    `- Converter current: trapezoid, edge time ${fmtSI(e.tr, 's')}, ${convText(st)}; every full-load Vin corner.`,
     `- Design margin below the limit: ${e.margin} dB.`,
     w
       ? `- Result: **${r.pass ? 'Pass' : 'Fail'}**. Worst ${cell(w.band.name)} at ${fmtSI(w.f!, 'Hz')}, margin ${dB(w.margin!)} (${cell(w.corner)}).`
@@ -188,11 +194,14 @@ function timeText(st: Design, r: TranResult): string {
   const h = r.hot[r.hotWorst],
     s = r.step[r.stepWorst]
   const bad = r.step.find((x) => x.status === 'unstable')
-  const pl = Math.min(Math.max(0, st.conv.pLight), st.conv.pout)
+  const many = converters(st).length > 1
+  const pl = Math.min(Math.max(0, pBus(st, 'light')), pBus(st, 'full'))
   const pct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)} %`
   const head = [
-    `- Hot-plug: ideal step through Rsrc + Lsrc and a cable of ${fmtSI(t.lCable, 'H')}, ${fmtSI(t.rCable, 'Ω')}; converter off; every Vin.`,
-    `- Load step: constant power ${fmtSI(pl, 'W')} → ${fmtSI(st.conv.pout, 'W')} and back, I = P/(η·V); every Vin.`,
+    `- Hot-plug: ideal step through Rsrc + Lsrc and a cable of ${fmtSI(t.lCable, 'H')}, ${fmtSI(t.rCable, 'Ω')}; ${many ? 'converters' : 'converter'} off; every Vin.`,
+    many
+      ? `- Load step: every converter steps together, bus total ${fmtSI(pl, 'W')} → ${fmtSI(pBus(st, 'full'), 'W')} and back, each I = P/(η·V); every Vin.`
+      : `- Load step: constant power ${fmtSI(pl, 'W')} → ${fmtSI(st.conv.pout, 'W')} and back, I = P/(η·V); every Vin.`,
     `- Worst hot-plug: V peak ${fmtSI(h.vPeak, 'V')} (${pct(h.overshoot)}) at ${fmtSI(h.vin, 'V')}` +
       (h.iPeak !== null
         ? `, inrush ${fmtSI(h.iPeak, 'A')}, I²t ${fmtSI(h.i2t, 'A²s')}.`
@@ -228,6 +237,36 @@ function timeText(st: Design, r: TranResult): string {
   ].join('\n')
 }
 
+/** fsw and phases of each converter, for one line of text. */
+function convText(st: Design): string {
+  const us = converters(st)
+  if (us.length === 1) return `${st.conv.phases} phase(s)`
+  return us
+    .map((u) => `${oneLine(u.name)} ${fmtSI(u.fsw, 'Hz')} × ${u.phases}`)
+    .join(', ')
+}
+
+const bandRange = (b: Band) => `${fmtSI(b.fLo, 'Hz')} to ${fmtSI(b.fHi, 'Hz')}`
+
+/** Converter table: one row per converter that is on, then the bus. */
+function convTable(st: Design): string {
+  const cv = st.conv
+  const lo = vinLow(cv)
+  const us = converters(st)
+  const rows = us.map(
+    (u) =>
+      `| ${cell(u.name)} | ${fmtSI(u.pout, 'W')} | ${fmtSI(Math.min(u.pLight, u.pout), 'W')} | ${u.eta.toFixed(3)} | ${fmtSI(u.vout, 'V')} | ${fmtSI(u.fsw, 'Hz')} | ${u.phases} | ${fmtSI(fcOf(u), 'Hz')} | ${fmtSI(rnOf(u, lo), 'Ω')} |`
+  )
+  const fcs = us.map(fcOf)
+  return [
+    `Table: Converters on the bus (Rn at Vin min = ${fmtSI(lo, 'V')})`,
+    '| Converter | P | P light | η | Vout | fsw | Phases | f check | Rn |',
+    '|---|---|---|---|---|---|---|---|---|',
+    ...rows,
+    `| Bus | ${fmtSI(pBus(st, 'full'), 'W')} | ${fmtSI(pBus(st, 'light'), 'W')} | – | – | – | – | ${fmtSI(Math.min(...fcs), 'Hz')} – ${fmtSI(Math.max(...fcs), 'Hz')} | ${fmtSI(metrics(st).rn.min, 'Ω')} |`,
+  ].join('\n')
+}
+
 export function reportMarkdown(
   st: Design,
   opts: ReportOptions,
@@ -237,8 +276,14 @@ export function reportMarkdown(
   const m = metrics(st)
   const cv = st.conv,
     p = m.prim
+  const us = converters(st)
+  const many = us.length > 1
   const OHM = 'Ω'
   const fsw = fmtSI(cv.fsw, 'Hz')
+  const fsws = [...new Set(us.map((u) => u.fsw))]
+    .sort((a, b) => a - b)
+    .map((f) => fmtSI(f, 'Hz'))
+    .join(', ')
   const kLim = fmtSI(Math.abs(m.rn.min) / 10 ** (cv.k / 20), OHM)
   const on = st.blocks.filter((b) => b.on)
   const margin = `${m.margin.toFixed(1)} dB`
@@ -259,7 +304,7 @@ export function reportMarkdown(
     ['kicker', 'Input Filter Design Notes'],
     [
       'specs',
-      `Input = ${fmtSI(cv.vinNom, 'V')}, ${fmtSI(cv.pout, 'W')} | fsw = ${fsw} | Filter = ${on.map((b) => b.name.replace(/\|/g, '/')).join(', ') || 'none'}`,
+      `Input = ${fmtSI(cv.vinNom, 'V')}, ${fmtSI(pBus(st, 'full'), 'W')} | fsw = ${fsws} | Filter = ${on.map((b) => b.name.replace(/\|/g, '/')).join(', ') || 'none'}`,
     ],
     [
       'note',
@@ -273,26 +318,44 @@ export function reportMarkdown(
     .map(([k, v]) => `${k}: ${v}`)
 
   const inputs = [
-    table(
-      ['Parameter', 'Value'],
-      [
-        [
-          'Vin min / nom / max',
-          `${fmtSI(cv.vinMin, 'V')} / ${fmtSI(cv.vinNom, 'V')} / ${fmtSI(cv.vinMax, 'V')}`,
-        ],
-        ['Vout', fmtSI(cv.vout, 'V')],
-        ['P (output)', fmtSI(cv.pout, 'W')],
-        ['Efficiency η', cv.eta.toFixed(3)],
-        ['fsw', fsw],
-        ['Phases', String(cv.phases)],
-        [
-          'Rn at Vin min / nom / max',
-          `${fmtSI(m.rn.min, OHM)} / ${fmtSI(m.rn.nom, OHM)} / ${fmtSI(m.rn.max, OHM)}`,
-        ],
-        ['Margin required k', `${cv.k} dB`],
-        ['fcheck', fmtSI(cv.fcheck, 'Hz')],
-      ]
-    ),
+    many
+      ? table(
+          ['Parameter', 'Value'],
+          [
+            [
+              'Vin min / nom / max',
+              `${fmtSI(cv.vinMin, 'V')} / ${fmtSI(cv.vinNom, 'V')} / ${fmtSI(cv.vinMax, 'V')}`,
+            ],
+            ['Converters on the bus', String(us.length)],
+            [
+              'Bus Rn at Vin min / nom / max',
+              `${fmtSI(m.rn.min, OHM)} / ${fmtSI(m.rn.nom, OHM)} / ${fmtSI(m.rn.max, OHM)}`,
+            ],
+            ['Margin required k', `${cv.k} dB`],
+          ]
+        ) +
+        '\n\n' +
+        convTable(st)
+      : table(
+          ['Parameter', 'Value'],
+          [
+            [
+              'Vin min / nom / max',
+              `${fmtSI(cv.vinMin, 'V')} / ${fmtSI(cv.vinNom, 'V')} / ${fmtSI(cv.vinMax, 'V')}`,
+            ],
+            ['Vout', fmtSI(cv.vout, 'V')],
+            ['P (output)', fmtSI(cv.pout, 'W')],
+            ['Efficiency η', cv.eta.toFixed(3)],
+            ['fsw', fsw],
+            ['Phases', String(cv.phases)],
+            [
+              'Rn at Vin min / nom / max',
+              `${fmtSI(m.rn.min, OHM)} / ${fmtSI(m.rn.nom, OHM)} / ${fmtSI(m.rn.max, OHM)}`,
+            ],
+            ['Margin required k', `${cv.k} dB`],
+            ['fcheck', fmtSI(cv.fcheck, 'Hz')],
+          ]
+        ),
     '',
     table(
       ['Source', 'Value'],
@@ -320,9 +383,19 @@ export function reportMarkdown(
     ],
     [
       'Margin to |Rn| (Middlebrook)',
-      `${margin}, ${verdict}; |Rn| ${fmtSI(Math.abs(m.rn.min), OHM)}, limit line ${kLim}`,
+      `${margin}, ${verdict}; |Rn| ${fmtSI(Math.abs(m.rn.min), OHM)}, limit line ${kLim}` +
+        (m.bands.length > 1
+          ? `; limited by band ${bandRange(m.bands[m.limitBand])} (${m.bands[m.limitBand].names.join(', ')})`
+          : ''),
     ],
   ]
+  if (m.bands.length > 1)
+    m.bands.forEach((b, i) =>
+      res.push([
+        `Band ${i + 1}: ${bandRange(b)} (${b.names.join(', ')})`,
+        `|Rn| ${fmtSI(Math.abs(b.rn), OHM)}, peak ${fmtSI(b.peak.v, OHM)} at ${fmtSI(b.peak.f, 'Hz')}, ${b.margin.toFixed(1)} dB`,
+      ])
+    )
   if (p && m.qSeries !== null && m.qeff !== null) {
     res.push(
       ['Z0', fmtSI(p.Z0, OHM)],
@@ -332,16 +405,33 @@ export function reportMarkdown(
     )
   }
   const fr = fmtSI(m.ripple.fr, 'Hz')
+  const rw = m.ripple.per[m.ripple.worst]
   res.push(
-    [`Attenuation at ${fr}`, `${(-db(m.ripple.hfr)).toFixed(1)} dB`],
-    ['|H| at fsw (converter side open)', `${db(m.ripple.hfsw).toFixed(1)} dB`],
+    [
+      many
+        ? `Lowest attenuation (${rw.name} at ${fr})`
+        : `Attenuation at ${fr}`,
+      `${(-db(m.ripple.hfr)).toFixed(1)} dB`,
+    ],
+    [
+      many
+        ? 'Highest |H| at a converter fsw (converter side open)'
+        : '|H| at fsw (converter side open)',
+      `${db(m.ripple.hfsw).toFixed(1)} dB`,
+    ],
+    ...(many
+      ? m.ripple.per.map((r): [string, string] => [
+          `${r.name}: fr / ripple harmonic / attenuation`,
+          `${fmtSI(r.fr, 'Hz')} / ${fmtSI(r.ih, 'A')} / ${(-db(r.hfr)).toFixed(1)} dB`,
+        ])
+      : []),
     ['Source ripple current (rms)', fmtSI(m.ripple.isrc / Math.SQRT2, 'A')],
     ['Ripple voltage at converter pins (peak)', fmtSI(m.ripple.vout, 'V')],
     ['DC series R (incl. source)', fmtSI(m.dc.r, OHM)],
     ['DC input current (Vin min)', fmtSI(m.dc.iin, 'A')],
     [
       'DC loss (Vin min)',
-      `${fmtSI(m.dc.loss, 'W')}, ${m.dc.pct.toFixed(2)} % of P, drop ${fmtSI(m.dc.drop, 'V')}`,
+      `${fmtSI(m.dc.loss, 'W')}, ${m.dc.pct.toFixed(2)} % of ${many ? 'bus P' : 'P'}, drop ${fmtSI(m.dc.drop, 'V')}`,
     ]
   )
 
@@ -353,6 +443,10 @@ export function reportMarkdown(
     '- Zout is seen from the converter with the source voltage shorted. Rsrc and Lsrc stay in the path.',
     '- Q is the series form Re(Zout(f0))/Z0.',
   ]
+  if (many)
+    method.push(
+      '- Several converters: each one counts in the bus Rn = −Vin²/Σ(P/η) up to its own f check and drops out above it. The check range is split at each f check, and the margin is the lowest over the bands. Ripple at the same frequency adds in phase; different frequencies add as root-sum-square.'
+    )
   if (st.emi.on)
     method.push(
       '- EMI: harmonic n of the trapezoid input current, c_n = 2·Io·|sin(nπD)|/(nπ)·|sinc(nπ·tr·fsw)| (multiples of N only), through the filter into the AN impedance (jωL + R) ∥ 50 Ω. Fixed fsw, so one harmonic reads the same on every detector.'
