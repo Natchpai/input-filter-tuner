@@ -1,9 +1,9 @@
 /*
  * Site theme. Dark is the default. Two brand colours set the look:
- * --brand (accent, links, focus ring) and --navy (tint of the dark
- * surfaces and the hero gradient). To rebrand, change --brand, --navy,
- * --primary and --ring in both blocks, then tint the dark surfaces
- * (--background, --card, --sidebar ...) toward the new navy.
+ * --brand (accent, links, focus ring) and --navy (hero gradient). To
+ * rebrand, change --brand, --navy, --primary and --ring in both blocks.
+ * The dark surfaces (--background, --card, --sidebar ...) are neutral
+ * greys around #191a1b.
  */
 :root,
 /* Light tokens for off-screen figure export (export/svg.ts). */
@@ -77,23 +77,23 @@
 }
 
 .dark {
-  --background: #0c1422;
-  --foreground: #e6edf7;
-  --card: #121c30;
-  --card-foreground: #e6edf7;
-  --popover: #15213a;
-  --popover-foreground: #e6edf7;
+  --background: #191a1b;
+  --foreground: #e8e9ea;
+  --card: #212224;
+  --card-foreground: #e8e9ea;
+  --popover: #252628;
+  --popover-foreground: #e8e9ea;
   --primary: #529ad6;
-  --primary-foreground: #071223;
-  --secondary: #1b2843;
-  --secondary-foreground: #e6edf7;
-  --muted: #182540;
-  --muted-foreground: #8d9fbc;
-  --accent: #1c2e4f;
-  --accent-foreground: #e6edf7;
+  --primary-foreground: #101112;
+  --secondary: #2a2b2d;
+  --secondary-foreground: #e8e9ea;
+  --muted: #27282a;
+  --muted-foreground: #9da1a6;
+  --accent: #2d2f31;
+  --accent-foreground: #e8e9ea;
   --destructive: #ef6b6b;
-  --border: #24324d;
-  --input: #2a3a58;
+  --border: #313335;
+  --input: #3a3c3f;
   --ring: #529ad6;
 
   --chart-1: #60a5fa;
@@ -120,13 +120,13 @@
   --bus-gpio: #38bdf8;
   --bus-analog: #fb923c;
 
-  --sidebar: #0a111d;
-  --sidebar-foreground: #c9d5e8;
+  --sidebar: #141516;
+  --sidebar-foreground: #d2d4d7;
   --sidebar-primary: #529ad6;
-  --sidebar-primary-foreground: #071223;
-  --sidebar-accent: #172a49;
-  --sidebar-accent-foreground: #d7e8fa;
-  --sidebar-border: #1d2a42;
+  --sidebar-primary-foreground: #101112;
+  --sidebar-accent: #27292b;
+  --sidebar-accent-foreground: #e8e9ea;
+  --sidebar-border: #262729;
   --sidebar-ring: #529ad6;
 
   --status-done: #4ade80;
