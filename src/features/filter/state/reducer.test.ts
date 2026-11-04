@@ -63,3 +63,19 @@ test('tol: same-key changes group into one undo step', () => {
   const u = undo(h, st)
   expect(u && tolOf(u.st)).toBeUndefined()
 })
+
+test('emi: turning it off on the EMI tab goes back to Zout', () => {
+  const on = reducer(base, { t: 'emi', patch: { on: true } })
+  expect(on.emi.on).toBe(true)
+  expect(on.plot.tab).toBe(base.plot.tab)
+  const onTab = reducer(on, { t: 'plot', patch: { tab: 'emi' } })
+  const off = reducer(onTab, { t: 'emi', patch: { on: false } })
+  expect(off.emi.on).toBe(false)
+  expect(off.plot.tab).toBe('zout')
+  const zin = reducer(reducer(on, { t: 'plot', patch: { tab: 'zin' } }), {
+    t: 'emi',
+    patch: { on: false },
+  })
+  expect(zin.plot.tab).toBe('zin')
+  expect(base.emi.on).toBe(false) // not mutated
+})

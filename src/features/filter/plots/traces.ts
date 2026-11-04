@@ -167,7 +167,8 @@ export function buildPlot(
   snapshots: Snapshot[],
   C: PlotColors
 ): PlotResult {
-  const tab = S.plot.tab
+  // The EMI tab exists only while EMI is on; otherwise draw Zout.
+  const tab = S.plot.tab === 'emi' && !S.emi.on ? 'zout' : S.plot.tab
   if (tab === 'emi') return emiPlot(S, C)
   const f = Array.from(sets.nom.f)
   const cv = S.conv

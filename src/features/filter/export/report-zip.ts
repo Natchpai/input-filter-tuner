@@ -5,13 +5,14 @@ import { type Design, metrics, type TabKey } from '../engine'
 import { curveSets } from '../plots/curves'
 import { buildPlot } from '../plots/traces'
 import {
-  type REPORT_FIGURES,
+  type ReportFigure,
+  reportFigures,
   type ReportOptions,
   reportMarkdown,
 } from './report'
 import { plotSvgText, readLightColors, schematicSvg } from './svg'
 
-const PLOT_FIGS: [(typeof REPORT_FIGURES)[number], TabKey][] = [
+const PLOT_FIGS: [ReportFigure, TabKey][] = [
   ['fig_zout.svg', 'zout'],
   ['fig_xfer.svg', 'xfer'],
   ['fig_zin.svg', 'zin'],
@@ -38,7 +39,9 @@ export async function reportZip(
     'report.md': strToU8(reportMarkdown(st, opts)),
     'fig_schematic.svg': strToU8(schematicSvg(schematic)),
   }
+  const want = reportFigures(st)
   for (const [file, tab] of PLOT_FIGS) {
+    if (!want.includes(file)) continue
     const s = { ...st, plot: { ...st.plot, tab } }
     // Figures show the design alone, without overlays.
     const fig = buildPlot(s, sets, m, [], colors).main

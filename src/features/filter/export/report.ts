@@ -21,6 +21,12 @@ export const REPORT_FIGURES = [
   'fig_emi.svg',
 ] as const
 
+export type ReportFigure = (typeof REPORT_FIGURES)[number]
+
+/** Figures of this design's report: the EMI figure only while EMI is on. */
+export const reportFigures = (st: Design): ReportFigure[] =>
+  REPORT_FIGURES.filter((f) => f !== 'fig_emi.svg' || st.emi.on)
+
 export type ReportOptions = {
   author: string
   docNo: string
@@ -30,7 +36,7 @@ export type ReportOptions = {
   toolUrl: string
 }
 
-const CAPTIONS: Record<(typeof REPORT_FIGURES)[number], string> = {
+const CAPTIONS: Record<ReportFigure, string> = {
   'fig_schematic.svg': 'Filter schematic',
   'fig_zout.svg': '|Zout| against |Rn|',
   'fig_xfer.svg': 'Transfer function',
@@ -260,46 +266,37 @@ export function reportMarkdown(st: Design, opts: ReportOptions): string {
     ]
   )
 
-  const figures = REPORT_FIGURES.map(
-    (f) => `![${CAPTIONS[f]}](${f}){width=92%}`
-  ).join('\n\n')
+  const figures = reportFigures(st)
+    .map((f) => `![${CAPTIONS[f]}](${f}){width=92%}`)
+    .join('\n\n')
+  const method = [
+    '- Rn = −Vin²·η/P is flat and holds up to fcheck, so the peak search and the Nyquist scan stop there.',
+    '- Zout is seen from the converter with the source voltage shorted. Rsrc and Lsrc stay in the path.',
+    '- Q is the series form Re(Zout(f0))/Z0.',
+  ]
+  if (st.emi.on)
+    method.push(
+      '- EMI: harmonic n of the trapezoid input current, c_n = 2·Io·|sin(nπD)|/(nπ)·|sinc(nπ·tr·fsw)| (multiples of N only), through the filter into the AN impedance (jωL + R) ∥ 50 Ω. Fixed fsw, so one harmonic reads the same on every detector.'
+    )
+  // Sections are numbered in order; Conducted EMI is there only while on.
+  const sections: [string, string][] = [
+    ['Inputs', inputs],
+    ['Parts', parts],
+    ['Results', table(['Quantity', 'Value'], res)],
+    ...(st.emi.on
+      ? ([['Conducted EMI', emiText(st)]] as [string, string][])
+      : []),
+    ['Figures', figures],
+    ['Notes', notesText(st)],
+    ['Method', method.join('\n')],
+  ]
 
   return [
     '---',
     ...front,
     '---',
     '',
-    '## 1. Inputs',
-    '',
-    inputs,
-    '',
-    '## 2. Parts',
-    '',
-    parts,
-    '',
-    '## 3. Results',
-    '',
-    table(['Quantity', 'Value'], res),
-    '',
-    '## 4. Conducted EMI',
-    '',
-    emiText(st),
-    '',
-    '## 5. Figures',
-    '',
-    figures,
-    '',
-    '## 6. Notes',
-    '',
-    notesText(st),
-    '',
-    '## 7. Method',
-    '',
-    '- Rn = −Vin²·η/P is flat and holds up to fcheck, so the peak search and the Nyquist scan stop there.',
-    '- Zout is seen from the converter with the source voltage shorted. Rsrc and Lsrc stay in the path.',
-    '- Q is the series form Re(Zout(f0))/Z0.',
-    '- EMI: harmonic n of the trapezoid input current, c_n = 2·Io·|sin(nπD)|/(nπ)·|sinc(nπ·tr·fsw)| (multiples of N only), through the filter into the AN impedance (jωL + R) ∥ 50 Ω. Fixed fsw, so one harmonic reads the same on every detector.',
-    '',
+    ...sections.flatMap(([h, body], k) => [`## ${k + 1}. ${h}`, '', body, '']),
     `Made with Input Filter Tuner: ${oneLine(opts.toolUrl)}. Reopen this design: ${oneLine(opts.link)}`,
     '',
   ].join('\n')

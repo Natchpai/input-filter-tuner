@@ -62,6 +62,7 @@ export const PLOT_DEFAULTS: PlotSettings = {
 }
 
 export const EMI_DEFAULTS: EmiSettings = {
+  on: false,
   std: 'cispr25',
   cls: '5',
   lines: 1,

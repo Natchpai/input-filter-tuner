@@ -22,15 +22,50 @@ const lim = (l: Lim | undefined) =>
   l === undefined ? '–' : typeof l === 'number' ? String(l) : `${l[0]}→${l[1]}`
 const bandText = (b: EmiBand) => `${fmtSI(b.fLo, 'Hz')} – ${fmtSI(b.fHi, 'Hz')}`
 
-/** Conducted EMI settings, verdict and per-band table. */
-export function Emi({ st, data }: { st: Design; data: EmiResult }) {
+/**
+ * Conducted EMI card. Off by default: then only the header with its on/off
+ * checkbox and one line. data is null while off.
+ */
+export function Emi({ st, data }: { st: Design; data: EmiResult | null }) {
+  return (
+    <ToolCard
+      id='emi'
+      title='Conducted EMI'
+      right={
+        <label className='flex items-center gap-1 text-[11px] font-normal tracking-normal normal-case'>
+          <input
+            id='emi-on'
+            type='checkbox'
+            checked={st.emi.on}
+            onChange={(ev) =>
+              dispatch({ t: 'emi', patch: { on: ev.target.checked } })
+            }
+          />
+          on
+        </label>
+      }
+    >
+      {st.emi.on && data ? (
+        <EmiBody st={st} data={data} />
+      ) : (
+        <Hint>
+          Predicts the conducted emissions at the LISN against CISPR 25 or CISPR
+          32 limits. Off by default.
+        </Hint>
+      )}
+    </ToolCard>
+  )
+}
+
+/** Settings, verdict and per-band table. */
+function EmiBody({ st, data }: { st: Design; data: EmiResult }) {
   const e = st.emi
   const info = EMI_STDS[e.std]
   const set = (patch: Partial<Design['emi']>) => dispatch({ t: 'emi', patch })
   const row = 'my-1.5 flex flex-wrap items-center gap-1.5 text-sm'
   const w = data.worst >= 0 ? data.rows[data.worst] : null
   return (
-    <ToolCard id='emi' title='Conducted EMI'>
+    <>
       <div className={row}>
         <label htmlFor='emi-std'>Standard</label>
         <select
@@ -177,6 +212,6 @@ export function Emi({ st, data }: { st: Design; data: EmiResult }) {
         Limit values are ASSUMED until checked against the standard
         (references/emi-limits.md).
       </Hint>
-    </ToolCard>
+    </>
   )
 }

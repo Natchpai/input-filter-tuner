@@ -86,7 +86,14 @@ export function reducer(st: Design, a: Action): Design {
       return { ...st, blocks: [...st.blocks, a.block] }
     case 'notes':
       return { ...st, notes: a.v.slice(0, MAX_NOTES) }
-    case 'emi':
-      return { ...st, emi: { ...st.emi, ...a.patch } }
+    case 'emi': {
+      const emi = { ...st.emi, ...a.patch }
+      // Turning EMI off on the EMI tab goes back to the Zout tab.
+      const plot =
+        !emi.on && st.plot.tab === 'emi'
+          ? { ...st.plot, tab: 'zout' as const }
+          : st.plot
+      return { ...st, emi, plot }
+    }
   }
 }

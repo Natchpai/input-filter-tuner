@@ -258,6 +258,7 @@ test('tol round-trips through JSON; plot.tol boolean still reads', () => {
 test('emi: defaults when absent; enums whitelisted; numbers clamped', () => {
   const d = (emi: unknown) => adopt({ conv: {}, blocks: [], emi }).emi
   expect(d(undefined)).toEqual({
+    on: false,
     std: 'cispr25',
     cls: '5',
     lines: 1,
@@ -265,8 +266,15 @@ test('emi: defaults when absent; enums whitelisted; numbers clamped', () => {
     margin: 6,
   })
   expect(
-    d({ std: 'cispr32', cls: 'A', lines: 2, tr: 5e-9, margin: 3 })
-  ).toEqual({ std: 'cispr32', cls: 'A', lines: 2, tr: 5e-9, margin: 3 })
+    d({ on: false, std: 'cispr32', cls: 'A', lines: 2, tr: 5e-9, margin: 3 })
+  ).toEqual({
+    on: false,
+    std: 'cispr32',
+    cls: 'A',
+    lines: 2,
+    tr: 5e-9,
+    margin: 3,
+  })
   // A class from the other standard, or junk, falls back to the strictest.
   expect(d({ std: 'cispr32', cls: '3' }).cls).toBe('B')
   expect(d({ std: 'cispr25', cls: 'B' }).cls).toBe('5')
@@ -286,6 +294,7 @@ test('emi: defaults when absent; enums whitelisted; numbers clamped', () => {
     'cls',
     'lines',
     'margin',
+    'on',
     'std',
     'tr',
   ])
@@ -293,6 +302,28 @@ test('emi: defaults when absent; enums whitelisted; numbers clamped', () => {
 
 test('emi round-trips through JSON', () => {
   const st = buildPreset(0)
-  st.emi = { std: 'cispr32', cls: 'A', lines: 2, tr: 3e-9, margin: 10 }
-  expect(adopt(JSON.parse(JSON.stringify(st))).emi).toEqual(st.emi)
+  st.emi = {
+    on: true,
+    std: 'cispr32',
+    cls: 'A',
+    lines: 2,
+    tr: 3e-9,
+    margin: 10,
+  }
+  st.plot = { ...st.plot, tab: 'emi' }
+  const back = adopt(JSON.parse(JSON.stringify(st)))
+  expect(back.emi).toEqual(st.emi)
+  expect(back.plot.tab).toBe('emi')
+})
+
+test('emi.on: only a real boolean turns it on; the EMI tab needs it', () => {
+  const d = (on: unknown, tab = 'emi') =>
+    adopt({ conv: {}, blocks: [], emi: { on }, plot: { tab } })
+  expect(d(true).emi.on).toBe(true)
+  expect(d(true).plot.tab).toBe('emi')
+  for (const v of ['true', 1, null, {}, undefined]) {
+    expect(d(v).emi.on).toBe(false)
+    expect(d(v).plot.tab).toBe('zout')
+  }
+  expect(d(false, 'zin').plot.tab).toBe('zin')
 })

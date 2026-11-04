@@ -138,6 +138,9 @@ export function adopt(obj: unknown): Design {
     // An unknown class falls back to the strictest one (the last).
     em.cls = cl.includes(String(oe.cls)) ? String(oe.cls) : cl[cl.length - 1]
   }
+  if (typeof oe.on === 'boolean') em.on = oe.on
+  // The EMI tab exists only while EMI is on.
+  if (pl.tab === 'emi' && !em.on) pl.tab = 'zout'
   if (oe.lines === 1 || oe.lines === 2) em.lines = oe.lines
   if (scalar(oe.tr) && oe.tr !== '') em.tr = num(oe.tr, em.tr, 0, 1e-6)
   if (scalar(oe.margin) && oe.margin !== '')

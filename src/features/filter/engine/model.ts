@@ -118,6 +118,8 @@ export type PlotSettings = {
 
 /** Conducted EMI settings (M2). `cls` is one of EMI_STDS[std].classes. */
 export type EmiSettings = {
+  /** The EMI check is shown (card body, tab, report section). Off by default. */
+  on: boolean
   std: EmiStd
   cls: string
   /** Lines through an AN: 1 (return grounded locally) or 2. */

@@ -51,7 +51,7 @@ export function PlotCard({
     <ToolCard>
       <div className='mb-2 flex flex-wrap gap-1'>
         <div id='tabs' role='tablist' className='flex flex-wrap gap-1'>
-          {TABS.map(([k, l]) => (
+          {TABS.filter(([k]) => k !== 'emi' || S.emi.on).map(([k, l]) => (
             <Button
               key={k}
               size='sm'
