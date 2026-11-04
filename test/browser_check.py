@@ -111,6 +111,10 @@ try:
             n_worst = page.eval_on_selector_all("#corners tr[data-worst=true]", "r => r.length")
             ok(n_rows >= 1 and n_worst == 1, f"  corners card: {n_rows} rows, one marked worst")
             ok(page.locator("#tolerance").count() == 1, "  tolerance card shown")
+            verdict = page.inner_text("#emi-verdict")
+            n_bands = page.eval_on_selector_all("#emi-bands tbody tr", "r => r.length")
+            ok(verdict.startswith(("PASS", "FAIL", "No harmonic")) and n_bands == 8,
+               f"  EMI card: {n_bands} bands, '{verdict[:40]}'")
             for t in tabs:
                 page.click(f"#tabs button[data-t={t}]")
                 settle(page, 120 if t != "sweep" else 400)
@@ -595,8 +599,8 @@ try:
         ok(dl.value.suggested_filename == "NP-DR-TEST.zip", f"report zip name {dl.value.suggested_filename}")
         with zipfile.ZipFile(dl.value.path()) as z:
             files = sorted(n for n in z.namelist() if not n.endswith("/"))
-            want = sorted("NP-DR-TEST/" + n for n in ["report.md", "fig_schematic.svg", "fig_zout.svg", "fig_xfer.svg", "fig_zin.svg"])
-            ok(files == want, f"report zip has report.md and four SVGs {files}")
+            want = sorted("NP-DR-TEST/" + n for n in ["report.md", "fig_schematic.svg", "fig_zout.svg", "fig_xfer.svg", "fig_zin.svg", "fig_emi.svg"])
+            ok(files == want, f"report zip has report.md and five SVGs {files}")
             md = z.read("NP-DR-TEST/report.md").decode("utf-8")
             svgs = {n: z.read(n).decode("utf-8") for n in files if n.endswith(".svg")}
         for n, x in svgs.items():
@@ -613,6 +617,64 @@ try:
         ok(w.input_value("#rp-author") == "Test Author", "report author is remembered")
         w.keyboard.press("Escape")
         w.close()
+
+        # ---- M2: conducted EMI ----
+        e = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(e, "m2: ")
+        e.goto(URL)
+        ready(e)
+        enames = e.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
+        e.select_option("#preset", str(next(i for i, n in enumerate(enames) if n.startswith("2-stage LC"))))
+        settle(e, 300)
+        v5 = e.inner_text("#emi-verdict")
+        e.select_option("#emi-cls", "1")
+        settle(e, 300)
+        v1 = e.inner_text("#emi-verdict")
+        ok(v5 != v1 and v1.startswith("PASS"), f"EMI class 5 -> 1 changes the verdict ('{v5[:30]}' -> '{v1[:30]}')")
+        e.select_option("#emi-std", "cispr32")
+        settle(e, 300)
+        n32 = e.eval_on_selector_all("#emi-bands tbody tr", "r => r.length")
+        ok(e.input_value("#emi-cls") == "B" and n32 == 3, f"CISPR 32 picks class B and shows {n32} bands")
+        e.click("#tabs button[data-t=emi]")
+        settle(e, 300)
+        n_main = e.eval_on_selector("#pl1", "d => (d.data || []).length")
+        n_side = e.eval_on_selector("#pl2", "d => (d.data || []).length")
+        ok(n_main >= 4 and n_side == 2, f"EMI tab: {n_main} traces, side plot {n_side} traces")
+        e.reload()
+        ready(e)
+        settle(e, 300)
+        ok(e.input_value("#emi-std") == "cispr32", "EMI settings survive a reload")
+        e.close()
+        # A #d= link with EMI settings (bad class falls back to the strictest)
+        elink = {
+            "name": "EMI link",
+            "conv": {"vinMin": 12, "vinNom": 12, "vinMax": 12, "pout": 10, "eta": 1, "vout": 5, "fsw": 4e5, "fcheck": 4e5},
+            "source": {"R": 0, "L": 0},
+            "blocks": [{"type": "ind", "name": "L1", "L": 10e-6, "dcr": 0.01}, {"type": "cap", "name": "C1", "c": 10e-6}],
+            "emi": {"std": "cispr25", "cls": "9", "lines": 2, "tr": 5e-9, "margin": 3},
+        }
+        e = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(e, "m2 link: ")
+        e.goto(URL + "#d=" + base64.b64encode(json.dumps(elink).encode()).decode())
+        ready(e)
+        settle(e, 300)
+        ok(e.input_value("#emi-cls") == "5" and e.input_value("#emi-lines") == "2"
+           and e.input_value("#emi-margin") == "3", "#d= link keeps emi, bad class gives class 5")
+        e.close()
+        for theme in ["Dark", "Light"]:
+            for vw in [1440, 390]:
+                e = browser.new_page(viewport={"width": vw, "height": 1000})
+                watch(e, "m2 shots: ")
+                e.goto(URL)
+                ready(e)
+                if theme == "Light":
+                    set_theme(e, "Light")
+                e.click("#tabs button[data-t=emi]")
+                settle(e, 400)
+                no_hscroll(e, vw, f"m2 {theme.lower()} {vw} px")
+                e.locator("#emi").screenshot(path=str(SHOTS / f"m2_emi_card_{vw}_{theme.lower()}.png"))
+                e.locator("#pl1").screenshot(path=str(SHOTS / f"m2_emi_tab_{vw}_{theme.lower()}.png"))
+                e.close()
 
         # Layout: 1440 and 390 px, dark and light, no horizontal scroll
         for theme in ["Dark", "Light"]:
