@@ -14,6 +14,7 @@ import {
   PlotSettingsCard,
   SourceCard,
 } from './components/settings'
+import { Tolerance } from './components/tolerance'
 import { ToolCard } from './components/tool-card'
 import { Toolbar } from './components/toolbar'
 import { cornerMetrics, metrics } from './engine'
@@ -108,6 +109,7 @@ export function Tuner() {
                   <Results S={dst} m={calc.m} nom={calc.sets.nom} />
                 </ToolCard>
                 {calc.corners && <Corners data={calc.corners} />}
+                <Tolerance st={dst} colors={colors} />
                 <PlotCard
                   S={dst}
                   sets={calc.sets}
