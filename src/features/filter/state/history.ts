@@ -75,7 +75,7 @@ export function undo(h: History, cur: Design) {
   if (!h.past.length) return null
   return {
     st: keepView(h.past[h.past.length - 1], cur),
-    h: {
+    hist: {
       past: h.past.slice(0, -1),
       future: [cur, ...h.future],
       lastKey: null,
@@ -88,7 +88,7 @@ export function redo(h: History, cur: Design) {
   if (!h.future.length) return null
   return {
     st: keepView(h.future[0], cur),
-    h: {
+    hist: {
       past: [...h.past, cur],
       future: h.future.slice(1),
       lastKey: null,

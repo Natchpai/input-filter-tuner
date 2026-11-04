@@ -318,6 +318,107 @@ try:
         ok("d=" not in x.evaluate("location.hash"), f"link hash is cleared after loading ({x.evaluate('location.hash')})")
         x.close()
 
+        # ---- M6: undo/redo, saved designs, exports ----
+        w = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(w, "m6: ")
+        w.goto(URL)
+        ready(w)
+        kp = lambda: w.inner_text("#kpis")
+        ok(w.is_disabled("#bUndo") and w.is_disabled("#bRedo"), "undo and redo start disabled")
+        w.select_option("#preset", "8")
+        settle(w, 300)
+        d4 = kp()
+        ok("26.8 dB" in d4 and w.is_enabled("#bUndo"), "preset change can be undone")
+        # A slider drag is one undo step
+        rng = w.locator("#blocks .blk input[type=range]").first
+        for v in ["300", "320", "340", "360"]:
+            rng.fill(v)
+        settle(w, 300)
+        ok(kp() != d4, "slider drag changes the results")
+        w.click("#bUndo")
+        settle(w, 300)
+        ok(kp() == d4, "one undo reverts the whole slider drag")
+        # Ctrl+Z outside text fields; browser undo inside them
+        w.select_option("#preset", "1")
+        settle(w, 300)
+        w.evaluate("document.activeElement && document.activeElement.blur()")
+        w.keyboard.press("Control+z")
+        settle(w, 300)
+        ok(kp() == d4, "Ctrl+Z undoes the preset change")
+        w.focus("#cv-pout")
+        w.keyboard.press("Control+z")
+        settle(w, 300)
+        ok(kp() == d4, "Ctrl+Z in a text field is left to the browser")
+        w.evaluate("document.activeElement.blur()")
+        w.keyboard.press("Control+y")
+        settle(w, 300)
+        ok(kp() != d4, "Ctrl+Y redoes")
+        w.keyboard.press("Control+z")
+        settle(w, 300)
+        # Saved designs, notes, overlay, compare
+        w.fill("#saveName", "My D4")
+        w.click("#bSaveAs")
+        settle(w)
+        ok("My D4" in w.inner_text("#savedList"), "Save as adds the design to the list")
+        w.fill("#notes", "Bead from batch 7: <b>check</b>")
+        w.press("#notes", "Tab")
+        settle(w)
+        w.get_by_label("Overlay My D4").check()
+        settle(w, 300)
+        names = lambda: [t.get("name") or "" for t in w.evaluate("document.getElementById('pl1').data")]
+        ok("My D4" in names(), "overlay toggle draws the saved design")
+        w.reload()
+        ready(w)
+        settle(w, 300)
+        ok("My D4" in names() and w.inner_text("#bSnap").strip() == "Snapshot (1)", "saved design and its overlay survive a reload")
+        ok(w.input_value("#notes") == "Bead from batch 7: <b>check</b>", "design notes survive a reload")
+        w.select_option("#preset", "1")
+        settle(w, 300)
+        w.select_option("#cmpSel", label="My D4")
+        settle(w)
+        cmp_text = w.inner_text("#cmpTab")
+        ok("26.8 dB" in cmp_text and "Current" in cmp_text, "compare table shows the saved margin")
+        w.locator("#savedList li", has_text="My D4").get_by_role("button", name="Load").click()
+        settle(w, 300)
+        ok("26.8 dB" in kp(), "Load brings the saved design back")
+        bad = '<img src=x onerror="window.__pwned=1">'
+        w.fill("#saveName", bad)
+        w.click("#bSaveAs")
+        settle(w)
+        w.get_by_label("Overlay " + bad).check()
+        settle(w, 300)
+        ok(w.evaluate("window.__pwned") is None and bad in w.inner_text("#savedList"), "hostile design name is shown as text")
+        for theme in ["dark", "light"]:
+            if theme == "light":
+                set_theme(w, "Light")
+            for vw in [1440, 390]:
+                w.set_viewport_size({"width": vw, "height": 1000})
+                settle(w, 300)
+                no_hscroll(w, vw, f"m6 {theme} {vw} px")
+                w.locator("#designs").screenshot(path=str(SHOTS / f"designs_{vw}_{theme}.png"))
+        set_theme(w, "Dark")
+        w.set_viewport_size({"width": 1440, "height": 1000})
+        w.locator("#savedList li", has_text=bad).get_by_role("button", name="Delete").click()
+        settle(w)
+        ok(bad not in w.inner_text("#savedList"), "Delete removes the design")
+        # SPICE netlist
+        with w.expect_download() as dl:
+            w.click("#bSpice")
+        cir = pathlib.Path(dl.value.path()).read_text(encoding="utf-8")
+        ok(dl.value.suggested_filename.endswith(".cir") and "V_h_src" in cir and ".meas AC zpk" in cir and cir.rstrip().endswith(".end"),
+           f"SPICE export downloads {dl.value.suggested_filename}")
+        # Plot images in light colours while the page is dark
+        with w.expect_download() as dl:
+            w.click("#bPlotSvg")
+        svg = pathlib.Path(dl.value.path()).read_text(encoding="utf-8")
+        ok(svg.lstrip().startswith("<svg") and "var(--" not in svg and "rgb(255, 255, 255)" in svg,
+           f"plot SVG export is light and has no CSS variables ({len(svg)} chars)")
+        with w.expect_download() as dl:
+            w.click("#bPlotPng")
+        png = pathlib.Path(dl.value.path()).read_bytes()
+        ok(png[:4] == b"\x89PNG" and len(png) > 10000, f"plot PNG export ({len(png)} bytes)")
+        w.close()
+
         # Layout: 1440 and 390 px, dark and light, no horizontal scroll
         for theme in ["Dark", "Light"]:
             for w, h in [(1440, 1000), (390, 900)]:

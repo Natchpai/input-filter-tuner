@@ -5,7 +5,9 @@
  * --primary and --ring in both blocks, then tint the dark surfaces
  * (--background, --card, --sidebar ...) toward the new navy.
  */
-:root {
+:root,
+/* Light tokens for off-screen figure export (export/svg.ts). */
+.light-scope {
   --radius: 0.625rem;
   --brand: #529ad6;
   --navy: #35496a;

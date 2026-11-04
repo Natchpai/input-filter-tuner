@@ -45,19 +45,22 @@ function set(next: TunerState) {
 export function dispatch(a: Action) {
   const s = get()
   const st = reducer(s.st, a)
+  // A field that commits its unchanged value on blur must not count as a
+  // step: it would clear the redo list.
+  if (st === s.st || JSON.stringify(st) === JSON.stringify(s.st)) return
   set({ ...s, st, hist: record(s.hist, s.st, st, a, Date.now()) })
 }
 
 export function undoDesign() {
   const s = get()
   const r = undo(s.hist, s.st)
-  if (r) set({ ...s, ...r })
+  if (r) set({ ...s, st: r.st, hist: r.hist })
 }
 
 export function redoDesign() {
   const s = get()
   const r = redo(s.hist, s.st)
-  if (r) set({ ...s, ...r })
+  if (r) set({ ...s, st: r.st, hist: r.hist })
 }
 
 /** Store the new list; false (and no change) when the browser refused. */

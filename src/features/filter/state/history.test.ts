@@ -70,8 +70,8 @@ describe('history', () => {
   it('clears redo on a new action', () => {
     const r = run(base, [[setC(1e-6), 0]])
     const u = undo(r.h, r.st)!
-    expect(u.h.future).toHaveLength(1)
-    const r2 = run(u.st, [[setC(5e-6), 10_000]], u.h)
+    expect(u.hist.future).toHaveLength(1)
+    const r2 = run(u.st, [[setC(5e-6), 10_000]], u.hist)
     expect(r2.h.future).toHaveLength(0)
     expect(redo(r2.h, r2.st)).toBeNull()
   })
@@ -80,7 +80,7 @@ describe('history', () => {
     const r = run(base, [[setC(1e-6), 0]])
     const u = undo(r.h, r.st)!
     expect(capC(u.st)).toBe(capC(base))
-    const d = redo(u.h, u.st)!
+    const d = redo(u.hist, u.st)!
     expect(d.st).toEqual(r.st)
     expect(undo(emptyHistory(), base)).toBeNull()
   })
@@ -112,7 +112,7 @@ describe('history', () => {
     expect(h.past).toHaveLength(2)
     const u = undo(h, st)!
     expect(u.st.name).toBe(other.name)
-    expect(undo(u.h, u.st)!.st.name).toBe(base.name)
+    expect(undo(u.hist, u.st)!.st.name).toBe(base.name)
   })
 
   it('ignores actions that change nothing', () => {
