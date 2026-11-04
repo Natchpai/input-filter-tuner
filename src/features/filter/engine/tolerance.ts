@@ -70,7 +70,7 @@ export function percentile(sorted: ArrayLike<number>, p: number): number {
 }
 
 /** True when this key of the block is in use (damping keys need a mode). */
-function keyInUse(b: Block, key: string): boolean {
+export function keyInUse(b: Block, key: string): boolean {
   if (b.type !== 'ind') return true
   if (key === 'dR') return b.dmode !== 'none'
   if (key === 'dL') return b.dmode === 'RLpar' || b.dmode === 'RLser'

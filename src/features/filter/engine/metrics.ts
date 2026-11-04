@@ -54,6 +54,34 @@ export function marginBands(
   return { bands: out, limit, margin: out[limit].margin }
 }
 
+/**
+ * Nyquist: Tm = Zout/Rn with Rn < 0, so Tm crosses the real axis left of -1
+ * where Im(Zout) = 0 and Re(Zout) > |Rn|. Each crossing is located by
+ * bisection, because Re(Zout) at a high-Q crossing is far above the grid
+ * samples next to it. Same range as the margin: Rn is only valid up to
+ * f check. Each crossing is judged against the |Rn| of its band. Returns
+ * the first crossing left of -1, or null.
+ */
+export function nyquistAt(st: Design, bs: BandResult[]): number | null {
+  const [fLo, fHi] = checkRange(st)
+  const rnAt = (f: number) =>
+    Math.abs((bs.find((b) => f <= b.fHi) ?? bs[bs.length - 1]).rn)
+  const nq = Math.max(400, st.plot.n)
+  const la = Math.log10(fLo),
+    lb = Math.log10(fHi),
+    lf = (i: number) => la + ((lb - la) * i) / (nq - 1)
+  let prevIm = point(st, 10 ** la).Zout.im
+  for (let i = 1; i < nq; i++) {
+    const im = point(st, 10 ** lf(i)).Zout.im
+    if (Math.sign(im) !== Math.sign(prevIm)) {
+      const fr = imZero(st, lf(i - 1), lf(i), SC1)
+      if (point(st, fr).Zout.re > rnAt(fr)) return fr
+    }
+    prevIm = im
+  }
+  return null
+}
+
 /** Which parameter is the damping resistor of a block, if any. */
 export function dampKey(b: Block): 'rd' | 'dR' | null {
   if (b.type === 'rc') return 'rd'
@@ -236,30 +264,7 @@ export function metrics(st: Design): Metrics {
   const prim = primary(st)
   const mb = marginBands(st, vinLow(cv), pk)
   const margin = mb.margin
-  // |Rn| of the band that holds f (Nyquist crossings).
-  const rnAt = (f: number) =>
-    Math.abs(
-      (mb.bands.find((b) => f <= b.fHi) ?? mb.bands[mb.bands.length - 1]).rn
-    )
-  // Nyquist: Tm = Zout/Rn with Rn < 0, so Tm crosses the real axis left of -1
-  // where Im(Zout) = 0 and Re(Zout) > |Rn|. Each crossing is located by
-  // bisection, because Re(Zout) at a high-Q crossing is far above the grid
-  // samples next to it. Same range as the margin: Rn is only valid up to
-  // f check.
-  const nq = Math.max(400, st.plot.n)
-  const la = Math.log10(fLo),
-    lb = Math.log10(fHi),
-    lf = (i: number) => la + ((lb - la) * i) / (nq - 1)
-  let unstableAt: number | null = null,
-    prevIm = point(st, 10 ** la).Zout.im
-  for (let i = 1; i < nq && unstableAt === null; i++) {
-    const im = point(st, 10 ** lf(i)).Zout.im
-    if (Math.sign(im) !== Math.sign(prevIm)) {
-      const fr = imZero(st, lf(i - 1), lf(i), SC1)
-      if (point(st, fr).Zout.re > rnAt(fr)) unstableAt = fr
-    }
-    prevIm = im
-  }
+  const unstableAt = nyquistAt(st, mb.bands)
   // DC
   let rdc = st.source.R
   for (const b of st.blocks) if (b.on && kindOf(b) === 'series') rdc += dcR(b)

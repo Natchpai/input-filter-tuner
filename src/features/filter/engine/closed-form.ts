@@ -34,6 +34,25 @@ export function closedForm(
   return null
 }
 
+/**
+ * Inverse of closedForm's peak: the n whose optimum peak |Zout| is r·Z0.
+ * rc: peak/Z0 = √(2(2+n))/n, so n = (1 + √(1+4r²))/r².
+ * RLpar: peak/Z0 = √(2n(1+2n)), so n = (√(1+4r²) − 1)/4.
+ * RLser: peak/Z0 = √(2(1+n)(2+n))/n, so n = (3 + √(1+4r²))/(r² − 2); it
+ * never gets below √2, so r ≤ √2 gives null.
+ */
+export function nForPeak(mode: string, r: number): number | null {
+  if (!(r > 0) || !Number.isFinite(r)) return null
+  const s = Math.sqrt(1 + 4 * r * r)
+  if (mode === 'rc') return (1 + s) / (r * r)
+  if (mode === 'RLpar') return (s - 1) / 4
+  if (mode === 'RLser') return r * r > 2 ? (3 + s) / (r * r - 2) : null
+  return null
+}
+
+/** NP-DR-26001 §7: Cd with Xcd = Rd/10 at f0, i.e. Cd = 10/(2π·f0·Rd). */
+export const cdForRd = (f0: number, rd: number) => 10 / (TAU * f0 * rd)
+
 /** NP-DR-26001: Rd = Z0² / (Z0/Q − rL). Infinity when rL alone already gives Q. */
 export function rdForQ(Z0: number, Q: number, rL: number): number {
   const d = Z0 / Q - rL

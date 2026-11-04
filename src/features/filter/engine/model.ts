@@ -1,6 +1,7 @@
 // Data model of a filter design. The engine reads it; the UI state is the same
 // object.
 import type { EmiStd } from './emi-limits'
+import type { ESeries } from './eseries'
 
 export type DampMode = 'none' | 'R' | 'RLpar' | 'RLser'
 
@@ -171,6 +172,41 @@ export type TranSettings = {
   rCable: number
 }
 
+/** Damping form the design assistant can propose (M3). */
+export type DampForm = 'rc' | 'RLpar' | 'RLser' | 'R'
+
+/** One stage of the design assistant: the fixed part and its damping. */
+export type StageIn = {
+  /** The part whose value is typed; the other one follows from f0. */
+  fix: 'L' | 'C'
+  /** Value of the fixed part, H or F. */
+  val: number
+  damp: DampForm
+}
+
+/** Design assistant inputs (M3). The proposal itself is not state. */
+export type AsstSettings = {
+  /** The assistant card is open. Off by default. */
+  on: boolean
+  stages: 1 | 2
+  /** 'db': aDb at fa. 'emi': EMI margin >= 0 in every band (needs emi.on). */
+  target: 'db' | 'emi'
+  /** Attenuation target, dB (positive). */
+  aDb: number
+  /** Frequency of the target, Hz. 0: the lowest N*fsw on the bus. */
+  fa: number
+  /** Share of the dB in stage 1 (source side), %. 2 stages only. */
+  split: number
+  /** 'q': damping for target Q. 'leastCd': Erickson, least n for margin k. */
+  rule: 'q' | 'leastCd'
+  /** Target Q (rule 'q'). */
+  q: number
+  /** Stage 1 (source side), stage 2 (converter side). */
+  st: [StageIn, StageIn]
+  /** E-series for inductors (L, Ld), capacitors (C, Cd) and resistors. */
+  ser: { L: ESeries; C: ESeries; R: ESeries }
+}
+
 export type Design = {
   v: number
   name: string
@@ -182,6 +218,8 @@ export type Design = {
   plot: PlotSettings
   emi: EmiSettings
   tran: TranSettings
+  /** Design assistant inputs (M3). */
+  asst: AsstSettings
   /** Free-text design notes, at most MAX_NOTES characters. */
   notes?: string
 }

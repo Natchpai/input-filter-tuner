@@ -1,5 +1,6 @@
 // New blocks and designs with default values.
 import {
+  type AsstSettings,
   type Block,
   type BlockOf,
   type BlockType,
@@ -102,6 +103,22 @@ export const TRAN_DEFAULTS: TranSettings = {
   rCable: 0,
 }
 
+export const ASST_DEFAULTS: AsstSettings = {
+  on: false,
+  stages: 1,
+  target: 'db',
+  aDb: 40,
+  fa: 0,
+  split: 50,
+  rule: 'q',
+  q: 1,
+  st: [
+    { fix: 'C', val: 10e-6, damp: 'rc' },
+    { fix: 'C', val: 10e-6, damp: 'rc' },
+  ],
+  ser: { L: 'E12', C: 'E12', R: 'E96' },
+}
+
 export function baseState(
   name: string,
   conv: Partial<Conv>,
@@ -121,5 +138,6 @@ export function baseState(
     plot: { ...PLOT_DEFAULTS, ...plot },
     emi: { ...EMI_DEFAULTS, ...emi },
     tran: { ...TRAN_DEFAULTS, ...tran },
+    asst: { ...ASST_DEFAULTS, st: [...ASST_DEFAULTS.st] },
   }
 }

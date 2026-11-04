@@ -46,6 +46,7 @@ function keyOf(a: Action): string | null {
       return `plot:${Object.keys(a.patch).sort().join(',')}`
     case 'emi':
     case 'tran':
+    case 'asst':
       return `${a.t}:${Object.keys(a.patch).sort().join(',')}`
     case 'loadSet':
       return `loadSet:${a.id}:${Object.keys(a.patch).sort().join(',')}`

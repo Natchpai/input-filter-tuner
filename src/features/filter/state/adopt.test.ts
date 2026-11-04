@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { MAX_LOADS } from '../engine'
 import { adopt } from './adopt'
-import { mkLoad } from './defaults'
+import { ASST_DEFAULTS, mkLoad } from './defaults'
 import { buildPreset } from './presets'
 
 const bad = '<img src=x onerror="window.__pwned=1">'
@@ -463,4 +463,66 @@ test('loads round-trip through JSON', () => {
   const back = adopt(JSON.parse(JSON.stringify(st)))
   const strip = (x: typeof st) => x.loads.map(({ id: _id, ...r }) => r)
   expect(strip(back)).toEqual(strip(st))
+})
+
+test('asst: defaults when absent; enums whitelisted; numbers clamped', () => {
+  const d = (asst: unknown) => adopt({ conv: {}, blocks: [], asst }).asst
+  expect(d(undefined)).toEqual(ASST_DEFAULTS)
+  expect(d('x')).toEqual(ASST_DEFAULTS)
+  const evil = { toString: 1, valueOf: 1 }
+  const a = d({
+    on: 'yes',
+    stages: '2',
+    target: 'emi',
+    aDb: '1e9',
+    fa: evil,
+    split: -3,
+    rule: 'fast',
+    q: '0.01',
+    st: [
+      { fix: 'L', val: '22e-6', damp: 'RLser' },
+      { fix: 'X', val: evil, damp: '<b>' },
+      { fix: 'L', val: 1, damp: 'R' },
+    ],
+    ser: { L: 'E96', C: 'E7', R: evil },
+  })
+  expect(a).toEqual({
+    on: false,
+    stages: 1,
+    target: 'emi',
+    aDb: 150,
+    fa: 0,
+    split: 10,
+    rule: 'q',
+    q: 0.3,
+    st: [{ fix: 'L', val: 22e-6, damp: 'RLser' }, ASST_DEFAULTS.st[1]],
+    ser: { L: 'E96', C: 'E12', R: 'E96' },
+  })
+  // A value past the range of the fixed part is clamped to it.
+  expect(d({ st: [{ fix: 'L', val: 1 }] }).st[0].val).toBe(10e-3)
+  expect(d({ on: true, stages: 2, fa: 2.2e6 })).toMatchObject({
+    on: true,
+    stages: 2,
+    fa: 2.2e6,
+  })
+})
+
+test('asst round-trips through JSON', () => {
+  const st = buildPreset(1)
+  st.asst = {
+    ...ASST_DEFAULTS,
+    on: true,
+    stages: 2,
+    rule: 'leastCd',
+    aDb: 55.5,
+    fa: 300e3,
+    split: 70,
+    q: 0.707,
+    st: [
+      { fix: 'L', val: 4.7e-6, damp: 'RLpar' },
+      { fix: 'C', val: 22e-6, damp: 'R' },
+    ],
+    ser: { L: 'E6', C: 'E24', R: 'E24' },
+  }
+  expect(adopt(JSON.parse(JSON.stringify(st))).asst).toEqual(st.asst)
 })

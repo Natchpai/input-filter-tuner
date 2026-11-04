@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { MAX_BLOCK_NAME, MAX_LOADS, MAX_TOL } from '../engine'
-import { mkLoad } from './defaults'
+import { ASST_DEFAULTS, mkLoad } from './defaults'
 import { emptyHistory, record, undo } from './history'
 import { buildPreset } from './presets'
 import { type Action, reducer } from './reducer'
@@ -171,4 +171,28 @@ test('loads: a drag on one field is one undo step; undo removes an added one', (
   expect(u.st.loads[0].pout).toBe(base.conv.pout)
   u = undo(u.hist, u.st)!
   expect(u.st.loads).toEqual([])
+})
+
+test('asst: clamped like adopt(); no mutation; a drag is one undo step', () => {
+  const r = reducer(base, {
+    t: 'asst',
+    patch: { aDb: 999, split: 95, on: true },
+  })
+  expect(r.asst).toMatchObject({ aDb: 150, split: 90, on: true })
+  expect(base.asst).toEqual(ASST_DEFAULTS)
+  let st = base
+  let h = emptyHistory()
+  for (const [v, now] of [
+    [41, 1000],
+    [42, 1100],
+    [43, 1200],
+  ] as const) {
+    const a: Action = { t: 'asst', patch: { aDb: v } }
+    const next = reducer(st, a)
+    h = record(h, st, next, a, now)
+    st = next
+  }
+  expect(st.asst.aDb).toBe(43)
+  expect(h.past).toHaveLength(1)
+  expect(undo(h, st)!.st.asst.aDb).toBe(40)
 })

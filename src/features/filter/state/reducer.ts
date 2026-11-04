@@ -1,6 +1,8 @@
 // Design state changes. Pure: new ids come in with the action.
 import {
+  type AsstSettings,
   type Block,
+  clampAsst,
   CABLE_L_MAX,
   CABLE_R_MAX,
   type Conv,
@@ -20,6 +22,7 @@ import {
   type TolKey,
   type TranSettings,
 } from '../engine'
+import { ASST_DEFAULTS } from './defaults'
 
 export type Action =
   | { t: 'replace'; st: Design }
@@ -36,6 +39,7 @@ export type Action =
   | { t: 'notes'; v: string }
   | { t: 'emi'; patch: Partial<EmiSettings> }
   | { t: 'tran'; patch: Partial<TranSettings> }
+  | { t: 'asst'; patch: Partial<AsstSettings> }
   | { t: 'loadAdd'; load: BusConv }
   | { t: 'loadSet'; id: string; patch: Partial<Omit<BusConv, 'id'>> }
   | { t: 'loadDel'; id: string }
@@ -136,6 +140,12 @@ export function reducer(st: Design, a: Action): Design {
       // Turning it off on the Time domain tab goes back to the Zout tab.
       return withTab({ ...st, tran })
     }
+    case 'asst':
+      // Same limits as adopt(), so a reload gives back what was typed.
+      return {
+        ...st,
+        asst: clampAsst({ ...st.asst, ...a.patch }, ASST_DEFAULTS),
+      }
     case 'loadAdd':
       if (st.loads.length >= MAX_LOADS) return st
       return { ...st, loads: [...st.loads, a.load] }

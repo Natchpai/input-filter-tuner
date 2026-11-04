@@ -2,7 +2,9 @@
 // localStorage. Copies known fields only, as numbers within sane limits, and
 // drops everything else. A new state field needs a line here.
 import {
+  type AsstSettings,
   BLOCK_TYPES,
+  clampAsst,
   type Block,
   CABLE_L_MAX,
   CABLE_R_MAX,
@@ -25,7 +27,7 @@ import {
   type TranView,
   TYPES,
 } from '../engine'
-import { baseState, mk, mkLoad } from './defaults'
+import { ASST_DEFAULTS, baseState, mk, mkLoad } from './defaults'
 
 export const TAB_KEYS: TabKey[] = [
   'zout',
@@ -53,6 +55,48 @@ const toNum = (v: unknown) =>
 /** A string from a string or number; '' for anything else. */
 const toStr = (v: unknown) =>
   typeof v === 'string' ? v : typeof v === 'number' ? String(v) : ''
+
+/** Design assistant inputs from untrusted data; bad fields get defaults. */
+function asstOf(v: unknown): AsstSettings {
+  const D = ASST_DEFAULTS
+  const o: Obj = isObj(v) ? v : {}
+  const n = (x: unknown, def: number) =>
+    scalar(x) && x !== '' ? num(x, def) : def
+  const stIn = (x: unknown, def: AsstSettings['st'][number]) => {
+    const s: Obj = isObj(x) ? x : {}
+    return {
+      fix:
+        s.fix === 'L'
+          ? ('L' as const)
+          : s.fix === 'C'
+            ? ('C' as const)
+            : def.fix,
+      val: n(s.val, NaN),
+      damp: toStr(s.damp) as AsstSettings['st'][number]['damp'],
+    }
+  }
+  const st = Array.isArray(o.st) ? o.st : []
+  const ser: Obj = isObj(o.ser) ? o.ser : {}
+  return clampAsst(
+    {
+      on: o.on === true,
+      stages: o.stages === 2 ? 2 : 1,
+      target: o.target === 'emi' ? 'emi' : 'db',
+      aDb: n(o.aDb, D.aDb),
+      fa: n(o.fa, D.fa),
+      split: n(o.split, D.split),
+      rule: o.rule === 'leastCd' ? 'leastCd' : 'q',
+      q: n(o.q, D.q),
+      st: [stIn(st[0], D.st[0]), stIn(st[1], D.st[1])],
+      ser: {
+        L: toStr(ser.L) as AsstSettings['ser']['L'],
+        C: toStr(ser.C) as AsstSettings['ser']['C'],
+        R: toStr(ser.R) as AsstSettings['ser']['R'],
+      },
+    },
+    D
+  )
+}
 
 function num(v: unknown, def: number, lo = -Infinity, hi = Infinity) {
   const x = toNum(v)
@@ -195,6 +239,8 @@ export function adopt(obj: unknown): Design {
     tn.lCable = num(ot.lCable, tn.lCable, 0, CABLE_L_MAX)
   if (scalar(ot.rCable) && ot.rCable !== '')
     tn.rCable = num(ot.rCable, tn.rCable, 0, CABLE_R_MAX)
+  // Design assistant inputs (M3): each field by type, then the shared limits.
+  base.asst = asstOf(obj.asst)
   // The EMI and Time domain tabs exist only while their check is on.
   pl.tab = tabOf(base)
   if (typeof obj.notes === 'string' && obj.notes)
