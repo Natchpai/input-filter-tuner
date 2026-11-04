@@ -100,6 +100,7 @@ try:
         n_presets = page.eval_on_selector("#preset", "s => s.options.length - 1")
         tabs = page.eval_on_selector_all("#tabs button", "bs => bs.map(b => b.dataset.t)")
         ok(n_presets == 14, f"{n_presets} presets listed")
+        ok("emi" not in tabs, f"no EMI tab while EMI is off {tabs}")
         for i in range(n_presets):
             page.select_option("#preset", str(i))
             settle(page, 250)
@@ -111,10 +112,8 @@ try:
             n_worst = page.eval_on_selector_all("#corners tr[data-worst=true]", "r => r.length")
             ok(n_rows >= 1 and n_worst == 1, f"  corners card: {n_rows} rows, one marked worst")
             ok(page.locator("#tolerance").count() == 1, "  tolerance card shown")
-            verdict = page.inner_text("#emi-verdict")
-            n_bands = page.eval_on_selector_all("#emi-bands tbody tr", "r => r.length")
-            ok(verdict.startswith(("PASS", "FAIL", "No harmonic")) and n_bands == 8,
-               f"  EMI card: {n_bands} bands, '{verdict[:40]}'")
+            ok(page.locator("#emi").count() == 1 and page.locator("#emi-bands").count() == 0
+               and not page.is_checked("#emi-on"), "  EMI card shown, off and collapsed")
             for t in tabs:
                 page.click(f"#tabs button[data-t={t}]")
                 settle(page, 120 if t != "sweep" else 400)
@@ -599,8 +598,8 @@ try:
         ok(dl.value.suggested_filename == "NP-DR-TEST.zip", f"report zip name {dl.value.suggested_filename}")
         with zipfile.ZipFile(dl.value.path()) as z:
             files = sorted(n for n in z.namelist() if not n.endswith("/"))
-            want = sorted("NP-DR-TEST/" + n for n in ["report.md", "fig_schematic.svg", "fig_zout.svg", "fig_xfer.svg", "fig_zin.svg", "fig_emi.svg"])
-            ok(files == want, f"report zip has report.md and five SVGs {files}")
+            want = sorted("NP-DR-TEST/" + n for n in ["report.md", "fig_schematic.svg", "fig_zout.svg", "fig_xfer.svg", "fig_zin.svg"])
+            ok(files == want, f"report zip has report.md and four SVGs (EMI off) {files}")
             md = z.read("NP-DR-TEST/report.md").decode("utf-8")
             svgs = {n: z.read(n).decode("utf-8") for n in files if n.endswith(".svg")}
         for n, x in svgs.items():
@@ -626,6 +625,11 @@ try:
         enames = e.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
         e.select_option("#preset", str(next(i for i, n in enumerate(enames) if n.startswith("2-stage LC"))))
         settle(e, 300)
+        e.check("#emi-on")
+        settle(e, 300)
+        n8 = e.eval_on_selector_all("#emi-bands tbody tr", "r => r.length")
+        ok(n8 == 8 and e.locator("#tabs button[data-t=emi]").count() == 1,
+           f"EMI on: {n8} bands and the EMI tab appears")
         v5 = e.inner_text("#emi-verdict")
         e.select_option("#emi-cls", "1")
         settle(e, 300)
@@ -643,7 +647,14 @@ try:
         e.reload()
         ready(e)
         settle(e, 300)
-        ok(e.input_value("#emi-std") == "cispr32", "EMI settings survive a reload")
+        ok(e.input_value("#emi-std") == "cispr32" and e.is_checked("#emi-on"), "EMI settings survive a reload")
+        e.click("#tabs button[data-t=emi]")
+        settle(e, 200)
+        e.uncheck("#emi-on")
+        settle(e, 300)
+        sel = e.eval_on_selector("#tabs button[aria-selected=true]", "b => b.dataset.t")
+        ok(sel == "zout" and e.locator("#tabs button[data-t=emi]").count() == 0
+           and e.locator("#emi-bands").count() == 0, f"EMI off on the EMI tab goes to {sel}, tab hidden")
         e.close()
         # A #d= link with EMI settings (bad class falls back to the strictest)
         elink = {
@@ -651,14 +662,14 @@ try:
             "conv": {"vinMin": 12, "vinNom": 12, "vinMax": 12, "pout": 10, "eta": 1, "vout": 5, "fsw": 4e5, "fcheck": 4e5},
             "source": {"R": 0, "L": 0},
             "blocks": [{"type": "ind", "name": "L1", "L": 10e-6, "dcr": 0.01}, {"type": "cap", "name": "C1", "c": 10e-6}],
-            "emi": {"std": "cispr25", "cls": "9", "lines": 2, "tr": 5e-9, "margin": 3},
+            "emi": {"on": True, "std": "cispr25", "cls": "9", "lines": 2, "tr": 5e-9, "margin": 3},
         }
         e = browser.new_page(viewport={"width": 1440, "height": 1000})
         watch(e, "m2 link: ")
         e.goto(URL + "#d=" + base64.b64encode(json.dumps(elink).encode()).decode())
         ready(e)
         settle(e, 300)
-        ok(e.input_value("#emi-cls") == "5" and e.input_value("#emi-lines") == "2"
+        ok(e.is_checked("#emi-on") and e.input_value("#emi-cls") == "5" and e.input_value("#emi-lines") == "2"
            and e.input_value("#emi-margin") == "3", "#d= link keeps emi, bad class gives class 5")
         e.close()
         for theme in ["Dark", "Light"]:
@@ -669,6 +680,9 @@ try:
                 ready(e)
                 if theme == "Light":
                     set_theme(e, "Light")
+                e.locator("#emi").screenshot(path=str(SHOTS / f"m2_emi_off_{vw}_{theme.lower()}.png"))
+                e.check("#emi-on")
+                settle(e, 300)
                 e.click("#tabs button[data-t=emi]")
                 settle(e, 400)
                 no_hscroll(e, vw, f"m2 {theme.lower()} {vw} px")
@@ -687,6 +701,13 @@ try:
                     set_theme(v, "Light")
                 settle(v, 300)
                 no_hscroll(v, w, f"{theme.lower()} {w} px")
+                top = lambda sel: v.eval_on_selector(sel, "e => e.getBoundingClientRect().top")
+                if w == 1440:
+                    ok(top("#pl1") < top("#kpis") and top("#pl1") < h,
+                       f"{theme.lower()} 1440 px: plot above Results, in the first screen ({top('#pl1'):.0f} px)")
+                else:
+                    ok(top("#sch") < top("#pl1") < top("#cv-vinMin"),
+                       f"{theme.lower()} 390 px: circuit, then plot, then the inputs")
                 v.screenshot(path=str(SHOTS / f"layout_{w}_{theme.lower()}.png"), full_page=False)
                 v.close()
 
