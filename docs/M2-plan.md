@@ -4,6 +4,9 @@ Status: **done (2026-11-04)**, except the user's check of the limit
 tables. Written 2026-11-04.
 
 M2 notes:
+- Follow-up (user, 2026-11-04): EMI is an option, off by default
+  (`emi.on`), switched in the card header. The page now puts the circuit
+  and the plot card first; on narrow screens they come before the inputs.
 - The LISN is modelled by the nominal impedance the standards define,
   (jωL + R) ∥ 50 Ω, not by component values. No public source gave the AN
   schematics in readable form. The receiver reads the voltage at the AN

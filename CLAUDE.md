@@ -88,6 +88,9 @@ and get approval before changing the fixture.
   Rd∥Ld forms are used. Each one was verified against the numeric optimizer.
   A new closed form needs the same check in `engine.test.ts`.
 - EMI (`engine/emi.ts`, `engine/emi-limits.ts`, `docs/M2-plan.md`):
+  - An option, off by default (`emi.on`). While off: no EMI tab, the card
+    shows one line, no EMI section or figure in the report, and
+    `emiResult` is not run. Turning it off on the EMI tab goes to Zout.
   - Input current: each phase is a trapezoid of height Io/N, width D·T at
     the 50 % points, edge time tr. c_n = 2·Io·|sin(nπD)|/(nπ)·
     |sinc(nπ·tr·fsw)| for n a multiple of N, else 0. An exact null is 0.
@@ -111,6 +114,9 @@ and get approval before changing the fixture.
   `--destructive`), never raw hex. Plotly gets them through
   `plots/theme-colors.ts`.
 - Build pages from cards; long text reads as lists.
+- The Tuner page leads with the circuit and the plot card (top right; first
+  on narrow screens, before the inputs). New cards go below Results, not
+  above the plot. `index.tsx` places the three blocks with grid rows.
 - Propose larger visual changes before making them.
 
 ## Gotchas

@@ -15,6 +15,10 @@ React and TypeScript from the web-site-starter template.
 
 ## What it does
 
+The page shows the circuit and the plots first, with the inputs on the left
+(on a phone: circuit, plots, then the inputs). Results, Corners, Tolerance,
+Conducted EMI and Saved designs follow below.
+
 - Builds the filter as a ladder of blocks from source to converter. Each block
   is series or shunt, and you can add, remove, reorder, duplicate or switch it off.
   - Series blocks: inductor (L, DCR, Cp), 2-element bead (Rdc + Lb∥Rb),
@@ -30,8 +34,8 @@ React and TypeScript from the web-site-starter template.
   - Minor loop gain Tm as Bode and Nyquist.
   - Impedance of each element.
   - Rd sweep.
-  - Conducted EMI: predicted harmonics against the limit lines, and the
-    filter attenuation against the attenuation needed.
+  - Conducted EMI (only while EMI is on): predicted harmonics against the
+    limit lines, and the filter attenuation against the attenuation needed.
 - Results:
   - Peak |Zout| and the Middlebrook margin, plus a Nyquist check.
   - Z0, f0 and Q.
@@ -49,7 +53,8 @@ React and TypeScript from the web-site-starter template.
     Monte Carlo (uniform, N draws) at every corner, run in a Web Worker.
   - Worst, 1st percentile and median margin per corner, and a histogram of
     the board margin (lowest over the corners).
-- Conducted EMI:
+- Conducted EMI, an option that is off by default. The checkbox in the
+  card header turns it on; the setting is saved with the design.
   - The converter input current as a trapezoid (D, edge time, N phases),
     with harmonics up to 108 MHz.
   - The LISN follows the standard: CISPR 25 (5 µH / 50 Ω AN, class 1 to 5)
