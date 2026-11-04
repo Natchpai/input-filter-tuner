@@ -3,6 +3,7 @@ import {
   type Block,
   type Conv,
   type Design,
+  type EmiSettings,
   MAX_NOTES,
   MAX_TOL,
   type PlotSettings,
@@ -24,6 +25,7 @@ export type Action =
   | { t: 'remove'; id: string }
   | { t: 'add'; block: Block }
   | { t: 'notes'; v: string }
+  | { t: 'emi'; patch: Partial<EmiSettings> }
 
 const mapBlock = (st: Design, id: string, fn: (b: Block) => Block): Design => ({
   ...st,
@@ -84,5 +86,7 @@ export function reducer(st: Design, a: Action): Design {
       return { ...st, blocks: [...st.blocks, a.block] }
     case 'notes':
       return { ...st, notes: a.v.slice(0, MAX_NOTES) }
+    case 'emi':
+      return { ...st, emi: { ...st.emi, ...a.patch } }
   }
 }

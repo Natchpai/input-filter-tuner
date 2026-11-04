@@ -5,6 +5,7 @@ import {
   type BlockType,
   type Conv,
   type Design,
+  type EmiSettings,
   type PlotSettings,
   type Source,
   TYPES,
@@ -60,12 +61,21 @@ export const PLOT_DEFAULTS: PlotSettings = {
   sweepId: null,
 }
 
+export const EMI_DEFAULTS: EmiSettings = {
+  std: 'cispr25',
+  cls: '5',
+  lines: 1,
+  tr: 10e-9,
+  margin: 6,
+}
+
 export function baseState(
   name: string,
   conv: Partial<Conv>,
   source: Partial<Source>,
   blocks: Block[],
-  plot: Partial<PlotSettings> = {}
+  plot: Partial<PlotSettings> = {},
+  emi: Partial<EmiSettings> = {}
 ): Design {
   return {
     v: 1,
@@ -74,5 +84,6 @@ export function baseState(
     source: { R: 0, L: 0, ...source },
     blocks,
     plot: { ...PLOT_DEFAULTS, ...plot },
+    emi: { ...EMI_DEFAULTS, ...emi },
   }
 }

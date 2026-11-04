@@ -7,6 +7,7 @@ import {
   type BlockType,
   type Curve,
   DAMP,
+  EMI_STDS,
   type DampMode,
   type Design,
   MAX_NOTES,
@@ -17,7 +18,15 @@ import {
 } from '../engine'
 import { baseState, mk } from './defaults'
 
-export const TAB_KEYS: TabKey[] = ['zout', 'xfer', 'zin', 'tm', 'elem', 'sweep']
+export const TAB_KEYS: TabKey[] = [
+  'zout',
+  'xfer',
+  'zin',
+  'tm',
+  'elem',
+  'sweep',
+  'emi',
+]
 
 type Obj = Record<string, unknown>
 
@@ -120,6 +129,19 @@ export function adopt(obj: unknown): Design {
   if (op.load === 'open' || op.load === 'conv' || op.load === 'res')
     pl.load = op.load
   if (TAB_KEYS.includes(op.tab as TabKey)) pl.tab = op.tab as TabKey
+  // EMI settings: enums by whitelist, the class checked against the standard.
+  const em = base.emi,
+    oe: Obj = isObj(obj.emi) ? obj.emi : {}
+  if (oe.std === 'cispr25' || oe.std === 'cispr32') {
+    const cl = EMI_STDS[oe.std].classes
+    em.std = oe.std
+    // An unknown class falls back to the strictest one (the last).
+    em.cls = cl.includes(String(oe.cls)) ? String(oe.cls) : cl[cl.length - 1]
+  }
+  if (oe.lines === 1 || oe.lines === 2) em.lines = oe.lines
+  if (scalar(oe.tr) && oe.tr !== '') em.tr = num(oe.tr, em.tr, 0, 1e-6)
+  if (scalar(oe.margin) && oe.margin !== '')
+    em.margin = num(oe.margin, em.margin, 0, 40)
   if (typeof obj.notes === 'string' && obj.notes)
     base.notes = obj.notes.slice(0, MAX_NOTES)
   base.blocks = obj.blocks

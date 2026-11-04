@@ -44,6 +44,8 @@ function keyOf(a: Action): string | null {
       return `patch:${a.id}:${Object.keys(a.patch).sort().join(',')}`
     case 'plot':
       return `plot:${Object.keys(a.patch).sort().join(',')}`
+    case 'emi':
+      return `emi:${Object.keys(a.patch).sort().join(',')}`
     default:
       return null
   }

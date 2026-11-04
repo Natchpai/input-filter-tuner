@@ -1,5 +1,6 @@
 // Data model of a filter design. The engine reads it; the UI state is the same
 // object.
+import type { EmiStd } from './emi-limits'
 
 export type DampMode = 'none' | 'R' | 'RLpar' | 'RLser'
 
@@ -97,7 +98,7 @@ export type Conv = {
 
 export type Source = { R: number; L: number }
 
-export type TabKey = 'zout' | 'xfer' | 'zin' | 'tm' | 'elem' | 'sweep'
+export type TabKey = 'zout' | 'xfer' | 'zin' | 'tm' | 'elem' | 'sweep' | 'emi'
 
 export type PlotSettings = {
   fmin: number
@@ -115,6 +116,18 @@ export type PlotSettings = {
   sweepId: string | null
 }
 
+/** Conducted EMI settings (M2). `cls` is one of EMI_STDS[std].classes. */
+export type EmiSettings = {
+  std: EmiStd
+  cls: string
+  /** Lines through an AN: 1 (return grounded locally) or 2. */
+  lines: 1 | 2
+  /** Switch edge time (rise = fall), s. 0 is an ideal pulse. */
+  tr: number
+  /** Design margin below the limit, dB. */
+  margin: number
+}
+
 export type Design = {
   v: number
   name: string
@@ -122,6 +135,7 @@ export type Design = {
   source: Source
   blocks: Block[]
   plot: PlotSettings
+  emi: EmiSettings
   /** Free-text design notes, at most MAX_NOTES characters. */
   notes?: string
 }

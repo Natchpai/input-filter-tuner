@@ -254,3 +254,45 @@ test('tol round-trips through JSON; plot.tol boolean still reads', () => {
   st.plot.tol = false
   expect(adopt(JSON.parse(JSON.stringify(st))).plot.tol).toBe(false)
 })
+
+test('emi: defaults when absent; enums whitelisted; numbers clamped', () => {
+  const d = (emi: unknown) => adopt({ conv: {}, blocks: [], emi }).emi
+  expect(d(undefined)).toEqual({
+    std: 'cispr25',
+    cls: '5',
+    lines: 1,
+    tr: 10e-9,
+    margin: 6,
+  })
+  expect(
+    d({ std: 'cispr32', cls: 'A', lines: 2, tr: 5e-9, margin: 3 })
+  ).toEqual({ std: 'cispr32', cls: 'A', lines: 2, tr: 5e-9, margin: 3 })
+  // A class from the other standard, or junk, falls back to the strictest.
+  expect(d({ std: 'cispr32', cls: '3' }).cls).toBe('B')
+  expect(d({ std: 'cispr25', cls: 'B' }).cls).toBe('5')
+  expect(d({ std: 'cispr25', cls: 2 }).cls).toBe('2')
+  for (const std of [bad, '__proto__', 'CISPR25', 25, null])
+    expect(d({ std, cls: 'A' })).toMatchObject({ std: 'cispr25', cls: '5' })
+  for (const lines of [0, 3, '2', 1.5, null]) expect(d({ lines }).lines).toBe(1)
+  expect(d({ tr: 1 }).tr).toBe(1e-6)
+  expect(d({ tr: -1 }).tr).toBe(0)
+  expect(d({ tr: '20e-9' }).tr).toBe(20e-9)
+  expect(d({ margin: 99 }).margin).toBe(40)
+  expect(d({ margin: -5 }).margin).toBe(0)
+  for (const v of [NaN, 'abc', {}, [], null, '', bad]) {
+    expect(d({ tr: v, margin: v })).toMatchObject({ tr: 10e-9, margin: 6 })
+  }
+  expect(Object.keys(d({ x: 1, __proto__: { y: 1 } })).sort()).toEqual([
+    'cls',
+    'lines',
+    'margin',
+    'std',
+    'tr',
+  ])
+})
+
+test('emi round-trips through JSON', () => {
+  const st = buildPreset(0)
+  st.emi = { std: 'cispr32', cls: 'A', lines: 2, tr: 3e-9, margin: 10 }
+  expect(adopt(JSON.parse(JSON.stringify(st))).emi).toEqual(st.emi)
+})
