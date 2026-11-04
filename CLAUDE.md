@@ -15,8 +15,12 @@ and its tests) is kept until the user says to remove it, together with
 M6 is done (`docs/M6-plan.md`); its LTspice run on D4 is still open.
 M1a and M1b are done (`docs/M1-plan.md`). M2 is done (`docs/M2-plan.md`)
 except the user's check of the EMI limit tables. M4 is done
-(`docs/M4-plan.md`). The next milestone per `ROADMAP.md` is M3; plan it in
-detail before any code.
+(`docs/M4-plan.md`).
+
+M5, only the "several converters on one bus" item, is in progress:
+steps 0-6 are done; continue with step 7 (export) and step 8 (docs) from
+the "Progress" notes at the top of `docs/M5-plan.md`. After M5, the next
+milestone per `ROADMAP.md` is M3; plan it in detail before any code.
 
 ## Git
 

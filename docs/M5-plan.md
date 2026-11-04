@@ -14,6 +14,33 @@ M5 notes:
 - `parity.test.ts` walks only the fixture's keys (lines 69-78), so the new
   top-level `loads` key needs no skip entry.
 
+Progress (2026-11-04):
+- Done, committed: step 0 plan (`23e2b79`), step 1 ground truth (above),
+  step 2 state (`515b2d4`), steps 3-4 bus engine and bands (`70b4b54`),
+  step 5 EMI/ripple/load step (`54b1adf`), step 6 UI (`bfb6996`).
+  Gates at `bfb6996`: 380 Vitest passed (2 skipped), browser check 304
+  passed / 0 failed, lint, prettier and knip clean. Parity unchanged.
+- Deviations from the plan text below:
+  - The type is `BusConv`, not `Load` (`transient.ts` already has `Load`).
+  - Extra items beyond 5 are dropped silently, like blocks (no warning).
+  - Reducer: `loadSet` takes a patch (`{id, patch}`), not `{id, k, v}`.
+  - `rnOf` and `vinLow` moved from `ladder.ts` to `engine/bus.ts`.
+  - `Corner.pLoad` stays: it is now the bus total; EMI picks full-load
+    corners with `pLoad === pBus(st, 'full')`.
+  - Margin logic is one function, `marginBands()` in `metrics.ts`, used by
+    `metrics()` and `tolerance.ts` `evalCase`. `metrics()` returns
+    `bands` and `limitBand`; `ripple` has `per` and `worst`.
+  - Converter fields live in `components/fields.ts` (lint: settings.tsx
+    may export components only). Extra converter card:
+    `components/conv-card.tsx`, ids `conv-<id>`, inputs `ld-<id>-<key>`.
+  - With B's crossover below f0, the low band can still limit (|Zout| at
+    its top edge); the test says so (D1 Rd-Cd: 23.8 dB, not 26.8 dB).
+- Next: step 7 (export), then step 8 (docs). Step 7 starts by reading
+  `export/report.ts` and `export/netlist.ts` in full; `netlist.ts` builds
+  corners by hand (`pLoad: cv.pout`, `B_t_conv` source at line ~240) and
+  `report.ts` prints the `conv` table (lines ~238-293) and Rn/fcheck prose
+  (~352). `export/ltspice.test.ts` runs only when `LTSPICE` is set.
+
 ## Context
 
 Today a design has one converter (`st.conv`). A real input filter often
