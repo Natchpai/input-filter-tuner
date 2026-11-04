@@ -5,7 +5,7 @@ import { baseState } from '../state/defaults'
 import TranWorker from '../workers/transient.worker?worker&inline'
 
 export type TranState = {
-  /** Last finished result; kept while a newer run is busy. */
+  /** Last finished result; kept while a newer run is busy, dropped on an error. */
   data: TranResult | null
   busy: boolean
   error: string | null
@@ -40,8 +40,18 @@ export function useTran(st: Design): TranState {
     const w = new TranWorker()
     w.onmessage = (e: MessageEvent) => {
       const d = e.data
+      // An error drops the old result: it belongs to another design.
       if (d.type === 'done') setRes({ key, data: d.r, error: null })
-      else setRes((r) => ({ ...r, key, error: d.message }))
+      else setRes({ key, data: null, error: d.message })
+      w.terminate()
+    }
+    // A failure outside the worker's try/catch would leave "Running…" forever.
+    w.onerror = (e: ErrorEvent) => {
+      setRes({
+        key,
+        data: null,
+        error: e.message || 'The time-domain run failed.',
+      })
       w.terminate()
     }
     // The worker gets a whole design; plot settings do not change the result.

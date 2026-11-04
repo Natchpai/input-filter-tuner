@@ -160,6 +160,12 @@ export const DAMP: Record<DampMode, string> = {
   RLser: 'Rd ∥ Ld, in series with L (series Rd-Ld)',
 }
 
+/** Limits of the inductor damping values Rd (dR) and Ld (dL), as [min, max]. */
+export const DAMP_LIM = {
+  dR: [1e-3, 1e4],
+  dL: [1e-9, 10e-3],
+} as const
+
 export const SC1: Scale = { L: 1, C: 1 }
 
 export const kindOf = (b: Block) => TYPES[b.type].kind

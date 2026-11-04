@@ -267,6 +267,39 @@ try:
         settle(page)
         ok(unfocused == "22u" and page.input_value(f"#{first_l}") == "24u",
            f"wheel steps L only while focused ({unfocused}, then {page.input_value(f'#{first_l}')})")
+        # A touchpad's small deltas add up to one step; Shift+wheel (deltaX) steps too
+        commit(page, f"#{first_l}", "22u")
+        page.focus(f"#{first_l}")
+        page.hover(f"#{first_l}")
+        page.mouse.wheel(0, -20)
+        page.mouse.wheel(0, -20)
+        settle(page)
+        small = page.input_value(f"#{first_l}")
+        page.mouse.wheel(0, -20)
+        settle(page)
+        third = page.input_value(f"#{first_l}")
+        page.mouse.wheel(-100, 0)
+        settle(page)
+        ok((small, third, page.input_value(f"#{first_l}")) == ("22u", "24u", "27u"),
+           f"wheel: 2 x 20 px no step ({small}), 60 px one step ({third}), sideways one step ({page.input_value(f'#{first_l}')})")
+        # ArrowUp steps from typed text, not from the old value
+        commit(page, f"#{first_l}", "10u")
+        page.fill(f"#{first_l}", "22u")
+        page.press(f"#{first_l}", "ArrowUp")
+        settle(page)
+        ok(page.input_value(f"#{first_l}") == "24u",
+           f"ArrowUp after typing 22u gives {page.input_value(f'#{first_l}')} (want 24u)")
+        # A linear field steps without float noise: k 6 + 3 x 0.2
+        unfold(page)
+        k0 = page.input_value("#cv-k")
+        commit(page, "#cv-k", "6")
+        page.focus("#cv-k")
+        for _ in range(3):
+            page.keyboard.press("ArrowUp")
+        settle(page)
+        k3 = page.input_value("#cv-k")
+        commit(page, "#cv-k", k0)
+        ok(k3 == "6.6", f"Margin k 6 + 3 ArrowUp gives {k3} (want 6.6)")
         # Escape drops the typed text
         page.fill(f"#{first_l}", "47u")
         page.press(f"#{first_l}", "Escape")
@@ -393,6 +426,8 @@ try:
                                          ("D1 · Method B", "dR", "Set Rd for Q", "1.06"),
                                          ("D1 · Method D", "r", "Set R for Q", "2.08")]:
             bid = pick_p(prefix, key)
+            pre = page.input_value(f"#in-{bid}-{key}")
+            settle(page, 900)  # past the 800 ms undo join window
             commit(page, f"#in-{bid}-{key}", "5")
             page.fill(f"#qv-{bid}", "0.707")
             btn = page.inner_text(f"#card-{bid} button[data-h=q]")
@@ -400,6 +435,16 @@ try:
             settle(page)
             got = page.input_value(f"#in-{bid}-{key}")
             ok(btn == label and got == want, f"{prefix}: '{btn}' at Q = 0.707 gives {got} (report: {want})")
+            # Q and the value are one undo step (bug hunt 2026-11-05): the
+            # second undo goes back past the typed 5 to the preset value.
+            page.keyboard.press("Control+z")
+            settle(page)
+            back = page.input_value(f"#in-{bid}-{key}")
+            page.keyboard.press("Control+z")
+            settle(page)
+            back2 = page.input_value(f"#in-{bid}-{key}")
+            ok((back, back2) == ("5", pre),
+               f"{prefix}: undo after Set for Q gives {back}, then {back2} (want 5, then {pre})")
         # Method D: the cap is not the damping, so it has no Q box
         ok(page.locator(".blk:has([id$=-c]) [data-h=q]").count() == 0, "Method D: no Q box on the cap")
         lid = pick_p("LC + parallel Rd-Ld")
@@ -1116,7 +1161,13 @@ try:
         nblk = lambda: a3.locator("#blocks .blk").count()
         ok(a3.locator("#asst").count() == 1 and not a3.is_checked("#asst-on")
            and a3.locator("#asst-propose").count() == 0, "assistant card shown, off by default")
-        ok(a3.locator("#sens-table tbody tr").count() == 2, "sensitivity table: one row per main value (L, C)")
+        # The table runs only on its own tab (panels stay mounted while hidden)
+        hidden_rows = a3.locator("#sens-table").count()
+        tab(a3, "sens")
+        settle(a3, 300)
+        ok(hidden_rows == 0 and a3.locator("#sens-table tbody tr").count() == 2,
+           f"sensitivity table: none while hidden ({hidden_rows}), one row per main value (L, C) on its tab")
+        tab(a3, "asst")
         m_before, n_before = mchip3(), nblk()
         a3.check("#asst-on")
         settle(a3, 300)

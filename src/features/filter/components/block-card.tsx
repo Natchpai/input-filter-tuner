@@ -27,9 +27,11 @@ import {
   type Block,
   type Bead4Block,
   beadFromDatasheet,
+  closedForm,
   corners,
   type Curve,
   DAMP,
+  DAMP_LIM,
   type DampMode,
   dampKey,
   type Design,
@@ -116,41 +118,71 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
     const rd = isRc ? Math.max(0, cf.rd - esr) : cf.rd
     set(Number(rd.toPrecision(3)))
   }
+  const noSection = () =>
+    toast.info('No LC section: this part needs a capacitor after its inductor.')
   const forQ = () => {
-    const qv = parseFloat(q),
-      r = valueForQ(S, b, qv)
+    const qv = parseFloat(q)
+    // Infinity or 1e400 would be saved as _q and become 0.707 on a reload.
+    if (!(Number.isFinite(qv) && qv > 0)) return setQErr(true)
+    if (!sectionOf(S, b.id)) {
+      setQErr(true)
+      return noSection()
+    }
+    const r = valueForQ(S, b, qv)
     if (!r) return setQErr(true)
     setQErr(false)
-    dispatch({ t: 'patch', id: b.id, patch: { _q: qv } })
     if (r.v === null) {
+      dispatch({ t: 'patch', id: b.id, patch: { _q: qv } })
       toast.info(
         `rL alone already gives Q ≤ ${qv}. No ${METHOD_INFO[r.m].what} needed.`
       )
       return
     }
+    if (r.clipped)
+      toast.info(
+        `${METHOD_INFO[r.m].what} is limited to ${fmtSI(r.v, 'Ω')}, ` +
+          `so Q ${qv} is not met.`
+      )
+    // One patch, so Q and the value are one undo step.
     dispatch({
-      t: 'param',
+      t: 'patch',
       id: b.id,
-      k: r.k,
-      v: Number(r.v.toPrecision(3)),
+      patch: { _q: qv, [r.k]: Number(r.v.toPrecision(3)) },
     })
   }
   const forPk = () => {
     const r = parseFloat(q)
-    if (!(r > 0)) return setQErr(true)
+    if (!(Number.isFinite(r) && r > 0)) return setQErr(true)
+    const sec = sectionOf(S, b.id)
+    if (!sec) {
+      setQErr(true)
+      return noSection()
+    }
     setQErr(false)
     const v = forPeak(S, b, r)
-    if (!v) {
+    if (!v || b.type !== 'ind') {
       toast.info('Series Rd∥Ld cannot get the peak below 1.41·Z0.')
       return
     }
     const clip = (x: number, lo: number, hi: number) =>
       Math.min(hi, Math.max(lo, Number(x.toPrecision(3))))
+    const dL = clip(v.ld, ...DAMP_LIM.dL)
+    let dR = v.rd
+    if (dL !== Number(v.ld.toPrecision(3))) {
+      // Ld hit its limit: Rd for the Ld actually set, and say what it gives.
+      const cf = closedForm(b.dmode, dL / b.L, sec.Z0)
+      if (!cf) return
+      dR = cf.rd
+      toast.info(
+        `Ld is limited to ${fmtSI(dL, 'H')}: peak/Z0 = ` +
+          `${(cf.peak / sec.Z0).toPrecision(3)} instead of ${r}.`
+      )
+    }
     // One patch, so Ld and Rd are one undo step.
     dispatch({
       t: 'patch',
       id: b.id,
-      patch: { dL: clip(v.ld, 1e-9, 10e-3), dR: clip(v.rd, 1e-3, 1e4) },
+      patch: { dL, dR: clip(dR, ...DAMP_LIM.dR) },
     })
   }
 
@@ -741,8 +773,8 @@ export function BlockCard({
                   onChange={(v) =>
                     dispatch({ t: 'param', id: b.id, k: 'dR', v })
                   }
-                  min={1e-3}
-                  max={1e4}
+                  min={DAMP_LIM.dR[0]}
+                  max={DAMP_LIM.dR[1]}
                 />
               )}
               {(b.dmode === 'RLpar' || b.dmode === 'RLser') && (
@@ -754,8 +786,8 @@ export function BlockCard({
                   onChange={(v) =>
                     dispatch({ t: 'param', id: b.id, k: 'dL', v })
                   }
-                  min={1e-9}
-                  max={10e-3}
+                  min={DAMP_LIM.dL[0]}
+                  max={DAMP_LIM.dL[1]}
                 />
               )}
             </>

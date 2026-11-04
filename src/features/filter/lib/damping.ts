@@ -1,13 +1,16 @@
 import {
   type Block,
   closedForm,
+  DAMP_LIM,
   dcR,
   type Design,
   drForQ,
   isInductive,
   kindOf,
   nForPeak,
+  type ParamSpec,
   sectionOf,
+  TYPES,
 } from '../engine'
 import { fmtSI } from './si'
 
@@ -87,15 +90,33 @@ export const METHOD_INFO: Record<
   D: { k: 'r', what: 'R', f: 'R = Z0/Q − rL' },
 }
 
+/** [min, max] of a value the Q button sets, the same as its input field. */
+function limitOf(b: Block, k: string): readonly [number, number] {
+  if (k === 'dR') return DAMP_LIM.dR
+  const p = (TYPES[b.type].p as readonly ParamSpec<string>[]).find(
+    (x) => x.key === k
+  )
+  return p ? [p.allowZero ? 0 : p.min, p.max] : [0, Infinity]
+}
+
 /**
  * The value the Q button sets: NP-DR-26001 §6, an approximation (the exact
  * answer is the Optimum search or the plots). rL is the section inductor's
- * own DCR. v is null when rL alone already gives Q.
+ * own DCR. v is null when rL alone already gives Q. v is kept inside the
+ * field's limits; clipped says it was moved, so Q is not met.
  */
 export function valueForQ(S: Design, b: Block, Q: number) {
+  const r = rawValueForQ(S, b, Q)
+  if (!r || r.v === null) return r && { ...r, clipped: false }
+  const [lo, hi] = limitOf(b, r.k)
+  const v = Math.min(hi, Math.max(lo, r.v))
+  return { ...r, v, clipped: v !== r.v }
+}
+
+function rawValueForQ(S: Design, b: Block, Q: number) {
   const m = reportMethod(S, b)
   const sec = sectionOf(S, b.id)
-  if (!m || !sec || !(Q > 0)) return null
+  if (!m || !sec || !(Q > 0 && Number.isFinite(Q))) return null
   const L = sec.block
   const dr = drForQ(sec.Z0, Q, L.type === 'ind' ? L.dcr : dcR(L))
   const k = METHOD_INFO[m].k

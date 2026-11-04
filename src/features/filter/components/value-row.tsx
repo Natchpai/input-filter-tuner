@@ -33,6 +33,9 @@ function sliderWindow(at: number, min: number, max: number): [number, number] {
   return [lo, lo * SPAN]
 }
 
+/** Pixel wheel delta for one step (a mouse notch is about 100 px). */
+const WHEEL_PX = 50
+
 /** Parts that step by E-series values. */
 const E_UNITS = new Set(['H', 'F', 'Ω'])
 
@@ -106,10 +109,15 @@ export function ValueRow({
   const commitText = (s: string) => commit(linear ? parseFloat(s) : parseSI(s))
 
   const step = (up: boolean, big: boolean) => {
-    let v = value
+    // Step from the typed text when there is valid text, so it is not lost.
+    const typed =
+      draft === null ? NaN : linear ? parseFloat(draft) : parseSI(draft)
+    let v = Number.isFinite(typed) && typed >= 0 ? typed : value
     if (linear) {
       const st = int ? 1 : ((max - min) / 100) * (big ? 5 : 1)
+      // toPrecision drops the float noise of the sum (6 + 3 × 0.2).
       v = Math.min(max, Math.max(min, v + (up ? st : -st)))
+      v = Number(v.toPrecision(12))
     } else if (v === 0) {
       v = up ? min : 0
     } else if (E_UNITS.has(unit)) {
@@ -129,10 +137,21 @@ export function ValueRow({
   useEffect(() => {
     const el = boxRef.current
     if (!el) return
+    // A touchpad sends many small pixel deltas: add them up and step once per
+    // WHEEL_PX, about one mouse notch. Line or page deltas step once each.
+    let acc = 0
     const onWheel = (e: WheelEvent) => {
-      if (document.activeElement !== el || e.deltaY === 0) return
+      if (document.activeElement !== el) return
+      // Shift+wheel scrolls sideways in Windows browsers (deltaY 0).
+      const d = e.deltaY || e.deltaX
+      if (d === 0) return
       e.preventDefault()
-      stepRef.current(e.deltaY < 0, e.shiftKey)
+      if (e.deltaMode === 0) {
+        acc = Math.sign(acc) === Math.sign(d) ? acc + d : d
+        if (Math.abs(acc) < WHEEL_PX) return
+      }
+      acc = 0
+      stepRef.current(d < 0, e.shiftKey)
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)

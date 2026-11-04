@@ -60,3 +60,20 @@ test('valueForQ: null value when rL alone gives Q', () => {
   const st = preset('D1 · Method D')
   expect(valueForQ(st, byType(st, 'res'), 100)!.v).toBeNull()
 })
+
+// Bug hunt 2026-11-05: Set for Q stays inside the field's limits.
+test('valueForQ: a value past the field limit is clipped and says so', () => {
+  const st = preset('D1 · LC undamped')
+  const cap = byType(st, 'cap')
+  // Method A at a very low Q needs a bank ESR far above 10 Ω per part.
+  const r = valueForQ(st, cap, 0.01)!
+  expect(r.m).toBe('A')
+  expect(r.v).toBe(10)
+  expect(r.clipped).toBe(true)
+  expect(valueForQ(st, cap, 0.707)!.clipped).toBe(false)
+})
+
+test('valueForQ: Infinity is not a Q', () => {
+  const st = preset('D1 · LC undamped')
+  expect(valueForQ(st, byType(st, 'cap'), Infinity)).toBeNull()
+})

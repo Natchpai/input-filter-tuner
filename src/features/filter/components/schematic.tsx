@@ -1,7 +1,14 @@
 // The circuit as SVG: source, series parts on the rail, shunt legs to ground,
 // converter. Same layout as the old tool. Clicking a part focuses its input.
 import type { ReactNode } from 'react'
-import { type Block, converters, type Design, kindOf, rnBus } from '../engine'
+import {
+  type Block,
+  converters,
+  type Design,
+  kindOf,
+  rnBus,
+  vinLow,
+} from '../engine'
 import { fmtSI } from '../lib/si'
 import { capLabel } from './block-summary'
 import { setArea, setOpen } from './ui-store'
@@ -504,8 +511,8 @@ export function Schematic({ S }: { S: Design }) {
     ],
     W_
   )
-  // Bus Rn: every converter at Vin min (M5).
-  const rn = rnBus(S, S.conv.vinMin)
+  // Bus Rn: every converter at the lowest Vin (M5).
+  const rn = rnBus(S, vinLow(S.conv))
   const nConv = converters(S).length
   const bw = 112
   const W = conX + bw + 12,
