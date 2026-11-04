@@ -865,6 +865,19 @@ try:
             settle(u, 100)
             n1 = u.locator("text=negative resistance").count()
             ok(n1 == n0 + 1, f"{vw} px: Converter note shows on (i) ({n0} -> {n1})")
+            if vw == 1440:
+                # The plot follows its card when the sidebar opens or closes.
+                pw = lambda: u.eval_on_selector("#pl1 .main-svg", "e => e.getBoundingClientRect().width")
+                cw = lambda: u.eval_on_selector("#pl1", "e => e.clientWidth")
+                w0 = pw()
+                u.get_by_role("button", name="Toggle Sidebar").first.click()
+                settle(u, 800)
+                w1, c1 = pw(), cw()
+                ok(abs(w1 - w0) > 50 and abs(w1 - c1) < 3,
+                   f"sidebar toggle resizes the plot ({w0:.0f} -> {w1:.0f} px, card {c1} px)")
+                u.get_by_role("button", name="Toggle Sidebar").first.click()
+                settle(u, 800)
+                ok(abs(pw() - w0) < 3, f"sidebar back: plot width {pw():.0f} px")
             u.locator("#tolerance").scroll_into_view_if_needed()
             settle(u, 300)
             u.screenshot(path=str(SHOTS / f"ui_scrolled_{vw}_dark.png"), full_page=False)

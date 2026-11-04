@@ -50,6 +50,27 @@ export function PlotlyChart({
     )
   }, [plotly, figure])
 
+  // `responsive` only follows window resizes. The sidebar toggle and the
+  // grid change the card width without one, so watch the div itself.
+  useEffect(() => {
+    const el = ref.current
+    if (!plotly || !el) return
+    let raf = 0
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        // Returns a promise at runtime (typed void), which rejects while the
+        // div is hidden or not plotted yet: nothing to do then.
+        Promise.resolve(plotly.Plots.resize(el) as unknown).catch(() => {})
+      })
+    })
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      cancelAnimationFrame(raf)
+    }
+  }, [plotly])
+
   useEffect(() => {
     const el = ref.current
     return () => {
