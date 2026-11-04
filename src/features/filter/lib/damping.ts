@@ -1,7 +1,11 @@
 import {
   type Block,
   closedForm,
+  dcR,
   type Design,
+  drForQ,
+  isInductive,
+  kindOf,
   nForPeak,
   sectionOf,
 } from '../engine'
@@ -35,6 +39,77 @@ export function forPeak(S: Design, b: Block, r: number) {
   const n = sec ? nForPeak(b.dmode, r) : null
   const cf = sec && n ? closedForm(b.dmode, n, sec.Z0) : null
   return cf && n ? { n, ld: n * b.L, rd: cf.rd } : null
+}
+
+/** NP-DR-26001 §6 damping methods. */
+export type Method = 'A' | 'B' | 'C' | 'D'
+
+const damps = (b: Block) =>
+  b.type === 'rc' || (b.type === 'ind' && b.dmode !== 'none')
+
+/**
+ * The NP-DR-26001 §6 method a block stands for, or null (no Q box):
+ * A: the only capacitor of its section, its ESR in series with C.
+ * B: an inductor with Rd across it. C: an Rd-Cd leg.
+ * D: a series resistor between the section's L and its first capacitor.
+ * A and D only when no other part damps the section; with a series R in
+ * the loop, D wins over A.
+ */
+export function reportMethod(S: Design, b: Block): Method | null {
+  if (b.type === 'rc') return 'C'
+  if (b.type === 'ind') return b.dmode === 'R' ? 'B' : null
+  if (b.type !== 'cap' && b.type !== 'res') return null
+  const sec = sectionOf(S, b.id)
+  if (!sec) return null
+  // The section's blocks after its L, up to the next inductive series block.
+  const bl = S.blocks.filter((x) => x.on || x.id === b.id)
+  const rest: Block[] = []
+  for (const x of bl.slice(bl.indexOf(sec.block) + 1)) {
+    if (kindOf(x) === 'series' && isInductive(x)) break
+    rest.push(x)
+  }
+  if (damps(sec.block) || rest.some(damps)) return null
+  const firstCap = rest.findIndex((x) => x.type === 'cap')
+  const inLoop = rest.filter((x, i) => x.type === 'res' && i < firstCap)
+  if (b.type === 'res') return inLoop.includes(b) ? 'D' : null
+  const caps = rest.filter((x) => x.type === 'cap')
+  return caps.length === 1 && inLoop.length === 0 ? 'A' : null
+}
+
+/** What the Q button sets for each method, and the formula it uses. */
+export const METHOD_INFO: Record<
+  Method,
+  { k: string; what: string; f: string }
+> = {
+  A: { k: 'esr', what: 'ESR', f: 'ESR = Z0/Q − rL (total of the bank)' },
+  B: { k: 'dR', what: 'Rd', f: 'Rd = Z0²/(Z0/Q − rL)' },
+  C: { k: 'rd', what: 'Rd', f: 'Rd = Z0²/(Z0/Q − rL), less the Cd ESR' },
+  D: { k: 'r', what: 'R', f: 'R = Z0/Q − rL' },
+}
+
+/**
+ * The value the Q button sets: NP-DR-26001 §6, an approximation (the exact
+ * answer is the Optimum search or the plots). rL is the section inductor's
+ * own DCR. v is null when rL alone already gives Q.
+ */
+export function valueForQ(S: Design, b: Block, Q: number) {
+  const m = reportMethod(S, b)
+  const sec = sectionOf(S, b.id)
+  if (!m || !sec || !(Q > 0)) return null
+  const L = sec.block
+  const dr = drForQ(sec.Z0, Q, L.type === 'ind' ? L.dcr : dcR(L))
+  const k = METHOD_INFO[m].k
+  if (!(dr > 0)) return { m, k, v: null }
+  const rp = (sec.Z0 * sec.Z0) / dr // the same loss as a parallel R
+  const v =
+    m === 'A'
+      ? dr * Math.max(1, b.type === 'cap' ? b.n : 1)
+      : m === 'C'
+        ? Math.max(0, rp - (b.type === 'rc' ? b.esr : 0))
+        : m === 'B'
+          ? rp
+          : dr
+  return { m, k, v }
 }
 
 /** The closed-form formulas of engine/closed-form.ts, as text. */

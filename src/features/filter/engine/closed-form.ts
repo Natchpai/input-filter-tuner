@@ -53,6 +53,13 @@ export function nForPeak(mode: string, r: number): number | null {
 /** NP-DR-26001 §7: Cd with Xcd = Rd/10 at f0, i.e. Cd = 10/(2π·f0·Rd). */
 export const cdForRd = (f0: number, rd: number) => 10 / (TAU * f0 * rd)
 
+/**
+ * NP-DR-26001 §6.1: the series loss to add for Q, Δr = Z0/Q − rL. Methods A
+ * (R with C) and D (R with L) add it directly. 0 or less when rL alone
+ * already gives Q. An approximation, like rdForQ.
+ */
+export const drForQ = (Z0: number, Q: number, rL: number) => Z0 / Q - rL
+
 /** NP-DR-26001: Rd = Z0² / (Z0/Q − rL). Infinity when rL alone already gives Q. */
 export function rdForQ(Z0: number, Q: number, rL: number): number {
   const d = Z0 / Q - rL

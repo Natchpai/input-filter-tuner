@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import type { Design } from '../engine'
 import { buildPreset, PRESET_NAMES } from '../state/presets'
-import { forPeak } from './damping'
+import { forPeak, reportMethod, valueForQ } from './damping'
 
 const preset = (prefix: string): Design =>
   buildPreset(PRESET_NAMES.findIndex((n) => n.startsWith(prefix)))
@@ -29,4 +29,34 @@ test('forPeak: null when unreachable or not an Rd-Ld form', () => {
   expect(forPeak(ser, ind(ser), 1.4)).toBeNull()
   const b = preset('D1 · Method B')
   expect(forPeak(b, ind(b), 1.5)).toBeNull()
+})
+
+// NP-DR-26001 §6, Q = 0.707: A and D add 2.08 Ω in the loop, B and C 1.06 Ω.
+const byType = (st: Design, t: string) => st.blocks.find((b) => b.type === t)!
+test.each([
+  ['D1 · Method A', 'cap', 'A', 'esr', 2.08],
+  ['D1 · Method B', 'ind', 'B', 'dR', 1.06],
+  ['D1 · LC + Rd-Cd', 'rc', 'C', 'rd', 1.06],
+  ['D1 · Method D', 'res', 'D', 'r', 2.08],
+])('valueForQ: %s', (prefix, type, m, k, v) => {
+  const st = preset(prefix)
+  const b = byType(st, type)
+  expect(reportMethod(st, b)).toBe(m)
+  const r = valueForQ(st, b, 0.707)!
+  expect(r.k).toBe(k)
+  expect(r.v!).toBeCloseTo(v, 2)
+})
+
+test('reportMethod: no Q box on a cap or R that does not damp', () => {
+  const rc = preset('D1 · LC + Rd-Cd')
+  expect(reportMethod(rc, byType(rc, 'cap'))).toBeNull()
+  const d = preset('D1 · Method D')
+  expect(reportMethod(d, byType(d, 'cap'))).toBeNull()
+  const und = preset('D1 · LC undamped')
+  expect(reportMethod(und, byType(und, 'cap'))).toBe('A')
+})
+
+test('valueForQ: null value when rL alone gives Q', () => {
+  const st = preset('D1 · Method D')
+  expect(valueForQ(st, byType(st, 'res'), 100)!.v).toBeNull()
 })

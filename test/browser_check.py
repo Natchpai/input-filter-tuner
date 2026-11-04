@@ -380,19 +380,28 @@ try:
         unfold(page)
         esr = page.eval_on_selector_all("[id^=in-][id$=-esr]", "els => els[0].value")
         ok(esr == "2.08", f"Method A preset is C1 with {esr} ohm ESR")
-        # Inductor damping: no target box on Rd ∥ L, Set Rd, Ld on the Rd-Ld forms
+        # NP-DR-26001 §6 methods A-D: Set ... for Q, Q = 0.707 (A, D 2.08; B 1.06)
         pnames = page.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
 
-        def pick_p(prefix):
+        def pick_p(prefix, key="dR"):
             page.select_option("#preset", str(next(i for i, n in enumerate(pnames) if n.startswith(prefix))))
             settle(page, 250)
             unfold(page)
-            return page.eval_on_selector_all("[id^=in-][id$=-dR]", "els => els[0].id").split("-")[1]
+            return page.eval_on_selector_all(f"[id^=in-][id$=-{key}]", "els => els[0].id").split("-")[1]
 
-        lid = pick_p("D1 · Method B")
-        menu_b = page.inner_text(f"#card-{lid} button[data-h=menu]")
-        ok(page.locator(f"#card-{lid} [data-h=q]").count() == 0 and "Set Rd" in menu_b,
-           f"Rd ∥ L: no target box, only the Set Rd menu ('{menu_b}')")
+        for prefix, key, label, want in [("D1 · Method A", "esr", "Set ESR for Q", "2.08"),
+                                         ("D1 · Method B", "dR", "Set Rd for Q", "1.06"),
+                                         ("D1 · Method D", "r", "Set R for Q", "2.08")]:
+            bid = pick_p(prefix, key)
+            commit(page, f"#in-{bid}-{key}", "5")
+            page.fill(f"#qv-{bid}", "0.707")
+            btn = page.inner_text(f"#card-{bid} button[data-h=q]")
+            page.click(f"#card-{bid} button[data-h=q]")
+            settle(page)
+            got = page.input_value(f"#in-{bid}-{key}")
+            ok(btn == label and got == want, f"{prefix}: '{btn}' at Q = 0.707 gives {got} (report: {want})")
+        # Method D: the cap is not the damping, so it has no Q box
+        ok(page.locator(".blk:has([id$=-c]) [data-h=q]").count() == 0, "Method D: no Q box on the cap")
         lid = pick_p("LC + parallel Rd-Ld")
         before = (page.input_value(f"#in-{lid}-dL"), page.input_value(f"#in-{lid}-dR"))
         commit(page, f"#in-{lid}-dL", "4.7u")

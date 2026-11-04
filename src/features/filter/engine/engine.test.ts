@@ -84,6 +84,17 @@ const d1conv = {
   )
   near('D1 Rd for Q=1 (report 1.50)', () => E.rdForQ(Z0, 1, 0.02), 1.5, 1)
   near('D1 Rd for Q=2 (report 3.05)', () => E.rdForQ(Z0, 2, 0.02), 3.05, 1)
+  // NP-DR-26001 §6.2 and §6.5: methods A and D add Δr = Z0/Q − rL in the loop.
+  near(
+    'D1 series R for Q=0.707 (report methods A, D: 2.08)',
+    () => E.drForQ(Z0, 0.707, 0.02),
+    2.08,
+    0.5
+  )
+  check(
+    'D1 series R: rL alone already meets Q',
+    () => E.drForQ(Z0, 100, 0.02) <= 0
+  )
   const m = lazy(() =>
     E.metrics(
       st(d1conv, [

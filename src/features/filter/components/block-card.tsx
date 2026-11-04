@@ -2,7 +2,6 @@ import { useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
-  ChevronDown,
   ChevronRight,
   Copy,
   Ellipsis,
@@ -41,7 +40,6 @@ import {
   MAX_TOL,
   type Metrics,
   optimizeParam,
-  rdForQ,
   sectionOf,
   TOL_KEYS,
   tolLabel,
@@ -49,7 +47,14 @@ import {
   TYPES,
 } from '../engine'
 import { formatCurve, parseCurve } from '../lib/curve-text'
-import { closedFormFor, dampSources, forPeak } from '../lib/damping'
+import {
+  closedFormFor,
+  dampSources,
+  forPeak,
+  METHOD_INFO,
+  reportMethod,
+  valueForQ,
+} from '../lib/damping'
 import { fmtIn, fmtSI, parseSI } from '../lib/si'
 import { newId } from '../state/defaults'
 import { dispatch } from '../state/store'
@@ -79,8 +84,10 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
   // and only moves Rd (a fixed start like 1.5 asks series Rd∥Ld for n ≈ 25).
   // The parent keys this component by dmode, so a new form starts fresh.
   const isRL = b.type === 'ind' && (b.dmode === 'RLpar' || b.dmode === 'RLser')
-  // Rd ∥ L has no target box: only the Set Rd menu.
-  const hasBox = isRc || isRL
+  // NP-DR-26001 §6 methods A-D get a Q box (an approximation); the Rd-Ld
+  // forms get the peak/Z0 box.
+  const method = reportMethod(S, b)
+  const hasBox = method !== null || isRL
   const [q, setQ] = useState(() => {
     if (!isRL) return String(b._q || 0.707)
     const cf = closedFormFor(S, b),
@@ -89,14 +96,16 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
   })
   const [qErr, setQErr] = useState(false)
   const [src, setSrc] = useState<number | null>(null)
-  if (!key) return null
-  const set = (v: number) => dispatch({ t: 'param', id: b.id, k: key, v })
+  if (!key && !method) return null
+  const set = (v: number) =>
+    key && dispatch({ t: 'param', id: b.id, k: key, v })
   // A disabled block does not change the result, so its helpers would return nonsense.
   const off = !b.on
   const title = (t: string) => (off ? 'Enable the block first' : t)
   const esr = b.type === 'rc' ? b.esr : 0
 
   const optimum = () => {
+    if (!key) return
     const r = optimizeParam(S, b.id, key, 1e-3, 1e4)
     set(Number(r.val.toPrecision(3)))
   }
@@ -109,16 +118,22 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
   }
   const forQ = () => {
     const qv = parseFloat(q),
-      p = sectionOf(S, b.id)
-    if (!p || !(qv > 0)) return setQErr(true)
+      r = valueForQ(S, b, qv)
+    if (!r) return setQErr(true)
     setQErr(false)
     dispatch({ t: 'patch', id: b.id, patch: { _q: qv } })
-    const rd = rdForQ(p.Z0, qv, p.rL)
-    if (!Number.isFinite(rd)) {
-      toast.info(`rL alone already gives Q ≤ ${qv}. No Rd needed.`)
+    if (r.v === null) {
+      toast.info(
+        `rL alone already gives Q ≤ ${qv}. No ${METHOD_INFO[r.m].what} needed.`
+      )
       return
     }
-    set(Math.max(0, Number((rd - esr).toPrecision(3))))
+    dispatch({
+      t: 'param',
+      id: b.id,
+      k: r.k,
+      v: Number(r.v.toPrecision(3)),
+    })
   }
   const forPk = () => {
     const r = parseFloat(q)
@@ -194,54 +209,49 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
               data-h='q'
               disabled={off}
               title={title(
-                isRL
-                  ? 'Ld and Rd for peak = r·Z0: n from the closed-form peak, Ld = n·L, Rd closed form'
-                  : 'Rd for this Q, from Rd = Z0²/(Z0/Q − rL)'
+                method
+                  ? `Approximate, NP-DR-26001 §6 method ${method}: ${METHOD_INFO[method].f}`
+                  : 'Ld and Rd for peak = r·Z0: n from the closed-form peak, Ld = n·L, Rd closed form (Erickson)'
               )}
               onClick={isRL ? forPk : forQ}
             >
-              {isRL ? 'Set Rd, Ld' : 'Set Rd for Q'}
+              {method ? `Set ${METHOD_INFO[method].what} for Q` : 'Set Rd, Ld'}
             </Button>
           </>
         )}
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <Button
-              size='sm'
-              variant='secondary'
-              data-h='menu'
-              disabled={off}
-              title={title(hasBox ? 'Other ways to set Rd' : 'Set Rd')}
-              aria-label={hasBox ? 'Other ways to set Rd' : undefined}
-            >
-              {hasBox ? (
+        {key && (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size='sm'
+                variant='secondary'
+                data-h='menu'
+                disabled={off}
+                title={title('Other ways to set Rd')}
+                aria-label='Other ways to set Rd'
+              >
                 <Ellipsis />
-              ) : (
-                <>
-                  Set Rd
-                  <ChevronDown />
-                </>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='start'>
-            <DropdownMenuItem
-              data-h='opt'
-              title='Search Rd for the lowest peak |Zout|, all parasitics included'
-              onSelect={optimum}
-            >
-              Optimum (numeric)
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              data-h='cf'
-              disabled={!cf?.rd}
-              title={`The closed-form optimum for this ${isRc ? 'Cd/C' : 'Ld/L'}`}
-              onSelect={closed}
-            >
-              Closed form
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='start'>
+              <DropdownMenuItem
+                data-h='opt'
+                title='Search Rd for the lowest peak |Zout|, all parasitics included'
+                onSelect={optimum}
+              >
+                Optimum (numeric)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-h='cf'
+                disabled={!cf?.rd}
+                title={`The closed-form optimum for this ${isRc ? 'Cd/C' : 'Ld/L'}`}
+                onSelect={closed}
+              >
+                Closed form
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       {cf?.rd ? (
         <Note>

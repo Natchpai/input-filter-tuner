@@ -51,8 +51,21 @@ export function Notes() {
               and the capacitors after it.
             </li>
             <li>
-              <b>Rd for Q</b> uses Rd = Z<sub>0</sub>²/(Z<sub>0</sub>/Q − r
-              <sub>L</sub>) (NP-DR-26001 eq. for the Rd-Cd leg).
+              <b>Set … for Q</b> follows the four methods of NP-DR-26001 §6. The
+              loop needs Δr = Z<sub>0</sub>/Q − r<sub>L</sub> of series loss (r
+              <sub>L</sub> = the inductor DCR):
+              <ul className='mt-1 list-[circle] space-y-1 pl-5'>
+                <li>A, R in series with C (the cap ESR): ESR = Δr.</li>
+                <li>
+                  B, R across L: Rd = Z<sub>0</sub>²/Δr.
+                </li>
+                <li>
+                  C, Rd-Cd across C: Rd = Z<sub>0</sub>²/Δr, less the Cd ESR.
+                </li>
+                <li>D, series R between L and C: R = Δr.</li>
+              </ul>
+              These are approximations. Optimum Rd and the plots give the exact
+              result. A and D show only when nothing else damps the section.
             </li>
             <li>
               <b>Set Rd, Ld</b> (Rd-Ld forms): the box is a peak target r =
