@@ -42,6 +42,15 @@ function leaves(o: unknown, path = ''): [string, unknown][] {
   )
 }
 
+test('plot.tol is a legacy key and is still compared', () => {
+  expect(
+    legacy.presets.every((p) => typeof p.state.plot.tol === 'boolean')
+  ).toBe(true)
+  legacy.presets.forEach((p, i) =>
+    expect(buildPreset(i).plot.tol, p.name).toBe(p.state.plot.tol)
+  )
+})
+
 test('fixture has every preset', () => {
   expect(legacy.presets.length).toBe(PRESET_COUNT)
   expect(legacy.presets.map((p) => p.name)).toEqual(PRESET_NAMES)
@@ -68,19 +77,21 @@ describe.each(legacy.presets.map((p, i) => [p.name, i, p] as const))(
         else expect(got, path).toEqual(want)
       }
       expect(blocks.length).toBe(ref.state.blocks.length)
-      // cv, li and conv.pLight are M1a fields, not in the legacy tool. The
-      // state loop above walks the fixture's keys, so pLight needs no skip.
-      const M1A = ['cv', 'li']
+      // New block fields, not in the legacy tool: cv, li (M1a) and tol (M1b).
+      // conv.pLight (M1a) needs no skip, the state loop above walks the
+      // fixture's keys. plot.tol (old global tolerance curves) is a legacy
+      // key and stays compared there; only the block-level tol is skipped.
+      const NEW_KEYS = ['cv', 'li', 'tol']
       blocks.forEach((b, j) => {
         const r = ref.state.blocks[j] as Record<string, unknown>
         expect(
           Object.keys(b)
-            .filter((k) => !M1A.includes(k))
+            .filter((k) => !NEW_KEYS.includes(k))
             .sort(),
           `block ${j} keys`
         ).toEqual(Object.keys(r).sort())
         for (const [k, v] of Object.entries(b)) {
-          if (M1A.includes(k)) continue
+          if (NEW_KEYS.includes(k)) continue
           if (typeof v === 'number') same(v, r[k] as number, `block ${j}.${k}`)
           else expect(v, `block ${j}.${k}`).toEqual(r[k])
         }
