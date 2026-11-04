@@ -1,6 +1,23 @@
 # M6 plan: workflow and reports
 
-Status: **planned, waiting for approval to start code.** Written 2026-11-04.
+Status: **done 2026-11-04** on branch `feat/m6-workflow`. Written
+2026-11-04. Open: the manual LTspice run on D4 (`NOT_VERIFIED`).
+
+## Changes made while building it
+
+- **No parity skip list.** `notes` is a top-level field, and
+  `parity.test.ts` walks the fixture's keys, so an extra optional field
+  is not compared. The exact key match is for block keys only. M1a needs a
+  skip list only if it adds block fields.
+- **Report front matter is not YAML.** The archive's PDF builder
+  (`report_figs.py` `parse_kv`, `check_keys`) reads flat `key: value`
+  lines, stops on an unknown key, and has no escapes. `export/report.ts`
+  writes only the known keys and quotes a value only when it must (see
+  `fmValue`). The test ports `parse_kv` and reads the values back.
+- **Designs card** sits below the plot card, not between Results and the
+  plot, so the plot stays near the top.
+- The store ignores an action that leaves the design unchanged; otherwise a
+  field that re-commits its value on blur cleared the redo list.
 The user moved M6 ahead of M1a. M1a (`docs/M1-plan.md`) comes after M6.
 
 ## Decisions (user, 2026-11-04)

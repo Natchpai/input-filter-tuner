@@ -41,8 +41,17 @@ React and TypeScript from the web-site-starter template.
   - "Closed-form Rd" (lossless Middlebrook/Erickson optimum).
 - Other tools:
   - Tolerance curves (ΔL, ΔC).
-  - Snapshots to compare designs.
+  - Undo and redo (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y). A slider drag is one
+    step.
+  - Saved designs in the browser, with notes. Each one can be drawn as a
+    grey overlay, loaded, renamed, or compared with the current design.
+    Snapshot saves the current design with its overlay on.
   - Save/load JSON, copy a link that holds the design, and CSV export.
+  - SPICE netlist (`.cir`) with two copies of the filter: one gives H, the
+    other Zout.
+  - SVG/PNG of the current plot, in light colours.
+  - Design report: a zip with `report.md` and four SVG figures for the
+    report archive's PDF builder.
 - Presets come from the design reports:
   - NP-DR-26001 (undamped, Rd-Cd, and methods A, B, D).
   - NP-DR-26003 and NP-DR-26004 (bead filters).
@@ -87,7 +96,9 @@ npm run knip
   single-file tool, to 1e-9.
 - `browser_check.py` loads every preset and tab, edits values, uses the
   helpers, tries a hostile link, and checks 1440 px and 390 px in dark and
-  light. Screenshots go to `%TEMP%ilter-shots`.
+  light. It also checks undo/redo, saved designs and overlays after a
+  reload, and every export (SPICE, plot SVG/PNG, report zip). Screenshots
+  go to `%TEMP%\filter-shots`.
 
 ## Layout
 
@@ -97,6 +108,8 @@ npm run knip
   localStorage and links.
 - `src/features/filter/plots/`: sweeps, Plotly traces per tab.
 - `src/features/filter/components/`: cards, schematic, results, toolbar.
+- `src/features/filter/export/`: SPICE netlist, report text, report zip,
+  and SVG/PNG figures.
 - The rest of `src/` is the template: layout, sidebar, theme, shadcn/ui.
 
 ## References

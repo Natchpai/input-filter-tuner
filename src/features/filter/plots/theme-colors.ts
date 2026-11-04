@@ -14,8 +14,8 @@ export type PlotColors = {
 }
 
 /** Read the tokens of the current theme (call after the theme class is set). */
-export function readColors(): PlotColors {
-  const cs = getComputedStyle(document.documentElement)
+export function readColors(el: Element = document.documentElement): PlotColors {
+  const cs = getComputedStyle(el)
   const v = (n: string) => cs.getPropertyValue(n).trim()
   return {
     a: v('--chart-1'),

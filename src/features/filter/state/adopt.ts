@@ -8,6 +8,7 @@ import {
   DAMP,
   type DampMode,
   type Design,
+  MAX_NOTES,
   type TabKey,
   TYPES,
 } from '../engine'
@@ -67,6 +68,8 @@ export function adopt(obj: unknown): Design {
   if (op.load === 'open' || op.load === 'conv' || op.load === 'res')
     pl.load = op.load
   if (TAB_KEYS.includes(op.tab as TabKey)) pl.tab = op.tab as TabKey
+  if (typeof obj.notes === 'string' && obj.notes)
+    base.notes = obj.notes.slice(0, MAX_NOTES)
   base.blocks = obj.blocks
     .filter(
       (b): b is Obj =>

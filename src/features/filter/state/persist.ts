@@ -67,10 +67,10 @@ export function initialDesign(): { st: Design; warning?: string } {
   return { st: buildPreset(1), warning }
 }
 
-/** Offer text as a file download. */
-export function download(name: string, text: string, type: string) {
+/** Offer text or bytes as a file download. */
+export function download(name: string, data: BlobPart, type: string) {
   const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob([text], { type }))
+  a.href = URL.createObjectURL(new Blob([data], { type }))
   a.download = name
   document.body.appendChild(a)
   a.click()

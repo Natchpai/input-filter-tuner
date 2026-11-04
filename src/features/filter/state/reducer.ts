@@ -3,6 +3,7 @@ import {
   type Block,
   type Conv,
   type Design,
+  MAX_NOTES,
   type PlotSettings,
   setParam,
   type Source,
@@ -19,6 +20,7 @@ export type Action =
   | { t: 'dup'; id: string; newId: string }
   | { t: 'remove'; id: string }
   | { t: 'add'; block: Block }
+  | { t: 'notes'; v: string }
 
 const mapBlock = (st: Design, id: string, fn: (b: Block) => Block): Design => ({
   ...st,
@@ -59,5 +61,7 @@ export function reducer(st: Design, a: Action): Design {
       return { ...st, blocks: st.blocks.filter((b) => b.id !== a.id) }
     case 'add':
       return { ...st, blocks: [...st.blocks, a.block] }
+    case 'notes':
+      return { ...st, notes: a.v.slice(0, MAX_NOTES) }
   }
 }

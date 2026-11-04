@@ -1,12 +1,16 @@
 import { useMemo, useState } from 'react'
+import { ImageDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import type { Design, Metrics } from '../engine'
+import { dataUrlBytes, plotImage, readLightColors } from '../export/svg'
 import type { CurveSets } from '../plots/curves'
 import { PlotlyChart } from '../plots/plotly-chart'
 import type { PlotColors } from '../plots/theme-colors'
-import { buildPlot, TABS } from '../plots/traces'
-import { dispatch, type Snapshot } from '../state/store'
+import { buildPlot, type Snapshot, TABS } from '../plots/traces'
+import { download, fileName } from '../state/persist'
+import { dispatch } from '../state/store'
 import { ToolCard } from './tool-card'
 
 const plotCls = 'h-[420px] w-full sm:h-[520px]'
@@ -29,21 +33,51 @@ export function PlotCard({
     () => buildPlot(S, sets, m, snapshots, colors),
     [S, sets, m, snapshots, colors]
   )
+  // Saved figures always use the light palette, whatever the page theme.
+  const savePlot = async (format: 'svg' | 'png') => {
+    try {
+      const fig = buildPlot(S, sets, m, snapshots, readLightColors()).main
+      const url = await plotImage(fig, format, 1000, 560)
+      download(
+        fileName(S, `${S.plot.tab}.${format}`),
+        dataUrlBytes(url),
+        format === 'svg' ? 'image/svg+xml' : 'image/png'
+      )
+    } catch (e) {
+      toast.error('Could not export the plot: ' + (e as Error).message)
+    }
+  }
   return (
     <ToolCard>
-      <div id='tabs' role='tablist' className='mb-2 flex flex-wrap gap-1'>
-        {TABS.map(([k, l]) => (
+      <div className='mb-2 flex flex-wrap gap-1'>
+        <div id='tabs' role='tablist' className='flex flex-wrap gap-1'>
+          {TABS.map(([k, l]) => (
+            <Button
+              key={k}
+              size='sm'
+              role='tab'
+              aria-selected={S.plot.tab === k}
+              data-t={k}
+              variant={S.plot.tab === k ? 'default' : 'secondary'}
+              className={cn(S.plot.tab === k && 'on')}
+              onClick={() => dispatch({ t: 'plot', patch: { tab: k } })}
+            >
+              {l}
+            </Button>
+          ))}
+        </div>
+        <span className='flex-1' />
+        {(['svg', 'png'] as const).map((f) => (
           <Button
-            key={k}
+            key={f}
+            id={f === 'svg' ? 'bPlotSvg' : 'bPlotPng'}
             size='sm'
-            role='tab'
-            aria-selected={S.plot.tab === k}
-            data-t={k}
-            variant={S.plot.tab === k ? 'default' : 'secondary'}
-            className={cn(S.plot.tab === k && 'on')}
-            onClick={() => dispatch({ t: 'plot', patch: { tab: k } })}
+            variant='outline'
+            title={`Save this plot as ${f.toUpperCase()} (light colours)`}
+            onClick={() => savePlot(f)}
           >
-            {l}
+            <ImageDown />
+            {f.toUpperCase()}
           </Button>
         ))}
       </div>

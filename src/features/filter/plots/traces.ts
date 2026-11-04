@@ -16,7 +16,6 @@ import {
   zBlock,
 } from '../engine'
 import { fmtSI } from '../lib/si'
-import type { Snapshot } from '../state/store'
 import type { CurveSets } from './curves'
 import type { PlotColors } from './theme-colors'
 
@@ -57,7 +56,17 @@ const mag = (a: Complex[]) => a.map(abs)
 const dbs = (a: Complex[]) => a.map((z) => db(abs(z)))
 const ph = (a: Complex[]) => a.map(argd)
 
-/** Snapshot curves: the same arrays the snapshot button stores. */
+/** Grey reference curves of a saved design (overlay). */
+export type Snapshot = {
+  label: string
+  f: number[]
+  zout: number[]
+  h: number[]
+  s21: number[]
+  zin: number[]
+  tm: number[]
+}
+
 export function snapshotOf(label: string, s: Sweep): Snapshot {
   return {
     label,
@@ -197,7 +206,7 @@ export function buildPlot(
     snapshots.map((s, i) => ({
       x: s.f,
       y: s[key],
-      name: s.label,
+      name: esc(s.label),
       line: { color: C.muted, width: 1.2, dash: i % 2 ? 'dash' : 'longdash' },
       opacity: 0.8,
     }))

@@ -96,7 +96,11 @@ export type Design = {
   source: Source
   blocks: Block[]
   plot: PlotSettings
+  /** Free-text design notes, at most MAX_NOTES characters. */
+  notes?: string
 }
+
+export const MAX_NOTES = 2000
 
 /** Scale factors for L and C (tolerance curves). */
 export type Scale = { L: number; C: number }
