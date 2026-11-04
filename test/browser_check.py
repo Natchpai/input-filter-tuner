@@ -15,6 +15,7 @@ import sys
 import tempfile
 import time
 import urllib.request
+import zipfile
 
 from playwright.sync_api import sync_playwright
 
@@ -417,6 +418,32 @@ try:
             w.click("#bPlotPng")
         png = pathlib.Path(dl.value.path()).read_bytes()
         ok(png[:4] == b"\x89PNG" and len(png) > 10000, f"plot PNG export ({len(png)} bytes)")
+        # Report zip (D4 is loaded)
+        w.click("#bReport")
+        w.fill("#rp-author", "Test Author")
+        w.fill("#rp-docNo", "NP-DR-TEST")
+        with w.expect_download() as dl:
+            w.click("#bReportGo")
+        ok(dl.value.suggested_filename == "NP-DR-TEST.zip", f"report zip name {dl.value.suggested_filename}")
+        with zipfile.ZipFile(dl.value.path()) as z:
+            files = sorted(n for n in z.namelist() if not n.endswith("/"))
+            want = sorted("NP-DR-TEST/" + n for n in ["report.md", "fig_schematic.svg", "fig_zout.svg", "fig_xfer.svg", "fig_zin.svg"])
+            ok(files == want, f"report zip has report.md and four SVGs {files}")
+            md = z.read("NP-DR-TEST/report.md").decode("utf-8")
+            svgs = {n: z.read(n).decode("utf-8") for n in files if n.endswith(".svg")}
+        for n, x in svgs.items():
+            (SHOTS / n.split("/")[-1]).write_text(x, encoding="utf-8")
+        (SHOTS / "report.md").write_text(md, encoding="utf-8")
+        fm = md.split("---")[1]
+        keys = [l.split(":", 1)[0] for l in fm.strip().splitlines()]
+        allowed = {"title", "subtitle", "short_title", "author", "doc_no", "date", "revision", "kicker", "specs", "note", "subscripts"}
+        ok("26.8 dB" in md and "author: Test Author" in md and set(keys) <= allowed, f"report.md: D4 margin 26.8 dB, front matter keys {keys}")
+        ok(all(x.lstrip().startswith("<svg") and "var(--" not in x for x in svgs.values()), "report figures are standalone SVGs with no CSS variables")
+        settle(w, 500)
+        w.click("#bReport")
+        w.wait_for_selector("#rp-author", timeout=5000)
+        ok(w.input_value("#rp-author") == "Test Author", "report author is remembered")
+        w.keyboard.press("Escape")
         w.close()
 
         # Layout: 1440 and 390 px, dark and light, no horizontal scroll

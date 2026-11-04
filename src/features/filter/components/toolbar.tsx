@@ -27,6 +27,7 @@ import {
   saveDesign,
   undoDesign,
 } from '../state/store'
+import { ReportDialog } from './report-dialog'
 import { saveToast } from './save-toast'
 import { selectCls } from './styles'
 
@@ -228,6 +229,7 @@ export function Toolbar({
         <Download />
         Export CSV
       </Button>
+      <ReportDialog S={S} />
       <Button
         id='bSpice'
         size='sm'
