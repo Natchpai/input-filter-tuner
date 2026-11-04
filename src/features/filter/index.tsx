@@ -2,6 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Main } from '@/components/layout/main'
 import { SiteHeader } from '@/components/layout/site-header'
+import { Assistant } from './components/assistant'
 import { BlockCard } from './components/block-card'
 import { ConvCard } from './components/conv-card'
 import { Corners } from './components/corners'
@@ -10,6 +11,7 @@ import { Emi } from './components/emi'
 import { PlotCard } from './components/plot-card'
 import { Results } from './components/results'
 import { Schematic } from './components/schematic'
+import { Sensitivity } from './components/sensitivity'
 import {
   AddBlockCard,
   ConverterCard,
@@ -159,8 +161,10 @@ export function Tuner() {
                 </ToolCard>
                 {calc.corners && <Corners data={calc.corners} />}
                 <Tolerance st={dst} colors={colors} />
+                <Sensitivity st={dst} />
                 <Emi st={st} data={calc.emi} />
                 <Time st={st} tr={tran} />
+                <Assistant st={st} />
               </>
             )}
             <DesignsCard

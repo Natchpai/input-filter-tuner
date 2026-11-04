@@ -678,8 +678,8 @@ try:
                 if n in files:
                     (SHOTS / n).write_text(z.read("NP-DR-TEST/" + n).decode("utf-8"), encoding="utf-8")
         want = {"fig_hotplug.svg", "fig_loadstep.svg", "fig_ripple.svg", "spice_hotplug.cir", "spice_loadstep.cir"}
-        ok(want <= set(files) and "## 4. Time domain" in md and hot.lstrip().startswith("<svg") and "var(--" not in hot,
-           f"report zip with time domain: section 4, three figures, two netlists {files}")
+        ok(want <= set(files) and "## 5. Time domain" in md and hot.lstrip().startswith("<svg") and "var(--" not in hot,
+           f"report zip with time domain: section 5, three figures, two netlists {files}")
         w.close()
 
         # ---- M2: conducted EMI ----
@@ -923,6 +923,92 @@ try:
                 b6.locator("#pl1").screenshot(path=str(SHOTS / f"m5_zout_{vw}_{theme.lower()}.png"))
                 b6.locator("#kpis").screenshot(path=str(SHOTS / f"m5_kpis_{vw}_{theme.lower()}.png"))
                 b6.close()
+
+        # M3: design assistant and sensitivity table
+        a3 = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(a3, "m3: ")
+        a3.goto(URL)
+        ready(a3)
+        a3.select_option("#preset", "0")  # D1 LC undamped: margin < 0
+        settle(a3, 400)
+        def mchip3():
+            # The chip reads "unstable" (no number) when Nyquist fails.
+            import re
+            t = a3.inner_text("#strip [data-chip=margin]").replace("−", "-")
+            mm = re.search(r"-?\d+(\.\d+)?", t)
+            return float(mm.group()) if mm else float("-inf")
+        nblk = lambda: a3.locator("#blocks .blk").count()
+        ok(a3.locator("#asst").count() == 1 and not a3.is_checked("#asst-on")
+           and a3.locator("#asst-propose").count() == 0, "assistant card shown, off by default")
+        ok(a3.locator("#sens-table tbody tr").count() == 2, "sensitivity table: one row per main value (L, C)")
+        m_before, n_before = mchip3(), nblk()
+        a3.check("#asst-on")
+        settle(a3, 300)
+        ms = a3.evaluate("() => { const t = performance.now(); "
+                         "document.querySelector('#asst-propose').click(); return performance.now() - t }")
+        settle(a3, 300)
+        ok(a3.get_attribute("#asst-v-rounded", "data-pass") == "true",
+           f"Propose on D1 (40 dB at fsw, Q 1): E-series design passes ({ms:.0f} ms)")
+        ok(a3.locator("#asst-parts tbody tr").count() == 4, "parts table: L, C, Rd, Cd")
+        a3.click("#asst-apply")
+        settle(a3, 500)
+        m_after = mchip3()
+        ok(nblk() == 3 and m_after >= 6, f"Apply: 3 blocks, margin {m_before} -> {m_after} dB (k = 6)")
+        ok(a3.locator("#asst-result").count() == 0, "the applied proposal is cleared")
+        a3.click("#bUndo")
+        settle(a3, 400)
+        ok(nblk() == n_before and (mchip3() == m_before or abs(mchip3() - m_before) < 0.05),
+           "one undo brings the old blocks back")
+        a3.select_option("#asst-stages", "2")
+        commit(a3, "#asst-adb", "60")
+        a3.click("#asst-propose")
+        settle(a3, 300)
+        parts = a3.inner_text("#asst-parts")
+        ok("L2" in parts and "Cd2" in parts and a3.get_attribute("#asst-v-rounded", "data-pass") == "true",
+           "2 stages, 60 dB: both stages listed, E-series passes")
+        commit(a3, "#asst-adb", "61")
+        ok(a3.get_attribute("#asst-result", "data-old") == "true" and a3.is_disabled("#asst-apply"),
+           "an input change marks the proposal old and blocks Apply")
+        a3.reload()
+        ready(a3)
+        settle(a3, 400)
+        ok(a3.is_checked("#asst-on") and a3.input_value("#asst-stages") == "2"
+           and a3.input_value("#asst-adb") == "61", "assistant inputs survive a reload")
+        # EMI target on D4 (CISPR 25 class 5), 2 stages: timing of one Propose.
+        a3.select_option("#preset", "8")
+        settle(a3, 400)
+        a3.check("#emi-on")
+        settle(a3, 400)
+        a3.check("#asst-on")  # a preset is a whole design, assistant inputs too
+        settle(a3, 200)
+        a3.select_option("#asst-stages", "2")
+        a3.select_option("#asst-target", "emi")
+        settle(a3, 300)
+        ms = a3.evaluate("() => { const t = performance.now(); "
+                         "document.querySelector('#asst-propose').click(); return performance.now() - t }")
+        settle(a3, 300)
+        ok(a3.get_attribute("#asst-v-rounded", "data-pass") == "true" and ms < 300,
+           f"EMI target on D4, 2 stages: passes in {ms:.0f} ms (< 300 ms, no worker needed)")
+        a3.close()
+        for theme in ["Dark", "Light"]:
+            for vw in [1440, 390]:
+                a4 = browser.new_page(viewport={"width": vw, "height": 1000})
+                watch(a4, f"m3 {theme} {vw}: ")
+                a4.goto(URL)
+                ready(a4)
+                if theme == "Light":
+                    set_theme(a4, "Light")
+                a4.select_option("#preset", "1")
+                settle(a4, 300)
+                a4.check("#asst-on")
+                a4.select_option("#asst-stages", "2")
+                settle(a4, 200)
+                a4.click("#asst-propose")
+                settle(a4, 400)
+                no_hscroll(a4, vw, f"m3 {theme.lower()} {vw} px")
+                a4.locator("#asst").screenshot(path=str(SHOTS / f"m3_asst_{vw}_{theme.lower()}.png"))
+                a4.locator("#sens").screenshot(path=str(SHOTS / f"m3_sens_{vw}_{theme.lower()}.png"))
+                a4.close()
 
         # UI: status strip, collapsible cards, toolbar and schematic fit
         for vw in [1440, 390]:

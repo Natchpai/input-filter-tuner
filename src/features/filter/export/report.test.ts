@@ -81,9 +81,9 @@ describe('reportMarkdown', () => {
     ])
     for (const f of reportFigures(st))
       expect(md).toContain(`](${f}){width=92%}`)
-    expect(md).toContain('## 4. Time domain')
-    expect(md).toContain('## 5. Figures')
-    expect(md).toContain('## 7. Method')
+    expect(md).toContain('## 5. Time domain')
+    expect(md).toContain('## 6. Figures')
+    expect(md).toContain('## 8. Method')
     expect(md).toContain('- Time domain: modified nodal analysis')
     const h = r.hot[r.hotWorst]
     expect(md).toContain(`V peak ${fmtSI(h.vPeak, 'V')}`)
@@ -94,9 +94,9 @@ describe('reportMarkdown', () => {
     // Both checks on: EMI first, then Time domain.
     const both = { ...st, emi: { ...st.emi, on: true } }
     const mb = reportMarkdown(both, OPTS, r)
-    expect(mb).toContain('## 4. Conducted EMI')
-    expect(mb).toContain('## 5. Time domain')
-    expect(mb).toContain('## 8. Method')
+    expect(mb).toContain('## 5. Conducted EMI')
+    expect(mb).toContain('## 6. Time domain')
+    expect(mb).toContain('## 9. Method')
     expect(reportFigures(both)).toEqual([...REPORT_FIGURES])
   })
 
@@ -116,8 +116,8 @@ describe('reportMarkdown', () => {
     expect(md).not.toContain('fig_emi.svg')
     expect(md).not.toContain('Conducted EMI')
     expect(md).not.toContain('EMI:')
-    expect(md).toContain('## 4. Figures')
-    expect(md).toContain('## 6. Method')
+    expect(md).toContain('## 5. Figures')
+    expect(md).toContain('## 7. Method')
     expect(md).toContain(OPTS.link)
     const kv = parseKv(front(md))
     expect(kv.title).toBe('D4 bead final')
@@ -134,9 +134,9 @@ describe('reportMarkdown', () => {
     for (const f of reportFigures(st))
       expect(md).toContain(`](${f}){width=92%}`)
     expect(md).not.toContain('Time domain')
-    expect(md).toContain('## 4. Conducted EMI')
-    expect(md).toContain('## 5. Figures')
-    expect(md).toContain('## 7. Method')
+    expect(md).toContain('## 5. Conducted EMI')
+    expect(md).toContain('## 6. Figures')
+    expect(md).toContain('## 8. Method')
     expect(md).toContain('- EMI: harmonic n')
     const r = emiResult(st)
     const w = r.rows[r.worst]
@@ -148,7 +148,7 @@ describe('reportMarkdown', () => {
 
   it('notes appear, empty notes give None.', () => {
     const st = d4()
-    expect(reportMarkdown(st, OPTS)).toMatch(/## 5\. Notes\n\nNone\.\n/)
+    expect(reportMarkdown(st, OPTS)).toMatch(/## 6\. Notes\n\nNone\.\n/)
     const noted = { ...st, notes: 'first line\n# Heading\n---\nlast' }
     const md = reportMarkdown(noted as Design, OPTS)
     expect(md).toContain('first line')
@@ -296,5 +296,18 @@ describe('report text from user input', () => {
     expect(md).toContain(
       `H\\| at fsw (converter side open) | ${db(m.ripple.hfsw).toFixed(1)} dB |`
     )
+  })
+})
+
+describe('sensitivity section (M3)', () => {
+  it('follows Results, one row per main value, signed dB', () => {
+    const md = reportMarkdown(buildPreset(1), OPTS) // D1 Rd-Cd
+    expect(md).toContain('## 3. Results')
+    expect(md).toContain('## 4. Sensitivity')
+    const sec = md.split('## 4. Sensitivity')[1].split('## 5.')[0]
+    expect(sec).toContain('| Part | Value | Δ margin | Δ attenuation |')
+    const rows = sec.split('\n').filter((l) => /^\| (L1|C1|Rd1) /.test(l))
+    expect(rows).toHaveLength(4)
+    expect(sec).toMatch(/\| Rd1 Rd \| 1\.06 Ω \| [−+]\d+\.\d\d dB \|/)
   })
 })

@@ -11,6 +11,7 @@ import {
   metrics,
   pBus,
   rnOf,
+  sensitivity,
   vinLow,
   type Band,
   type Block,
@@ -238,6 +239,33 @@ function timeText(st: Design, r: TranResult): string {
 }
 
 /** fsw and phases of each converter, for one line of text. */
+const sensUnit = (key: string) =>
+  key === 'L' || key === 'lb' || key === 'dL'
+    ? 'H'
+    : key === 'c' || key === 'cd'
+      ? 'F'
+      : 'Ω'
+const signedDb = (v: number) =>
+  (Math.abs(v) < 0.005
+    ? '0.00'
+    : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(2)) + ' dB'
+
+/** Sensitivity table (M3): +10 % per part, largest margin change first. */
+function sensText(st: Design): string {
+  const s = sensitivity(st)
+  if (s.rows.length === 0) return 'No part values to vary.'
+  return [
+    `Each part +${Math.round(s.step * 100)} % on its own. Margin at Vin min, full load (${s.margin.toFixed(1)} dB); attenuation at ${fmtSI(s.fr, 'Hz')} (${s.att.toFixed(1)} dB). Positive is better.`,
+    '',
+    '| Part | Value | Δ margin | Δ attenuation |',
+    '| --- | --- | --- | --- |',
+    ...s.rows.map(
+      (r) =>
+        `| ${cell(r.label)} | ${cell(fmtSI(r.value, sensUnit(r.key)))} | ${signedDb(r.dMargin)} | ${signedDb(r.dAtt)} |`
+    ),
+  ].join('\n')
+}
+
 function convText(st: Design): string {
   const us = converters(st)
   if (us.length === 1) return `${st.conv.phases} phase(s)`
@@ -461,6 +489,7 @@ export function reportMarkdown(
     ['Inputs', inputs],
     ['Parts', parts],
     ['Results', table(['Quantity', 'Value'], res)],
+    ['Sensitivity', sensText(st)],
     ...(st.emi.on
       ? ([['Conducted EMI', emiText(st)]] as [string, string][])
       : []),
