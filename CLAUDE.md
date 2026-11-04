@@ -13,6 +13,10 @@ and its tests) is kept until the user says to remove it, together with
 `scripts/legacy-fixture.mjs`. The user picks the next milestone from
 `ROADMAP.md`; plan it and get approval before writing code.
 
+## Git
+
+Solo repository: direct commits and pushes to the default branch are allowed.
+
 ## Layout
 
 - `src/features/filter/engine/`: the math. Keep it free of DOM and storage
