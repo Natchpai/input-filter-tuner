@@ -132,7 +132,7 @@ export function Toolbar({
       <select
         id='preset'
         aria-label='Load a preset'
-        className={selectCls + ' max-w-full'}
+        className={selectCls + ' w-40 max-w-full'}
         value=''
         onChange={(e) => {
           if (e.target.value !== '')

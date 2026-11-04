@@ -8,6 +8,7 @@ Order: **M0 first** (decided 2026-11-04, done 2026-11-04). Then, by value
 to a filter design review: **M1a → M1b → M2 → M4 → M3**, and the rest as
 needed. M1 was split on 2026-11-04; the detailed plan is `docs/M1-plan.md`.
 On 2026-11-04 the user moved **M6 ahead of M1a** (plan: `docs/M6-plan.md`).
+M6 was done on 2026-11-04.
 
 Status key: `[ ]` not started, `[x]` done.
 
@@ -197,21 +198,21 @@ margin.
 
 ---
 
-## M6. Workflow and reports
+## M6. Workflow and reports (done 2026-11-04)
 
 Plan: `docs/M6-plan.md`.
 
-- [ ] **Undo/redo (S).** A slider drag is one step; a preset change can be
+- [x] **Undo/redo (S).** A slider drag is one step; a preset change can be
   undone.
-- [ ] **Named designs (S).** Saved in the browser, merged with snapshots: each
+- [x] **Named designs (S).** Saved in the browser, merged with snapshots: each
   saved design can be shown as an overlay, survives reloads, and can be
   compared with the current design.
-- [ ] **Design notes (S).** A free-text note saved with the design.
-- [ ] **SPICE netlist export (S).** LTspice/ngspice `.cir` with every
+- [x] **Design notes (S).** A free-text note saved with the design.
+- [x] **SPICE netlist export (S).** LTspice/ngspice `.cir` with every
   parasitic, so a design can be checked in LTspice in one step. (`.asc`
-  dropped 2026-11-04.)
-- [ ] **Plot image export (S).** SVG/PNG of the current plot.
-- [ ] **Design report export (M).** A zip with `report.md` and `fig_*.svg` in
+  dropped 2026-11-04.) The LTspice run on D4 is still to be done by hand.
+- [x] **Plot image export (S).** SVG/PNG of the current plot.
+- [x] **Design report export (M).** A zip with `report.md` and `fig_*.svg` in
   the NP-DR report layout, ready to drop into `document-archive`.
 - [x] **Offline use (S).** Done in M0: the single-file build carries Plotly.
 
