@@ -165,7 +165,7 @@ function loadOf(o: Obj, i: number, cv: Design['conv']): BusConv {
     d[k] = pos(o[k], d[k])
   d.eta = num(o.eta, d.eta, 0.3, 1)
   d.phases = Math.round(num(o.phases, d.phases, 1, 8))
-  d.pLight = num(o.pLight, 0, 0, d.pout)
+  d.pLight = num(o.pLight, 0, 0)
   d.name = toStr(o.name).slice(0, MAX_BLOCK_NAME) || `Conv ${i + 2}`
   d.on = o.on !== false
   return d
@@ -190,8 +190,9 @@ export function adopt(obj: unknown): Design {
   cv.eta = num(oc.eta, cv.eta, 0.3, 1)
   cv.phases = Math.round(num(oc.phases, cv.phases, 1, 8))
   cv.k = num(oc.k, cv.k, 0, 20)
-  // Light-load power: 0 up to the full load power.
-  cv.pLight = num(oc.pLight, 0, 0, cv.pout)
+  // Light-load power: 0 or more. Kept as typed, like the reducer does; every
+  // use clamps it to the full power (pBus, oppoint), Lessons 2 and 3.
+  cv.pLight = num(oc.pLight, 0, 0)
   // Extra converters (M5): the same field rules as conv, new ids.
   if (Array.isArray(obj.loads))
     base.loads = obj.loads
@@ -224,7 +225,9 @@ export function adopt(obj: unknown): Design {
     const cl = EMI_STDS[oe.std].classes
     em.std = oe.std
     // An unknown class falls back to the strictest one (the last).
-    em.cls = cl.includes(String(oe.cls)) ? String(oe.cls) : cl[cl.length - 1]
+    // String() only on a scalar: an object's toString can throw (Lesson 7).
+    const c = scalar(oe.cls) ? String(oe.cls) : ''
+    em.cls = cl.includes(c) ? c : cl[cl.length - 1]
   }
   if (typeof oe.on === 'boolean') em.on = oe.on
   if (oe.lines === 1 || oe.lines === 2) em.lines = oe.lines

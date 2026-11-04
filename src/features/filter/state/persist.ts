@@ -5,6 +5,8 @@ import { adopt } from './adopt'
 import { buildPreset } from './presets'
 
 const LS_KEY = 'input-filter-tuner-v1'
+/** Where an unreadable saved design is kept before the next save. */
+export const LS_BACKUP_KEY = LS_KEY + '.bak'
 
 export function saveLocal(st: Design) {
   try {
@@ -65,11 +67,25 @@ export function initialDesign(): { st: Design; warning?: string } {
       warning = 'Could not read the design link: ' + (e as Error).message
     }
   }
+  let s: string | null = null
   try {
-    const s = localStorage.getItem(LS_KEY)
+    s = localStorage.getItem(LS_KEY)
     if (s) return { st: adopt(JSON.parse(s)), warning }
   } catch {
     /* fall through to the preset */
+  }
+  if (s) {
+    // The next save overwrites the unreadable design: keep a copy first
+    // (Lesson 11), and say so.
+    try {
+      if (localStorage.getItem(LS_BACKUP_KEY) === null)
+        localStorage.setItem(LS_BACKUP_KEY, s)
+    } catch {
+      /* storage blocked */
+    }
+    warning =
+      (warning ? warning + ' ' : '') +
+      `The saved design could not be read; a copy is kept as ${LS_BACKUP_KEY}.`
   }
   return { st: buildPreset(1), warning }
 }

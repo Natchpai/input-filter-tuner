@@ -143,13 +143,14 @@ test('cv only on caps, li only on ind, bead2 and bead4', () => {
   expect(withBlock({ type: 'cap', cv: pts }).cv).toEqual(pts)
 })
 
-test('pLight: clamped to 0..pout, bad values give 0', () => {
+test('pLight: 0 or more, kept above pout as typed, bad values give 0', () => {
   const d = (pLight: unknown) =>
     adopt({ conv: { pout: 10, pLight }, blocks: [] }).conv.pLight
   expect(d(2)).toBe(2)
   expect(d('3')).toBe(3)
   expect(d(-1)).toBe(0)
-  expect(d(99)).toBe(10)
+  // The reducer keeps 99 too, so a reload gives back what was typed.
+  expect(d(99)).toBe(99)
   for (const v of [NaN, 'abc', {}, undefined, null]) expect(d(v)).toBe(0)
 })
 
@@ -438,7 +439,7 @@ test('loads: same field rules as conv, new ids, names', () => {
   expect(a.name).toBe(bad.slice(0, 40)) // React text, never HTML
   expect(a.on).toBe(true) // only false turns it off
   expect(a.pout).toBe(20)
-  expect(a.pLight).toBe(20) // clamped to pout
+  expect(a.pLight).toBe(99) // kept; every use clamps it to pout
   expect(a.eta).toBe(1)
   expect(a.vout).toBe(st.conv.vout) // bad: converter 1's value
   expect(a.fsw).toBe(400e3)
@@ -525,4 +526,17 @@ test('asst round-trips through JSON', () => {
     ser: { L: 'E6', C: 'E24', R: 'E24' },
   }
   expect(adopt(JSON.parse(JSON.stringify(st))).asst).toEqual(st.asst)
+})
+
+// Lesson 7: String() only on a scalar (bug hunt 2026-11-05).
+test('EMI class with a bad toString falls back to the strictest class', () => {
+  const st = adopt({
+    conv: {},
+    blocks: [],
+    emi: { std: 'cispr25', cls: { toString: 1 } },
+  })
+  expect(st.emi.std).toBe('cispr25')
+  expect(st.emi.cls).toBe(
+    adopt({ conv: {}, blocks: [], emi: { std: 'cispr25', cls: 'x' } }).emi.cls
+  )
 })
