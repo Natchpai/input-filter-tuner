@@ -448,6 +448,9 @@ try:
            "C1 tolerance cleared")
         r = tol_run(t)
         ok("0.62 to 0.84" in r[0] and t.locator("#tol-stale").count() == 0, f"L1 ±30 % only: Q up to 0.84 (report) {r}")
+        t.click("#ps-und")
+        settle(t, 300)
+        ok(t.locator("#tol-stale").count() == 0, "a view setting does not mark the tolerance run stale")
         t.set_viewport_size({"width": 390, "height": 900})
         settle(t, 300)
         no_hscroll(t, 390, "tolerance card at 390 px")
@@ -671,6 +674,25 @@ try:
         settle(e, 300)
         ok(e.is_checked("#emi-on") and e.input_value("#emi-cls") == "5" and e.input_value("#emi-lines") == "2"
            and e.input_value("#emi-margin") == "3", "#d= link keeps emi, bad class gives class 5")
+        # A reload with no edit keeps the linked design (the hash is gone by then)
+        e.reload()
+        ready(e)
+        settle(e, 300)
+        ok(e.is_checked("#emi-on") and e.input_value("#emi-lines") == "2"
+           and "EMI link" not in e.url, "a link survives a reload with no edit")
+        e.close()
+        # LQRx 03 at 9.39 V cannot regulate (D > 1): the card says so
+        e = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(e, "m2 dropout: ")
+        e.goto(URL)
+        ready(e)
+        e.select_option("#preset", str(next(i for i, n in enumerate(enames) if n.startswith("LQRx 03"))))
+        settle(e, 300)
+        e.check("#emi-on")
+        settle(e, 300)
+        drop = e.inner_text("#emi-dropout") if e.locator("#emi-dropout").count() else ""
+        ok("9.39 V, full" in drop, f"EMI dropout note on LQRx 03: '{drop[:60]}'")
+        e.locator("#emi").screenshot(path=str(SHOTS / "bugfix_emi_dropout.png"))
         e.close()
         for theme in ["Dark", "Light"]:
             for vw in [1440, 390]:
