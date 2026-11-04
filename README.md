@@ -30,6 +30,8 @@ React and TypeScript from the web-site-starter template.
   - Minor loop gain Tm as Bode and Nyquist.
   - Impedance of each element.
   - Rd sweep.
+  - Conducted EMI: predicted harmonics against the limit lines, and the
+    filter attenuation against the attenuation needed.
 - Results:
   - Peak |Zout| and the Middlebrook margin, plus a Nyquist check.
   - Z0, f0 and Q.
@@ -47,6 +49,16 @@ React and TypeScript from the web-site-starter template.
     Monte Carlo (uniform, N draws) at every corner, run in a Web Worker.
   - Worst, 1st percentile and median margin per corner, and a histogram of
     the board margin (lowest over the corners).
+- Conducted EMI:
+  - The converter input current as a trapezoid (D, edge time, N phases),
+    with harmonics up to 108 MHz.
+  - The LISN follows the standard: CISPR 25 (5 µH / 50 Ω AN, class 1 to 5)
+    or CISPR 32 (50 µH / 50 Ω V-AMN, class A/B). 1 or 2 lines.
+  - An EMI card with pass or fail per band, the worst harmonic and its
+    corner, the margin, the attenuation needed and the LC corner frequency
+    that would meet the limits.
+  - The limit values come from public summaries and are not yet checked
+    against the standards (`references/emi-limits.md`).
 - Damping helpers:
   - "Rd for Q" (NP-DR-26001 equation).
   - "Optimum Rd", a numeric search with all parasitics included.
@@ -62,7 +74,7 @@ React and TypeScript from the web-site-starter template.
   - SPICE netlist (`.cir`) with two copies of the filter: one gives H, the
     other Zout.
   - SVG/PNG of the current plot, in light colours.
-  - Design report: a zip with `report.md` and four SVG figures for the
+  - Design report: a zip with `report.md` and five SVG figures for the
     report archive's PDF builder.
 - Presets come from the design reports:
   - NP-DR-26001 (undamped, Rd-Cd, and methods A, B, D).
@@ -87,6 +99,10 @@ steps a value by 5 %, and Shift+Arrow by 25 %.
 - Q is the series form, Q = Z0/r = Re(Zout(f0))/Z0. This matches the
   reports' Q.
 - Peak/Z0 is shown next to Q.
+- EMI: the AN replaces Rsrc and Lsrc. Each harmonic of the input current
+  goes through the filter into the AN; the reading is the voltage on its
+  50 Ω, in dBµV rms. With a fixed fsw one harmonic reads the same on every
+  detector, so it is compared with every limit of its band.
 
 ## Tests
 
@@ -129,4 +145,5 @@ npm run knip
 The `references/` folder holds TI SNVA538, TI SLVAFE0, the Kollman Power
 Tip #4 (input filter damping) and Flex AN323. Their equations are images, so
 the closed forms in the tool were checked against the tool's numeric
-optimizer, not read from these PDFs.
+optimizer, not read from these PDFs. `references/emi-limits.md` lists the
+sources of the EMI limits and networks.

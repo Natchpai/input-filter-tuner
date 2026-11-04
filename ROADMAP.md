@@ -4,8 +4,8 @@ Proposed improvements, grouped into milestones. Each milestone stands alone,
 so you can pick any of them in any order. Effort is S (under a day),
 M (1 to 3 days) or L (more than 3 days).
 
-Order by value to a filter design review: **M2 → M4 → M3**, and the rest
-as needed.
+Order by value to a filter design review: **M4 → M3**, and the rest as
+needed.
 
 Status key: `[ ]` not started, `[x]` done.
 
@@ -26,34 +26,18 @@ Details are in the plan docs and the git history.
     current curves, the Corners card.
   - M1b: per-part tolerances, every ± extreme and a seeded Monte Carlo per
     corner, the Tolerance card.
+- **M2. Conducted EMI prediction** (2026-11-04, `docs/M2-plan.md`).
+  Trapezoid input-current spectrum with N phases, the CISPR 25 or CISPR 32
+  LISN, predicted dBµV against the limits per band, the worst harmonic and
+  its margin, the attenuation needed and the LC corner hint; EMI card, EMI
+  tab and report section.
 
 Still open from done milestones:
 - [ ] Remove `legacy/` and `scripts/legacy-fixture.mjs` (M0), when the user
   says so.
 - [ ] Run the D4 netlist in LTspice by hand and compare (M6).
-
----
-
-## M2. Conducted EMI prediction
-
-**Why:** the filter exists to pass conducted emissions. Today the tool shows
-only attenuation at fsw. A predicted spectrum against the limit lines answers
-the real question: does it pass, and by how much?
-
-- [ ] **Converter current spectrum (M).** Model the input current as a
-  trapezoid with D, edge rise time and N interleaved phases. Show its
-  harmonics up to 108 MHz.
-- [ ] **LISN model (S).** Add CISPR 25 (5 µH / 50 Ω) and CISPR 16 (50 µH / 50 Ω)
-  as the source impedance.
-- [ ] **Predicted emissions plot (M).** Show the dBµV at the LISN for each
-  harmonic, against CISPR 25 class 1–5 and CISPR 32 class A/B limits
-  (peak/average), with the pass margin per band.
-- [ ] **Required attenuation (S).** Show the attenuation still needed at
-  each harmonic to meet the limit plus a user margin. This gives the
-  corner frequency the filter needs.
-
-**Done when:** for a chosen limit class, the tool shows pass or fail per band,
-with the worst harmonic and its margin.
+- [ ] Check the EMI limit tables and AN impedances in
+  `references/emi-limits.md` against the standards (M2).
 
 ---
 

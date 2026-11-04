@@ -13,8 +13,9 @@ and its tests) is kept until the user says to remove it, together with
 `scripts/legacy-fixture.mjs`.
 
 M6 is done (`docs/M6-plan.md`); its LTspice run on D4 is still open.
-M1a and M1b are done (`docs/M1-plan.md`). The next milestone per
-`ROADMAP.md` is M2; plan it in detail before any code.
+M1a and M1b are done (`docs/M1-plan.md`). M2 is done (`docs/M2-plan.md`)
+except the user's check of the EMI limit tables. The next milestone per
+`ROADMAP.md` is M4; plan it in detail before any code.
 
 ## Git
 
@@ -86,6 +87,22 @@ and get approval before changing the fixture.
 - Closed-form optimum damping: only the Rd-Cd, parallel Rd-Ld and series
   Rd∥Ld forms are used. Each one was verified against the numeric optimizer.
   A new closed form needs the same check in `engine.test.ts`.
+- EMI (`engine/emi.ts`, `engine/emi-limits.ts`, `docs/M2-plan.md`):
+  - Input current: each phase is a trapezoid of height Io/N, width D·T at
+    the 50 % points, edge time tr. c_n = 2·Io·|sin(nπD)|/(nπ)·
+    |sinc(nπ·tr·fsw)| for n a multiple of N, else 0. An exact null is 0.
+    tr = 0 and n = N give `metrics().ripple.ih`.
+  - The AN follows the standard and replaces Rsrc and Lsrc. Its nominal
+    impedance is (jωL + R) ∥ 50 Ω. With 2 lines the loop sees 2·Zl.
+  - Reading: c_n·|1/(A + Zloop·C)|·|Zl|, in dBµV rms. Fixed fsw, so one
+    value is compared with every detector limit of a band. Harmonics
+    within ±RBW/2 add in amplitude.
+  - Margin = limit − reading − EMI margin, lowest over every full-load Vin
+    corner. Needed = no-filter reading − (limit − EMI margin). f0 hint =
+    min f·10^(−needed/40).
+  - The limit tables are ASSUMED until the user checks them against the
+    standards (`references/emi-limits.md`). There is no report ground truth
+    for EMI.
 
 ## Look (template rules)
 
