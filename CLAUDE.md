@@ -13,8 +13,8 @@ and its tests) is kept until the user says to remove it, together with
 `scripts/legacy-fixture.mjs`.
 
 M6 is done (`docs/M6-plan.md`); its LTspice run on D4 is still open.
-M1a comes next: `docs/M1-plan.md`, waiting for the user's approval before
-any code. Read that file first.
+M1a is done. M1b (tolerances) comes next: plan it in detail in
+`docs/M1-plan.md` before any code. Read that file first.
 
 ## Git
 
@@ -74,6 +74,11 @@ and get approval before changing the fixture.
   filter blocks only, between 50 Ω ports.
 - Q is the series form Q = Re(Zout(f0))/Z0, which matches the reports.
   Peak/Z0 is shown separately.
+- A corner is one Vin from {min, nom, max} (duplicates merged) and one load
+  from {light (`pLight`), full (`pout`)}. At a corner, a cap with `cv` uses
+  C(Vin) instead of `derate`, and an inductor or bead with `li` uses L(I),
+  I = P_load/(eta·Vin). |Rn| always uses full power. The nominal tiles keep
+  the typed values. `engine/oppoint.ts`.
 - Closed-form optimum damping: only the Rd-Cd, parallel Rd-Ld and series
   Rd∥Ld forms are used. Each one was verified against the numeric optimizer.
   A new closed form needs the same check in `engine.test.ts`.
@@ -98,7 +103,8 @@ and get approval before changing the fixture.
 - **Untrusted input.** `adopt()` in `state/adopt.ts` is the only entry point
   for links, JSON files and localStorage. It whitelists fields and converts
   each one to a number. A new state field needs a line there and a case in
-  `adopt.test.ts`. Render user text as React text; Plotly strings go through
+  `adopt.test.ts`. A new block field also needs its name in the skip list
+  in `parity.test.ts`, because the legacy fixture has no such key. Render user text as React text; Plotly strings go through
   `esc()` in `plots/traces.ts`.
 - **Design links.** `#d=<base64>` is read and cleared in `main.tsx` before the
   router starts, because hash history would treat it as a route.

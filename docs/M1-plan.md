@@ -1,7 +1,16 @@
 # M1 plan: real part behaviour
 
-Status: **M1a planned, waiting for approval to start code.** M1b is an
-outline; plan it in detail when M1a is done. Written 2026-11-04.
+Status: **M1a done (2026-11-04).** M1b is an outline; plan it in detail
+next. Written 2026-11-04.
+
+M1a notes:
+- `conv.pLight` is a required number (default 0), not optional: an optional
+  field broke `keyof Conv` uses in `compare.ts` and `settings.tsx`.
+- Light-load rows are left out when no ON block has an `li` curve, or when
+  pLight equals pout, because they would equal the full-load rows.
+- On a duplicate x, `adopt()`, `interp()` and the curve text box keep the
+  first point.
+- LQRx 02 and 03 still have no `cv`; they wait for the SimSurfing CSVs.
 
 ## Decisions (user, 2026-11-04)
 
