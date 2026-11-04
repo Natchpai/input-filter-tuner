@@ -4,10 +4,12 @@ import { mkLoad } from '../state/defaults'
 import { buildPreset } from '../state/presets'
 import { bands, converters, iBus, pBus, rnBus, rnOf } from './bus'
 import { db } from './complex'
+import { emiResult, emiSpectrum } from './emi'
 import { checkRange, metrics } from './metrics'
 import type { BusConv, Design } from './model'
 import { cornerMetrics } from './oppoint'
 import { peakZout } from './peak'
+import { loadStepAt, rippleWave } from './transient'
 
 const rel = (a: number, b: number) => Math.abs(a - b) / Math.abs(b)
 
@@ -133,5 +135,91 @@ describe('checks on the bus', () => {
     expect(f).not.toBeNull()
     expect(f!).toBeGreaterThan(5e3)
     expect(f!).toBeLessThan(50e3)
+  })
+})
+
+describe('EMI, ripple and time domain on the bus', () => {
+  const half = () => {
+    const one = d1()
+    return withLoads({ ...one, conv: { ...one.conv, pout: 50, pLight: 0 } }, [
+      { pout: 50 },
+    ])
+  }
+
+  test('EMI: two at P/2 and the same fsw read like one at P (in phase)', () => {
+    const a = emiResult(d1()),
+      b = emiResult(half())
+    expect(b.rows.map((r) => r.f)).toEqual(a.rows.map((r) => r.f))
+    b.rows.forEach((r, i) => {
+      if (r.pred === null) return expect(a.rows[i].pred).toBeNull()
+      expect(r.pred).toBeCloseTo(a.rows[i].pred!, 9)
+      expect(r.aReq!).toBeCloseTo(a.rows[i].aReq!, 9)
+    })
+    expect(b.dropout).toEqual(a.dropout)
+  })
+
+  test('EMI: different fsw give both sets of lines; dropout names the one', () => {
+    const st = withLoads(d1(), [{ pout: 20, fsw: 2.1e6, vout: 47.9, eta: 0.9 }])
+    const pts = emiSpectrum(st)
+    const f1 = pts.filter((p) => p.src === 0).map((p) => p.f)
+    const f2 = pts.filter((p) => p.src === 1).map((p) => p.f)
+    expect(f1.length).toBeGreaterThan(0)
+    expect(f2.length).toBeGreaterThan(0)
+    expect(
+      f1.every((f) => Math.abs(f / 500e3 - Math.round(f / 500e3)) < 1e-9)
+    ).toBe(true)
+    expect(
+      f2.every((f) => Math.abs(f / 2.1e6 - Math.round(f / 2.1e6)) < 1e-9)
+    ).toBe(true)
+    expect(pts.every((p, i) => i === 0 || p.f >= pts[i - 1].f)).toBe(true)
+    // 47.9 V out at 48 V in and η 0.9: converter X2 cannot regulate.
+    expect(emiResult(st).dropout).toEqual(['48 V, full (X2)'])
+  })
+
+  test('ripple in metrics(): P/2 + P/2 at one fsw equals P; worst converter', () => {
+    const a = metrics(d1()).ripple,
+      b = metrics(half()).ripple
+    expect(rel(b.isrc, a.isrc)).toBeLessThan(1e-9)
+    expect(rel(b.vout, a.vout)).toBeLessThan(1e-9)
+    // Each d1() call makes new block ids: compare in block order.
+    const va = Object.values(a.perBlock),
+      vb = Object.values(b.perBlock)
+    expect(vb.length).toBe(va.length)
+    va.forEach((x, k) =>
+      expect(Math.abs(vb[k] - x) <= 1e-9 * Math.abs(x) + 1e-18).toBe(true)
+    )
+    // A converter at 50 kHz is filtered less: it becomes the worst one.
+    const slow = metrics(withLoads(d1(), [{ pout: 10, fsw: 50e3 }])).ripple
+    expect(slow.per.map((r) => r.fr)).toEqual([500e3, 50e3])
+    expect(slow.worst).toBe(1)
+    expect(slow.fr).toBe(50e3)
+    const own = (st: Design) => metrics(st).ripple.isrc
+    const alone = own(
+      withLoads({ ...d1(), conv: { ...d1().conv, pout: 1e-9 } }, [
+        { pout: 10, fsw: 50e3 },
+      ])
+    )
+    expect(slow.isrc).toBeGreaterThan(Math.max(a.isrc, alone))
+    expect(slow.isrc).toBeLessThan(a.isrc + alone)
+  })
+
+  test('load step and ripple wave: P/2 + P/2 equals P', () => {
+    const a = loadStepAt(d1(), 48),
+      b = loadStepAt(half(), 48)
+    expect(rel(b.vMin, a.vMin)).toBeLessThan(1e-6)
+    expect(rel(b.droop, a.droop)).toBeLessThan(1e-6)
+    expect(b.status).toBe(a.status)
+    const ra = rippleWave(d1()),
+      rb = rippleWave(half())
+    expect(rel(rb.pp, ra.pp)).toBeLessThan(1e-9)
+    expect(rb.t.length).toBe(ra.t.length)
+  })
+
+  test('ripple wave: two fsw, window of the lowest one, more samples', () => {
+    const st = withLoads(d1(), [{ pout: 10, fsw: 2e6 }])
+    const w = rippleWave(st)
+    expect(w.t[w.t.length - 1]).toBeCloseTo(3 / 500e3, 15)
+    expect(w.t.length).toBe(3 * 400 * 4 + 1)
+    expect(w.pp).toBeGreaterThan(rippleWave(d1()).pp)
   })
 })

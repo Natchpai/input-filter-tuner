@@ -9,6 +9,7 @@
 // not ring at the step rate. The converter is a constant-power load at the
 // converter node, a rank-1 change of the matrix, solved by Newton with
 // Sherman-Morrison so the LU is reused.
+import { type BusUnit, converters, convsAt, iBus, pBus } from './bus'
 import { blockNet, Builder, type CircuitElement, el, ser } from './circuit'
 import { abs } from './complex'
 import { dutyOf, harmonicSigned } from './emi'
@@ -400,8 +401,10 @@ export function dcPoint(
  * those, fsw.
  */
 export function timeScale(st: Design): { fLo: number; fHi: number } {
+  // Highest fsw on the bus (M5); converter 1's when alone.
+  const fsw = Math.max(...converters(st).map((u) => u.fsw))
   const fA = 10,
-    fB = 20 * st.conv.fsw
+    fB = 20 * fsw
   const n = Math.max(50, Math.ceil(100 * Math.log10(fB / fA)))
   const f: number[] = [],
     h: number[] = [],
@@ -425,7 +428,7 @@ export function timeScale(st: Design): { fLo: number; fHi: number } {
     const k = h.findIndex((v) => v < h[0] / Math.SQRT2)
     if (k > 0) peaks.push(f[k])
   }
-  if (peaks.length === 0) peaks.push(st.conv.fsw)
+  if (peaks.length === 0) peaks.push(fsw)
   return { fLo: Math.min(...peaks), fHi: Math.max(...peaks) }
 }
 
@@ -562,6 +565,14 @@ const cornerOf = (vin: number, p: number, eta: number): Corner => ({
   vin,
   pLoad: p,
   i: p / (eta * vin),
+  label: `${vin} V`,
+})
+
+/** Full-load corner of the whole bus at one Vin (L(I) from every converter). */
+const busFull = (st: Design, vin: number): Corner => ({
+  vin,
+  pLoad: pBus(st, 'full'),
+  i: iBus(st, vin, 'full'),
   label: `${vin} V`,
 })
 
@@ -712,27 +723,50 @@ export function loadStepRun(
   vin: number,
   perPeriod = PER_PERIOD
 ): LoadStepRow {
-  const cv = st.conv
-  const pFull = cv.pout
-  const pLight = Math.min(Math.max(0, cv.pLight), pFull)
-  const d = atCorner(st, cornerOf(vin, pFull, cv.eta))
+  // Every converter on the bus steps together, light → full (M5). Each is
+  // its own constant-power load; the currents add.
+  const us = converters(st)
+  const pLightOf = (u: BusUnit) => Math.min(Math.max(0, u.pLight), u.pout)
+  let full = false
+  const parts = us.map((u) =>
+    cpl(() => (full ? u.pout : pLightOf(u)), u.eta, 0.5 * vin)
+  )
+  const load: Load =
+    parts.length === 1
+      ? parts[0]
+      : (t, v) => {
+          let i = 0,
+            g = 0
+          for (const f of parts) {
+            const [a, b] = f(t, v)
+            i += a
+            g += b
+          }
+          return [i, g]
+        }
+  /** Steady current of every converter at bus voltage v. */
+  const iAt = (v: number, isFull: boolean) => {
+    let i = 0
+    for (const u of us)
+      i += (isFull ? u.pout : pLightOf(u)) / (u.eta * Math.max(v, 0.5 * vin))
+    return i
+  }
+  const d = atCorner(st, busFull(st, vin))
   const c = buildTran(d)
   const { fLo, fHi } = timeScale(d)
   const dt = 1 / (perPeriod * fHi)
-  let p = pLight
-  const load = cpl(() => p, cv.eta, 0.5 * vin)
   const x0 = dcPoint(c, vin, load)
   const vLight = vAt(x0, c.out)
-  p = pFull
+  full = true
   const vFull = vAt(dcPoint(c, vin, load), c.out)
-  const iFull = pFull / (cv.eta * Math.max(vFull, 0.5 * vin))
-  p = pLight
+  const iFull = iAt(vFull, true)
+  full = false
   const sim = new Sim(c, dt, () => vin, load, x0)
   const tr = new Trace()
   const iL0 = load(0, vLight)[0]
   const cur = () => sim.iLoad
   // Step up at t = 0.
-  p = pFull
+  full = true
   sim.restart()
   tr.add(0, vLight, iL0)
   const up = runToSettle(sim, tr, vFull, iFull, fLo, vin, cur)
@@ -743,9 +777,9 @@ export function loadStepRun(
     tSettle: NaN,
   }
   if (up.status !== 'unstable') {
-    p = pLight
+    full = false
     sim.restart()
-    const iLight = pLight / (cv.eta * Math.max(vLight, 0.5 * vin))
+    const iLight = iAt(vLight, false)
     down = runToSettle(sim, tr, vLight, iLight, fLo, vin, cur)
   }
   const kMin = argMin(tr.v, 0, nUp)
@@ -844,35 +878,44 @@ const RIP_FMAX = 100e6
 /**
  * Steady-state source current at Vin nom and full load by Fourier synthesis:
  * i_src(t) = I_dc + Σ c_n·Re(Hopen(n·fsw)·e^{jnωt}). The converter current
- * is the same sum with Hopen = 1. Edge time is emi.tr.
+ * is the same sum with Hopen = 1. Edge time is emi.tr. Several converters
+ * (M5): their sums add, all in phase at t = 0, over 3 periods of the lowest
+ * fsw; then the waveform need not be periodic and p-p is over that window.
  */
 export function rippleWave(st: Design): RippleWave {
-  const cv = st.conv
-  const vin = cv.vinNom
-  const d = atCorner(st, cornerOf(vin, cv.pout, cv.eta))
-  const { D, io, N } = dutyOf(d.conv)
-  const fsw = cv.fsw
+  const vin = st.conv.vinNom
+  const d = atCorner(st, busFull(st, vin))
   const tr = Math.max(0, st.emi.tr)
-  const terms: { n: number; c: number; re: number; im: number }[] = []
-  const nMax = Math.max(N, Math.min(20000, Math.floor(RIP_FMAX / fsw)))
-  for (let n = N; n <= nMax; n += N) {
-    const c = harmonicSigned(d.conv, tr, n)
-    if (c === 0) continue
-    const h = point(d, n * fsw).Hopen
-    terms.push({ n, c, re: h.re, im: h.im })
+  const terms: { n: number; fsw: number; c: number; re: number; im: number }[] =
+    []
+  let idc = 0
+  for (const { conv: u } of convsAt(d)) {
+    const { D, io, N } = dutyOf(u)
+    const fsw = u.fsw
+    const nMax = Math.max(N, Math.min(20000, Math.floor(RIP_FMAX / fsw)))
+    for (let n = N; n <= nMax; n += N) {
+      const c = harmonicSigned(u, tr, n)
+      if (c === 0) continue
+      const h = point(d, n * fsw).Hopen
+      terms.push({ n, fsw, c, re: h.re, im: h.im })
+    }
+    idc += io * D
   }
-  const idc = io * D
-  const T = 1 / fsw
-  const m = RIP_PERIODS * RIP_SAMPLES
+  const fs = convsAt(d).map((x) => x.conv.fsw)
+  const fMin = Math.min(...fs)
+  const T = 1 / fMin
+  // Samples per period of the lowest fsw: more when a faster one is there.
+  const per = RIP_SAMPLES * Math.min(10, Math.ceil(Math.max(...fs) / fMin))
+  const m = RIP_PERIODS * per
   const t: number[] = [],
     iConv: number[] = [],
     iSrc: number[] = []
   for (let k = 0; k <= m; k++) {
-    const tk = (k / RIP_SAMPLES) * T
+    const tk = (k / per) * T
     let a = idc,
       s = idc
     for (const q of terms) {
-      const ph = 2 * Math.PI * q.n * fsw * tk
+      const ph = 2 * Math.PI * q.n * q.fsw * tk
       const co = Math.cos(ph),
         si = Math.sin(ph)
       a += q.c * co

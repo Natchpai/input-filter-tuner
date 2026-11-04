@@ -3,6 +3,7 @@ import {
   type Band,
   bands,
   converters,
+  convsAt,
   fcOf,
   iBus,
   pBus,
@@ -129,6 +130,50 @@ export function qSeriesOf(st: Design): number | null {
   return prim ? point(st, prim.f0).Zout.re / prim.Z0 : null
 }
 
+/** Ripple of one converter at its fundamental fr = N·fsw. */
+export type RippleOf = {
+  name: string
+  N: number
+  D: number
+  io: number
+  iacRms: number
+  fr: number
+  ih: number
+  hfr: number
+  hfsw: number
+  s21fr: number
+}
+
+/**
+ * Loss per block for a converter current ih at fr: backward walk from the
+ * converter. It draws I = ih out of the output node, so V = −Zout·I there.
+ */
+function acWalk(
+  on: Block[],
+  fr: number,
+  ih: number,
+  zout: Complex,
+  out: Record<string, number>
+) {
+  const w = TAU * fr
+  let I: Complex = cx(ih),
+    V: Complex = cx(-zout.re * ih, -zout.im * ih)
+  for (let i = on.length - 1; i >= 0; i--) {
+    const b = on[i],
+      z = zBlock(b, w)
+    let p: number
+    if (kindOf(b) === 'series') {
+      p = (abs(I) ** 2 * z.re) / 2
+      V = add(V, mul(z, I))
+    } else {
+      const il = div(V, z)
+      p = (abs(il) ** 2 * z.re) / 2
+      I = add(I, il)
+    }
+    out[b.id] = b.id in out ? out[b.id] + p : p
+  }
+}
+
 export type Metrics = {
   /** Bus Rn (every converter) at Vin min, nom and max, full power. */
   rn: { min: number; nom: number; max: number }
@@ -154,7 +199,16 @@ export type Metrics = {
     pct: number
     perBlock: Record<string, number>
   }
+  /**
+   * Ripple. The top-level fields are for the converter with the least
+   * attenuation at its fr (converter 1 when alone); `per` has every one.
+   * isrc, vout and perBlock cover all converters: same fr add in phase,
+   * different fr add as losses and root-sum-square amplitudes.
+   */
   ripple: {
+    /** Converter with the least attenuation (index into per). */
+    worst: number
+    per: RippleOf[]
     N: number
     D: number
     io: number
@@ -210,36 +264,49 @@ export function metrics(st: Design): Metrics {
   let rdc = st.source.R
   for (const b of st.blocks) if (b.on && kindOf(b) === 'series') rdc += dcR(b)
   const iin = iBus(st, vinLow(cv), 'full')
-  // Ripple
-  const N = Math.max(1, Math.round(cv.phases || 1))
-  const D = Math.min(1, Math.max(0, cv.vout / (cv.vinNom * cv.eta)))
-  const io = cv.pout / cv.vout
-  const k = Math.floor(N * D)
-  const iacRms =
-    (io / N) * Math.sqrt(Math.max(0, (N * D - k) * (k + 1 - N * D)))
-  const fr = N * cv.fsw
-  const ih = (2 * io * Math.abs(Math.sin(N * Math.PI * D))) / (N * Math.PI)
-  const pr = point(st, fr),
-    ps = point(st, cv.fsw)
-  // Per-block loss at the ripple fundamental (backward walk from the converter).
-  const w = TAU * fr
-  // Converter draws I = ih out of the output node, so V = -Zout·I there.
-  let I: Complex = cx(ih),
-    V: Complex = cx(-pr.Zout.re * ih, -pr.Zout.im * ih)
+  // Ripple, per converter, at its fundamental fr = N·fsw.
+  const per = convsAt(st).map(({ name, conv: c }): RippleOf => {
+    const N = Math.max(1, Math.round(c.phases || 1))
+    const D = Math.min(1, Math.max(0, c.vout / (c.vinNom * c.eta)))
+    const io = c.pout / c.vout
+    const k = Math.floor(N * D)
+    const iacRms =
+      (io / N) * Math.sqrt(Math.max(0, (N * D - k) * (k + 1 - N * D)))
+    const fr = N * c.fsw
+    const ih = (2 * io * Math.abs(Math.sin(N * Math.PI * D))) / (N * Math.PI)
+    const pr = point(st, fr)
+    return {
+      name,
+      N,
+      D,
+      io,
+      iacRms,
+      fr,
+      ih,
+      hfr: abs(pr.Hopen),
+      hfsw: abs(point(st, c.fsw).Hopen),
+      s21fr: abs(pr.S21),
+    }
+  })
+  let wr = 0
+  for (let j = 1; j < per.length; j++) if (per[j].hfr > per[wr].hfr) wr = j
+  // Same fr: the currents add in phase. Different fr: losses add, source
+  // ripple and pin ripple add as root-sum-square of the peak amplitudes.
+  const byF = new Map<number, number>()
+  for (const r of per) byF.set(r.fr, (byF.get(r.fr) ?? 0) + r.ih)
   const acLoss: Record<string, number> = {}
   const on = st.blocks.filter((b) => b.on)
-  for (let i = on.length - 1; i >= 0; i--) {
-    const b = on[i],
-      z = zBlock(b, w)
-    if (kindOf(b) === 'series') {
-      acLoss[b.id] = (abs(I) ** 2 * z.re) / 2
-      V = add(V, mul(z, I))
-    } else {
-      const il = div(V, z)
-      acLoss[b.id] = (abs(il) ** 2 * z.re) / 2
-      I = add(I, il)
-    }
+  const isrcs: number[] = [],
+    vouts: number[] = []
+  for (const [f, ih] of byF) {
+    const p = point(st, f)
+    acWalk(on, f, ih, p.Zout, acLoss)
+    isrcs.push(ih * abs(p.Hopen))
+    vouts.push(ih * abs(p.Zout))
   }
+  const rss = (a: number[]) =>
+    a.length === 1 ? a[0] : Math.sqrt(a.reduce((s, x) => s + x * x, 0))
+  const rw = per[wr]
   const dcLoss: Record<string, number> = {}
   for (const b of on)
     if (kindOf(b) === 'series') dcLoss[b.id] = iin * iin * dcR(b)
@@ -267,17 +334,19 @@ export function metrics(st: Design): Metrics {
       perBlock: dcLoss,
     },
     ripple: {
-      N,
-      D,
-      io,
-      iacRms,
-      fr,
-      ih,
-      hfr: abs(pr.Hopen),
-      hfsw: abs(ps.Hopen),
-      s21fr: abs(pr.S21),
-      isrc: ih * abs(pr.Hopen),
-      vout: ih * abs(pr.Zout),
+      worst: wr,
+      per,
+      N: rw.N,
+      D: rw.D,
+      io: rw.io,
+      iacRms: rss(per.map((r) => r.iacRms)),
+      fr: rw.fr,
+      ih: rw.ih,
+      hfr: rw.hfr,
+      hfsw: Math.max(...per.map((r) => r.hfsw)),
+      s21fr: rw.s21fr,
+      isrc: rss(isrcs),
+      vout: rss(vouts),
       perBlock: acLoss,
     },
   }

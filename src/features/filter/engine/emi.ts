@@ -1,5 +1,6 @@
 // Conducted EMI prediction (M2, docs/M2-plan.md): the converter's input
 // current spectrum, the LISN as the source, and the reading at the receiver.
+import { convsAt, pBus } from './bus'
 import { abs, add, type Complex, cx, inv, mul, par, TAU } from './complex'
 import {
   bandLimit,
@@ -8,7 +9,6 @@ import {
   type EmiStd,
   EMI_STDS,
 } from './emi-limits'
-import { pBus } from './bus'
 import { abcd } from './ladder'
 import type { Block, Conv, Design } from './model'
 import { atCorner, corners } from './oppoint'
@@ -109,6 +109,8 @@ export function zLisn(std: EmiStd, f: number): Complex {
 export const dbuv = (v: number) => 20 * Math.log10(v / Math.SQRT2 / 1e-6)
 
 export type EmiPoint = Harmonic & {
+  /** Converter index on the bus (0 = converter 1). */
+  src: number
   /** Receiver voltage, peak, V: with the filter, and with no filter. */
   vPred: number
   vBare: number
@@ -118,20 +120,30 @@ export type EmiPoint = Harmonic & {
  * Receiver voltage per harmonic. The AN replaces Rsrc and Lsrc. With 2 lines
  * the loop sees 2·Zl and each receiver reads its own line:
  *   V = c_n · |hPort(blocks, f, lines·Zl)| · |Zl|.
- * No filter (vBare): all of c_n flows into the AN.
+ * No filter (vBare): all of c_n flows into the AN. Every converter on the
+ * bus gives its own harmonics (M5); the list is sorted by frequency, so
+ * lines of different converters within RBW/2 add in amplitude (in phase).
  */
 export function emiSpectrum(st: Design): EmiPoint[] {
   const { std, lines, tr } = st.emi
-  return harmonics(st.conv, tr, EMI_F_LO, EMI_STDS[std].fMax).map((h) => {
-    const zl = zLisn(std, h.f)
-    const zLoop = cx(lines * zl.re, lines * zl.im)
-    const z = abs(zl)
-    return {
-      ...h,
-      vPred: h.c * abs(hPort(st.blocks, h.f, zLoop)) * z,
-      vBare: h.c * z,
+  const pts: EmiPoint[] = []
+  convsAt(st).forEach(({ conv }, src) => {
+    for (const h of harmonics(conv, tr, EMI_F_LO, EMI_STDS[std].fMax)) {
+      const zl = zLisn(std, h.f)
+      const zLoop = cx(lines * zl.re, lines * zl.im)
+      const z = abs(zl)
+      pts.push({
+        ...h,
+        src,
+        vPred: h.c * abs(hPort(st.blocks, h.f, zLoop)) * z,
+        vBare: h.c * z,
+      })
     }
   })
+  // Stable sort: one converter keeps its order.
+  return pts.length && pts[0].src !== pts[pts.length - 1].src
+    ? pts.sort((a, b) => a.f - b.f)
+    : pts
 }
 
 /**
@@ -198,7 +210,19 @@ export function emiResult(st: Design): EmiResult {
     label: c.label,
     pts: emiSpectrum(atCorner(st, c)),
   }))
-  const step = Math.max(1, Math.round(st.conv.phases || 1)) * st.conv.fsw
+  const units = convsAt(st)
+  // Closest line spacing: N·fsw of one converter, or the gap between lines
+  // of different converters.
+  const step = Math.min(
+    ...units.map(
+      ({ conv: c }) => Math.max(1, Math.round(c.phases || 1)) * c.fsw
+    )
+  )
+  const gap = (pts: EmiPoint[], i: number) =>
+    Math.min(
+      i > 0 ? pts[i].f - pts[i - 1].f : Infinity,
+      i + 1 < pts.length ? pts[i + 1].f - pts[i].f : Infinity
+    )
   let f0Max: number | null = null,
     rbwSum = false,
     worstCorner = 0
@@ -217,6 +241,7 @@ export function emiResult(st: Design): EmiResult {
       s.pts.forEach((p, i) => {
         if (p.f < band.fLo || p.f > band.fHi || p.c === 0) return
         if (step <= band.rbw / 2) rbwSum = true
+        if (units.length > 1 && gap(s.pts, i) <= band.rbw / 2) rbwSum = true
         const lim = bandLimit(band, p.f)
         const pred = dbuv(inRbw(s.pts, i, band.rbw, 'vPred'))
         const aReq = dbuv(inRbw(s.pts, i, band.rbw, 'vBare')) - (lim - um)
@@ -245,9 +270,12 @@ export function emiResult(st: Design): EmiResult {
       worst = i
   })
   if (worst >= 0) worstCorner = rows[worst].ci ?? 0
-  const dropout = full
-    .filter((c) => st.conv.vout >= c.vin * st.conv.eta)
-    .map((c) => c.label)
+  // Dropout per converter; with several, the name follows the corner.
+  const dropout: string[] = []
+  for (const c of full)
+    for (const u of units)
+      if (u.conv.vout >= c.vin * u.conv.eta)
+        dropout.push(units.length > 1 ? `${c.label} (${u.name})` : c.label)
   return {
     rows,
     pass: rows.every((r) => r.margin === null || r.margin >= 0),

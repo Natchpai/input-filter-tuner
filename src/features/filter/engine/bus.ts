@@ -34,6 +34,20 @@ export function converters(st: Design): BusUnit[] {
   return out
 }
 
+/**
+ * Each converter as a full Conv: its own fields on top of the bus fields of
+ * `conv` (Vin, k), so the one-converter functions (dutyOf, harmonics, …)
+ * work per converter. Converter 1 is `conv` itself.
+ */
+export function convsAt(st: Design): { name: string; conv: Conv }[] {
+  return converters(st).map((u, i) => {
+    if (i === 0) return { name: u.name, conv: st.conv }
+    const { name, pout, pLight, eta, vout, fsw, phases, fcheck } = u
+    const conv = { ...st.conv, pout, pLight, eta, vout, fsw, phases, fcheck }
+    return { name, conv }
+  })
+}
+
 /** Upper end of a converter's negative-resistance range (its crossover). */
 export const fcOf = (c: Pick<Conv, 'fcheck' | 'fsw'>) => c.fcheck || c.fsw
 
