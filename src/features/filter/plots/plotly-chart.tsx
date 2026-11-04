@@ -41,13 +41,21 @@ export function PlotlyChart({
   }, [onError])
 
   useEffect(() => {
-    if (!plotly || !ref.current) return
-    plotly.react(
-      ref.current,
-      figure.traces as Plotly.Data[],
-      figure.layout as Partial<Plotly.Layout>,
-      CONFIG as Partial<Plotly.Config>
-    )
+    const el = ref.current
+    if (!plotly || !el) return
+    // react() goes on after it returns (auto-margin redraws). If the div is
+    // purged or removed by then (route change, closed panel), Plotly reads
+    // its missing _fullLayout and the promise rejects: nothing to draw.
+    Promise.resolve(
+      plotly.react(
+        el,
+        figure.traces as Plotly.Data[],
+        figure.layout as Partial<Plotly.Layout>,
+        CONFIG as Partial<Plotly.Config>
+      ) as unknown
+    ).catch((e: unknown) => {
+      if (el.isConnected && '_fullLayout' in el) throw e
+    })
   }, [plotly, figure])
 
   // `responsive` only follows window resizes. The sidebar toggle and the

@@ -55,6 +55,18 @@ or export code.
 
 ## Entries
 
+### 2026-11-04: Plotly error after a plot was purged
+
+- One browser-check run logged "Cannot read properties of undefined
+  (reading '_redrawFromAutoMarginCount')". `plotly.react()` goes on after
+  it returns (auto-margin redraws); when the div is purged first (Notes
+  round trip) Plotly reads the missing `_fullLayout`, and nothing caught
+  the rejected promise. Since the two-pane layout, plots also draw inside
+  hidden panels and areas, which may make the race more likely.
+  `PlotlyChart` now drops that rejection when the div is gone or purged,
+  and rethrows otherwise. It is a race: the next run passed (365/0), but
+  the cause is NOT_VERIFIED by a repeatable test.
+
 ### 2026-11-04: plot kept its width when the sidebar toggled
 
 - Opening or closing the sidebar changed the card width but not the plot.
