@@ -1,40 +1,43 @@
 # Input Filter Tuner
 
-A one-file browser tool for tuning DC-DC converter input filters. It shows the
+A browser tool for tuning DC-DC converter input filters. It shows the
 circuit, Zout against the converter's Rn, H/S21, Zin and the Middlebrook check.
-`README.md` has the user-facing description.
+Vite + React + TypeScript, from the template
+`D:\KiCAD\KiCAD Templates\web-site-starter`. `README.md` has the user-facing
+description and the folder layout.
 
-## Next: port to Vite + TypeScript (decided 2026-11-04)
+## Next
 
-The next job is milestone M0 in `ROADMAP.md`: port this tool to the user's
-template `D:\KiCAD\KiCAD Templates\web-site-starter`.
-- Read M0 for the decision, the template's gaps and the outline.
-- Plan the port and get the user's approval before writing code.
-- Open question for that plan: single-file double-click build, or GitHub Pages.
-- The other milestones wait until M0 is done; the user picks them from `ROADMAP.md`.
+M0 (the port) is done except one item: `legacy/` (the old single-file tool
+and its tests) is kept until the user says to remove it, together with
+`scripts/legacy-fixture.mjs`. The user picks the next milestone from
+`ROADMAP.md`; plan it and get approval before writing code.
 
 ## Layout
 
-- `index.html` holds everything, with no build step and no npm packages.
-  Plotly is pinned to 2.35.3 from cdnjs.
-  - The engine sits between `// ENGINE-START` and `// ENGINE-END`. The tests cut
-    the engine out by these markers, so keep them, and keep the engine free of
-    DOM access.
-  - The UI script follows the engine.
-- `test/`: the engine test and the browser check.
+- `src/features/filter/engine/`: the math. Keep it free of DOM and storage
+  access; an ESLint rule on the folder enforces it.
+- `src/features/filter/state/`: presets, `adopt()`, reducer, store, persistence.
+- `src/features/filter/plots/` and `components/`: the UI.
+- `engine/__fixtures__/legacy-presets.json`: frozen numbers of the old
+  single-file tool. Never regenerate it to make a test pass.
 - `references/`: app-note PDFs. Their equations are images, so the text
   cannot be extracted.
 
-## Done means both suites pass
+## Done means all of these pass
 
 ```
-node test/engine.test.mjs        # engine vs. report numbers and regression cases
-python -I test/browser_check.py  # headless installed Chrome (channel "chrome")
+npm test                          # Vitest
+npm run build && npm run build:single
+python -I test/browser_check.py   # needs both builds; starts vite preview itself
+npm run lint
+npx prettier --check .
+npm run knip
 ```
 
 Report the pass/fail counts. For an engine bug, add a check that fails before
-the fix. Screenshots go to `%TEMP%\filter-shots`. Look at them after any change
-to the layout or plots.
+the fix. Screenshots go to `%TEMP%\filter-shots`; look at them after any
+change to the layout or plots (1440 px and 390 px, dark and light).
 
 ## Ground truth
 
@@ -48,6 +51,9 @@ Every preset and engine check traces back to one of these. When the tool
 disagrees with a report, check the report's definition before changing the
 math. For example, D4's 54.6 dB is the Lb = 0.8 µH case.
 
+An intended change to the numbers fails `parity.test.ts`. Say so to the user
+and get approval before changing the fixture.
+
 ## Definitions (keep them consistent with the reports)
 
 - Rn = −Vin²·η/P is flat. It holds only up to `fcheck`, so both the peak
@@ -60,7 +66,16 @@ math. For example, D4's 54.6 dB is the Lb = 0.8 µH case.
   Peak/Z0 is shown separately.
 - Closed-form optimum damping: only the Rd-Cd, parallel Rd-Ld and series
   Rd∥Ld forms are used. Each one was verified against the numeric optimizer.
-  A new closed form needs the same check in the engine test.
+  A new closed form needs the same check in `engine.test.ts`.
+
+## Look (template rules)
+
+- Dark theme by default, with the brand tokens in `src/styles/theme.css`.
+- Colours come from tokens (`--chart-1`…`--chart-6`, `--status-*`,
+  `--destructive`), never raw hex. Plotly gets them through
+  `plots/theme-colors.ts`.
+- Build pages from cards; long text reads as lists.
+- Propose larger visual changes before making them.
 
 ## Gotchas
 
@@ -70,10 +85,20 @@ math. For example, D4's 54.6 dB is the Lb = 0.8 µH case.
 - **Stage lookup.** Use `sectionOf(st, id)` for anything about one damping
   element (closed form, Rd for Q, Cd hint). `primary` is the stage nearest
   the converter and feeds only the summary tiles.
-- **Untrusted input.** `adopt()` is the only entry point for links, JSON files
-  and localStorage. It whitelists fields and converts each one to a number.
-  A new state field needs a line there. Any string that reaches innerHTML goes
-  through `esc()`.
-- **New block type.** Add a `TYPES` entry, then cover it in `zBlock`, `dcR`
-  (series blocks), `isInductive` (if it is a series L) and `blockShape`.
-  `adopt` picks up its parameters from `TYPES[type].p`.
+- **Untrusted input.** `adopt()` in `state/adopt.ts` is the only entry point
+  for links, JSON files and localStorage. It whitelists fields and converts
+  each one to a number. A new state field needs a line there and a case in
+  `adopt.test.ts`. Render user text as React text; Plotly strings go through
+  `esc()` in `plots/traces.ts`.
+- **Design links.** `#d=<base64>` is read and cleared in `main.tsx` before the
+  router starts, because hash history would treat it as a route.
+- **Pure reducer.** New block ids come from `newId()` in event handlers, never
+  inside the reducer (StrictMode calls it twice).
+- **New block type.** Add it to the `Block` union in `engine/model.ts` and a
+  `TYPES` entry, then cover it in `zBlock`, `dcR` (series blocks),
+  `isInductive` (if it is a series L), `blockShape` in
+  `components/schematic.tsx` and the add-button label in
+  `components/settings.tsx`. `adopt` picks up its parameters from
+  `TYPES[type].p`.
+- **Routes.** `src/routeTree.gen.ts` is generated by `vite build`; after adding
+  a route, run `npx vite build` once before `tsc -b`, and commit the file.
