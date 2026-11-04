@@ -69,6 +69,25 @@ def menu(page, trigger, item):
     page.click(item)
 
 
+def save_img(page, preset=None, fmt=None, scale=None, w=None, h=None, font=None):
+    """Save the plot through the Image dialog; returns the download."""
+    page.click("#bPlotImg")
+    page.wait_for_selector("#bImgGo")
+    if preset:
+        page.select_option("#img-preset", preset)
+    if fmt:
+        page.select_option("#img-fmt", fmt)
+    if scale:
+        page.select_option("#img-scale", str(scale))
+    for sel, v in [("#img-w", w), ("#img-h", h), ("#img-font", font)]:
+        if v is not None:
+            page.fill(sel, str(v))
+    with page.expect_download() as dl:
+        page.click("#bImgGo")
+    settle(page, 300)
+    return dl.value
+
+
 def no_hscroll(page, width, label):
     sw = page.evaluate("document.documentElement.scrollWidth")
     ok(sw <= width + 1, f"{label}: page scrollWidth {sw} at {width} px")
@@ -588,16 +607,35 @@ try:
         cir = pathlib.Path(dl.value.path()).read_text(encoding="utf-8")
         ok(dl.value.suggested_filename.endswith(".cir") and "V_h_src" in cir and ".meas AC zpk" in cir and cir.rstrip().endswith(".end"),
            f"SPICE export downloads {dl.value.suggested_filename}")
-        # Plot images in light colours while the page is dark
-        with w.expect_download() as dl:
-            w.click("#bPlotSvg")
-        svg = pathlib.Path(dl.value.path()).read_text(encoding="utf-8")
-        ok(svg.lstrip().startswith("<svg") and "var(--" not in svg and "rgb(255, 255, 255)" in svg,
-           f"plot SVG export is light and has no CSS variables ({len(svg)} chars)")
-        with w.expect_download() as dl:
-            w.click("#bPlotPng")
-        png = pathlib.Path(dl.value.path()).read_bytes()
-        ok(png[:4] == b"\x89PNG" and len(png) > 10000, f"plot PNG export ({len(png)} bytes)")
+        # Plot images in light colours while the page is dark (Image dialog)
+        d = save_img(w)
+        svg = pathlib.Path(d.path()).read_text(encoding="utf-8")
+        ok(d.suggested_filename.endswith(".zout.svg") and svg.lstrip().startswith("<svg") and "var(--" not in svg
+           and "rgb(255, 255, 255)" in svg and 'width="1000"' in svg and 'height="560"' in svg,
+           f"plot SVG export: light, no CSS variables, Report 1000 x 560 ({d.suggested_filename})")
+        d = save_img(w, preset="slide", fmt="png", scale=1)
+        png = pathlib.Path(d.path()).read_bytes()
+        pw_, ph_ = int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")
+        ok(png[:4] == b"\x89PNG" and (pw_, ph_) == (1600, 900), f"plot PNG export, Slide at 1x: {pw_} x {ph_} px")
+        d = save_img(w, preset="slide", fmt="png", scale=2)
+        png = pathlib.Path(d.path()).read_bytes()
+        ok(int.from_bytes(png[16:20], "big") == 3200, "plot PNG export at 2x is 3200 px wide")
+        d = save_img(w, fmt="svg", w=700, h=450, font=16)
+        svg = pathlib.Path(d.path()).read_text(encoding="utf-8")
+        ok('width="700"' in svg and "font-size: 16px" in svg and "font-size: 11px" not in svg,
+           "custom 700 x 450 SVG with every 11 px font at 16 px")
+        w.click("#bPlotImg")
+        w.wait_for_selector("#bImgGo")
+        ok(w.input_value("#img-preset") == "custom" and w.input_value("#img-w") == "700"
+           and w.input_value("#img-font") == "16", "image dialog remembers the last choice")
+        w.select_option("#img-preset", "screen")
+        cw_ = w.eval_on_selector("#pl1", "e => e.clientWidth")
+        ok(w.input_value("#img-w") == str(cw_), f"Match screen takes the plot width ({cw_} px)")
+        w.fill("#img-font", "11")
+        w.select_option("#img-preset", "report")
+        with w.expect_download():
+            w.click("#bImgGo")
+        settle(w, 300)
         # Report zip (D4 is loaded)
         menu(w, "#bExport", "#bReport")
         w.fill("#rp-author", "Test Author")

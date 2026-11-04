@@ -136,7 +136,9 @@ export async function plotImage(
   figure: Figure,
   format: 'svg' | 'png',
   w: number,
-  h: number
+  h: number,
+  /** PNG pixel scale (default 2); SVG is always 1. */
+  scale = 2
 ): Promise<string> {
   const Plotly = await loadPlotly()
   return Plotly.toImage(
@@ -144,7 +146,7 @@ export async function plotImage(
       data: figure.traces as Plotly.Data[],
       layout: figure.layout as Partial<Plotly.Layout>,
     },
-    { format, width: w, height: h, scale: format === 'png' ? 2 : 1 }
+    { format, width: w, height: h, scale: format === 'png' ? scale : 1 }
   )
 }
 

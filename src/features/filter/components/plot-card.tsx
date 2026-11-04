@@ -1,16 +1,13 @@
 import { useMemo, useState } from 'react'
-import { ImageDown } from 'lucide-react'
-import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { type Design, type Metrics, tabOf, type TranResult } from '../engine'
-import { dataUrlBytes, plotImage, readLightColors } from '../export/svg'
 import type { CurveSets } from '../plots/curves'
 import { PlotlyChart } from '../plots/plotly-chart'
 import type { PlotColors } from '../plots/theme-colors'
 import { buildPlot, type Snapshot, TABS, TRAN_VIEWS } from '../plots/traces'
-import { download, fileName } from '../state/persist'
 import { dispatch } from '../state/store'
+import { ImageDialog } from './image-dialog'
 import { ToolCard } from './tool-card'
 
 const plotCls = 'h-[420px] w-full sm:h-[520px]'
@@ -37,20 +34,6 @@ export function PlotCard({
     () => buildPlot(S, sets, m, snapshots, colors, tran),
     [S, sets, m, snapshots, colors, tran]
   )
-  // Saved figures always use the light palette, whatever the page theme.
-  const savePlot = async (format: 'svg' | 'png') => {
-    try {
-      const fig = buildPlot(S, sets, m, snapshots, readLightColors(), tran).main
-      const url = await plotImage(fig, format, 1000, 560)
-      download(
-        fileName(S, `${tab}.${format}`),
-        dataUrlBytes(url),
-        format === 'svg' ? 'image/svg+xml' : 'image/png'
-      )
-    } catch (e) {
-      toast.error('Could not export the plot: ' + (e as Error).message)
-    }
-  }
   return (
     <ToolCard>
       <div className='mb-2 flex flex-wrap gap-1'>
@@ -87,19 +70,14 @@ export function PlotCard({
           </div>
         )}
         <span className='flex-1' />
-        {(['svg', 'png'] as const).map((f) => (
-          <Button
-            key={f}
-            id={f === 'svg' ? 'bPlotSvg' : 'bPlotPng'}
-            size='sm'
-            variant='outline'
-            title={`Save this plot as ${f.toUpperCase()} (light colours)`}
-            onClick={() => savePlot(f)}
-          >
-            <ImageDown />
-            {f.toUpperCase()}
-          </Button>
-        ))}
+        <ImageDialog
+          S={S}
+          sets={sets}
+          m={m}
+          snapshots={snapshots}
+          tran={tran}
+          tab={tab}
+        />
       </div>
       {plot.side ? (
         <div className='grid gap-2 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]'>

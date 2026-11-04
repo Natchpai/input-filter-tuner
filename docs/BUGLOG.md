@@ -49,8 +49,17 @@ or export code.
 15. **Do not report a number set by parts you do not model.** With no
     source L, the hot-plug inrush came from ps spikes through ESL and Cb and
     moved 25 % with the step. Report it only when a cable L limits it.
+16. **A box can change size without a window resize.** Plotly's
+    `responsive` follows only `window` resize events, so the sidebar toggle
+    left the plot at its old width. Watch the element (ResizeObserver).
 
 ## Entries
+
+### 2026-11-04: plot kept its width when the sidebar toggled
+
+- Opening or closing the sidebar changed the card width but not the plot.
+  `PlotlyChart` now resizes on a ResizeObserver of its own div (commit
+  `7cade94`). Browser check "sidebar toggle resizes the plot".
 
 ### 2026-11-04: time domain (M4), found while building
 
