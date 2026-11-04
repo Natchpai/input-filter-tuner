@@ -68,7 +68,10 @@ and get approval before changing the fixture.
 ## Definitions (keep them consistent with the reports)
 
 - Rn = −Vin²·η/P is flat. It holds only up to `fcheck`, so both the peak
-  search and the Nyquist scan stop there.
+  search and the Nyquist scan stop there. The check range is
+  min(f min, 10 Hz) to `fcheck` (`checkRange`); it never follows the plot
+  zoom. "Vin min" is the lowest of the three Vin fields (`vinLow`), so they
+  need not be typed in order.
 - Zout is seen from the converter with the source voltage shorted. Rsrc and
   Lsrc stay in the path.
 - H = Vout/Vsrc, with the converter side open by default. S21 covers the
