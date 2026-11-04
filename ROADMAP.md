@@ -36,6 +36,14 @@ Details are in the plan docs and the git history.
   stability flag, source ripple waveform; MNA with trapezoidal steps in a
   worker, Time card, Time tab, report section and LTspice netlists.
   Matches LTspice within 2 % on D1 Rd-Cd and D4.
+- **M3a. Design assistant** (2026-11-04, `docs/M3-plan.md`). Proposes L, C
+  and the damping (Rd-Cd, parallel or series Rd-Ld, R across L) for 1 or 2
+  stages from a dB or EMI target and margin k, sized by target Q (as in the
+  reports) or to just meet k (Erickson); E-series rounding per part type
+  with a recheck; Apply as one undo step. Sensitivity table (+10 % per
+  part) as a card and a report section.
+- **Dark theme** (2026-11-04): neutral greys around `#191a1b` instead of
+  navy.
 
 Still open from done milestones:
 - [ ] Remove `legacy/` and `scripts/legacy-fixture.mjs` (M0), when the user
@@ -46,29 +54,21 @@ Still open from done milestones:
 
 ---
 
-## M3. Design assistant
+## M3b. Design optimizer
 
-**Why:** the tool analyses a design you type in. It can also propose one from
-the requirements.
+**Why:** M3a gives one design that meets the targets. The optimizer finds
+the best one for a chosen goal. Plan it in detail before any code.
 
-- [x] **Auto-design single and 2-stage (M).** Done 2026-11-04 (M3a).
-  - Input: Vin range, P, η, fsw, the attenuation or EMI target, and margin k.
-  - Output: L, C, Cd/C ratio n, Rd and Cd, following the Middlebrook and
-    Erickson procedure.
-  - For 2-stage, the attenuation is split between the stages.
-- [x] **E-series rounding (S).** Done 2026-11-04 (M3a). Snap every value to E12, E24 or E96, as in
-  `LQRx/Images/Resistor_E96.png`, and recheck the margin after rounding.
 - [ ] **Multi-goal optimizer (M).**
   - Minimize one goal: Cd, total C, DC loss or size.
   - Subject to: margin ≥ k, attenuation ≥ target, and the Q window
     (Qpeak, Qloss and Qstab, as in NP-DR-26004 §5).
-- [x] **Sensitivity table (S).** Done 2026-11-04 (M3a). Show how much the margin and the attenuation
-  change, in dB, for a +10 % change in each part. This shows which part
-  matters most.
+  - Can start from the M3a proposal and reuse its E-series rounding.
 - Uses the parts library from M8 when it exists (moved there 2026-11-04).
 
-**Done when:** given only the requirements, the tool proposes an E-series
-design that meets the margin and the attenuation target.
+**Done when:** for a chosen goal, the tool proposes the E-series design with
+the lowest value of that goal that meets margin k, the attenuation target
+and the Q window.
 
 ---
 
