@@ -1,6 +1,8 @@
 // Frequency sweeps behind the plots.
 import {
   abs,
+  atCorner,
+  type Corner,
   type Design,
   grid,
   point,
@@ -46,9 +48,18 @@ export type CurveSets = {
   tL?: Sweep
   tC?: Sweep
   tLC?: Sweep
+  /** |Zout| at the worst corner, only when a block has cv or li curves. */
+  worst?: Sweep
+  worstLabel?: string
 }
 
-export function curveSets(S: Design): CurveSets {
+const hasCurve = (S: Design) =>
+  S.blocks.some((b) => {
+    const c = b as { cv?: unknown[]; li?: unknown[] }
+    return !!(c.cv?.length || c.li?.length)
+  })
+
+export function curveSets(S: Design, worst?: Corner): CurveSets {
   const hasDamp =
     S.plot.undamped &&
     S.blocks.some(
@@ -60,6 +71,10 @@ export function curveSets(S: Design): CurveSets {
   const nom = sweep(S, undefined, f)
   const sets: CurveSets = { nom }
   if (und) sets.und = sweep(und, undefined, nom.f)
+  if (worst && hasCurve(S)) {
+    sets.worst = sweep(atCorner(S, worst), undefined, nom.f)
+    sets.worstLabel = `Worst corner (${worst.label})`
+  }
   if (S.plot.tol) {
     sets.tL = sweep(S, { L: 1 + S.plot.dL / 100, C: 1 }, nom.f)
     sets.tC = sweep(S, { L: 1, C: 1 + S.plot.dC / 100 }, nom.f)

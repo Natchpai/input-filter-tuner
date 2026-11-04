@@ -20,6 +20,7 @@ const CONV_FIELDS: [keyof Conv, string, string, number, number][] = [
   ['vinNom', 'Vin nom', 'V', 1, 1000],
   ['vinMax', 'Vin max', 'V', 1, 1000],
   ['pout', 'Pout', 'W', 0.01, 10e3],
+  ['pLight', 'Light load', 'W', 0.01, 10e3],
   ['eta', 'Efficiency η', '', 0.3, 1],
   ['vout', 'Vout', 'V', 0.3, 1000],
   ['fsw', 'fsw', 'Hz', 1e3, 10e6],
@@ -27,6 +28,8 @@ const CONV_FIELDS: [keyof Conv, string, string, number, number][] = [
   ['k', 'Margin k', 'dB', 0, 20],
   ['fcheck', 'f check max', 'Hz', 100, 100e6],
 ]
+/** Fields where 0 is a valid value. */
+const ZERO_OK = new Set<keyof Conv>(['pLight'])
 const SRC_FIELDS: [keyof Source, string, string, number, number][] = [
   ['R', 'Rsrc', 'Ω', 1e-4, 100],
   ['L', 'Lsrc', 'H', 1e-9, 100e-6],
@@ -45,6 +48,7 @@ export function ConverterCard({ S }: { S: Design }) {
           onChange={(v) => dispatch({ t: 'conv', k, v })}
           min={mn}
           max={mx}
+          zero={ZERO_OK.has(k)}
           linear={LINEAR.has(k)}
           int={k === 'phases'}
         />
@@ -52,7 +56,9 @@ export function ConverterCard({ S }: { S: Design }) {
       <Hint>
         Converter input is modelled as a negative resistance R<sub>n</sub> = −V
         <sub>in</sub>²·η/P, valid below the converter loop crossover. Margin is
-        checked at V<sub>in,min</sub> up to f<sub>check</sub>.
+        checked at V<sub>in,min</sub> up to f<sub>check</sub>. Light load only
+        sets the DC current for L-vs-I curves. |R<sub>n</sub>| always uses full
+        power.
       </Hint>
     </ToolCard>
   )

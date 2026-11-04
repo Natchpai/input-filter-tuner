@@ -5,6 +5,7 @@ import {
   BLOCK_TYPES,
   type Block,
   type BlockType,
+  type Curve,
   DAMP,
   type DampMode,
   type Design,
@@ -31,6 +32,33 @@ const pos = (v: unknown, def: number) => {
   return Number.isFinite(x) && x > 0 ? x : def
 }
 
+// Bias curves (cv, li). Reads at most CURVE_READ raw items and keeps at most
+// CURVE_KEEP valid points. A point is [x, y] with x >= 0 and y > 0, given as
+// a number or a string (nested arrays and objects are rejected). Sorted by x,
+// duplicate x dropped (first one wins). No valid point: undefined.
+const CURVE_READ = 256
+const CURVE_KEEP = 64
+const scalar = (v: unknown) => typeof v === 'number' || typeof v === 'string'
+function curve(v: unknown): Curve | undefined {
+  if (!Array.isArray(v)) return undefined
+  const pts: Curve = []
+  const n = Math.min(v.length, CURVE_READ)
+  for (let i = 0; i < n; i++) {
+    const it: unknown = v[i]
+    if (!Array.isArray(it) || it.length < 2) continue
+    if (!scalar(it[0]) || !scalar(it[1])) continue
+    if (typeof it[0] === 'string' && it[0].trim() === '') continue
+    if (typeof it[1] === 'string' && it[1].trim() === '') continue
+    const x = Number(it[0]),
+      y = Number(it[1])
+    if (Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y > 0)
+      pts.push([x, y])
+  }
+  pts.sort((a, b) => a[0] - b[0])
+  const out = pts.filter((p, i) => i === 0 || p[0] !== pts[i - 1][0])
+  return out.length ? out.slice(0, CURVE_KEEP) : undefined
+}
+
 export function adopt(obj: unknown): Design {
   if (!isObj(obj) || !Array.isArray(obj.blocks) || !isObj(obj.conv))
     throw new Error('not a filter design')
@@ -50,6 +78,8 @@ export function adopt(obj: unknown): Design {
   cv.eta = num(oc.eta, cv.eta, 0.3, 1)
   cv.phases = Math.round(num(oc.phases, cv.phases, 1, 8))
   cv.k = num(oc.k, cv.k, 0, 20)
+  // Light-load power: 0 up to the full load power.
+  cv.pLight = num(oc.pLight, 0, 0, cv.pout)
   const os: Obj = isObj(obj.source) ? obj.source : {}
   base.source.R = num(os.R, 0, 0)
   base.source.L = num(os.L, 0, 0)
@@ -90,6 +120,14 @@ export function adopt(obj: unknown): Design {
       if (type === 'cap') {
         n.n = Math.round(num(n.n, 1, 1, 50))
         n.derate = num(n.derate, 0, 0, 90)
+      }
+      if (type === 'cap') {
+        const c = curve(b.cv)
+        if (c) n.cv = c
+      }
+      if (type === 'ind' || type === 'bead2' || type === 'bead4') {
+        const c = curve(b.li)
+        if (c) n.li = c
       }
       n.on = b.on !== false
       if (type === 'ind') {

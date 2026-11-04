@@ -8,7 +8,7 @@ Order: **M0 first** (decided 2026-11-04, done 2026-11-04). Then, by value
 to a filter design review: **M1a → M1b → M2 → M4 → M3**, and the rest as
 needed. M1 was split on 2026-11-04; the detailed plan is `docs/M1-plan.md`.
 On 2026-11-04 the user moved **M6 ahead of M1a** (plan: `docs/M6-plan.md`).
-M6 was done on 2026-11-04.
+M6 was done on 2026-11-04. M1a was done on 2026-11-04.
 
 Status key: `[ ]` not started, `[x]` done.
 
@@ -85,14 +85,14 @@ re-runs at Lb 0.8 µH, LQRx derates by 33 %).
 Split on 2026-11-04 into M1a and M1b. Measured impedance import moved to M8.
 Plan: `docs/M1-plan.md`.
 
-### M1a. Operating point
+### M1a. Operating point (done 2026-11-04)
 
-- [ ] **MLCC C vs DC bias per capacitor (M).** Enter or paste C vs V points
+- [x] **MLCC C vs DC bias per capacitor (M).** Enter or paste C vs V points
   (for example a Murata SimSurfing CSV). At each corner the cap uses C at
   that Vin.
-- [ ] **Inductor / bead L vs DC current (M).** Enter or paste L vs I points.
+- [x] **Inductor / bead L vs DC current (M).** Enter or paste L vs I points.
   At each corner the part uses L at I = P_load/(eta·Vin).
-- [ ] **Corner table (S).** Vin min/nom/max × {light load, full load}, with
+- [x] **Corner table (S).** Vin min/nom/max × {light load, full load}, with
   |Rn| at full power, as in NP-DR-26004. Show peak, margin, Q and attenuation
   at fsw per corner, and mark the worst one.
 

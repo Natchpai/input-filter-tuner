@@ -35,6 +35,12 @@ React and TypeScript from the web-site-starter template.
   - Z0, f0 and Q.
   - Attenuation at fsw and N·fsw.
   - Source ripple current, DC drop and loss, and per-block AC loss.
+- Operating-point corners:
+  - Vin min/nom/max × {light load, full load}. |Rn| always uses full power.
+  - C vs DC bias per capacitor and L vs DC current per inductor or bead.
+    Paste points one per line, or a Murata SimSurfing CSV.
+  - A Corners card with peak, |Rn|, margin, Q and attenuation at fsw per
+    corner, the worst one marked, and its |Zout| on the Zout tab.
 - Damping helpers:
   - "Rd for Q" (NP-DR-26001 equation).
   - "Optimum Rd", a numeric search with all parasitics included.
