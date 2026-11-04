@@ -28,6 +28,7 @@ type Run = { key: string; ext: ExtremeRow[] | null; mc: McResult }
 function designKey(st: Design): string {
   return JSON.stringify({
     conv: st.conv,
+    loads: st.loads,
     source: st.source,
     blocks: st.blocks,
     fmin: st.plot.fmin,

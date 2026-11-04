@@ -57,10 +57,14 @@ export function Results({ S, m, nom }: { S: Design; m: Metrics; nom: Sweep }) {
   const hPk = Math.max(...nom.Hopen.map((z) => db(abs(z))))
   const iRms = m.ripple.isrc / Math.SQRT2
   const fr = fmtSI(m.ripple.fr, 'Hz')
+  const many = m.ripple.per.length > 1
+  const lb = m.bands[m.limitBand]
+  const bandText = (b: typeof lb) =>
+    `${fmtSI(b.fLo, 'Hz')} to ${fmtSI(b.fHi, 'Hz')}`
 
   const rows: [ReactNode, ReactNode][] = [
     [
-      'Rn at Vin min / nom / max',
+      many ? 'Bus Rn at Vin min / nom / max' : 'Rn at Vin min / nom / max',
       `${fmtSI(m.rn.min, 'Ω')} / ${fmtSI(m.rn.nom, 'Ω')} / ${fmtSI(m.rn.max, 'Ω')}`,
     ],
     [
@@ -80,6 +84,13 @@ export function Results({ S, m, nom }: { S: Design; m: Metrics; nom: Sweep }) {
       ),
     ],
   ]
+  if (m.bands.length > 1)
+    m.bands.forEach((b, i) =>
+      rows.push([
+        `Band ${i + 1}: ${bandText(b)} (${b.names.join(', ')})`,
+        `|Rn| ${fmtSI(Math.abs(b.rn), 'Ω')} · peak ${fmtSI(b.peak.v, 'Ω')} · ${b.margin.toFixed(1)} dB`,
+      ])
+    )
   if (p) {
     rows.push(
       ['Primary L / C', `${fmtSI(p.L, 'H')} / ${fmtSI(p.C, 'F')}`],
@@ -106,6 +117,12 @@ export function Results({ S, m, nom }: { S: Design; m: Metrics; nom: Sweep }) {
     ['Ripple voltage at converter pins (peak)', fmtSI(m.ripple.vout, 'V')],
     [`S21 @ ${fr} (${S.plot.z0} Ω)`, `${db(m.ripple.s21fr).toFixed(1)} dB`]
   )
+  if (many)
+    for (const r of m.ripple.per)
+      rows.push([
+        `${r.name}: fr / ripple harmonic / attenuation`,
+        `${fmtSI(r.fr, 'Hz')} / ${fmtSI(r.ih, 'A')} / ${(-db(r.hfr)).toFixed(1)} dB`,
+      ])
   for (const b of S.blocks) {
     if (!b.on) continue
     const ac = m.ripple.perBlock[b.id],
@@ -134,7 +151,9 @@ export function Results({ S, m, nom }: { S: Design; m: Metrics; nom: Sweep }) {
           s={
             m.unstableAt
               ? `UNSTABLE: Nyquist at ${fmtSI(m.unstableAt, 'Hz')}`
-              : `need ≥ ${cv.k} dB · |Rn| ${fmtSI(Math.abs(m.rn.min), 'Ω')}`
+              : m.bands.length > 1
+                ? `need ≥ ${cv.k} dB · band ${bandText(lb)}: ${lb.names.join(', ')}`
+                : `need ≥ ${cv.k} dB · |Rn| ${fmtSI(Math.abs(m.rn.min), 'Ω')}`
           }
           tone={mTone}
         />
@@ -153,14 +172,18 @@ export function Results({ S, m, nom }: { S: Design; m: Metrics; nom: Sweep }) {
           </>
         )}
         <Kpi
-          k={`Attenuation @ ${fr}`}
+          k={
+            many
+              ? `Attenuation @ ${fr} (${m.ripple.per[m.ripple.worst].name})`
+              : `Attenuation @ ${fr}`
+          }
           v={`${(-db(m.ripple.hfr)).toFixed(1)} dB`}
           s={`|H| open at fsw ${db(m.ripple.hfsw).toFixed(1)} dB`}
         />
         <Kpi
           k='Source ripple current'
           v={fmtSI(iRms, 'A')}
-          s={`rms @ ${fr} · ${db(iRms / 1e-6).toFixed(1)} dBµA`}
+          s={`rms ${many ? 'of all converters' : '@ ' + fr} · ${db(iRms / 1e-6).toFixed(1)} dBµA`}
         />
         <Kpi
           k='DC loss (Vin min)'

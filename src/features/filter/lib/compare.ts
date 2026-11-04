@@ -4,8 +4,10 @@ import {
   DAMP,
   db,
   type Design,
+  converters,
   type Metrics,
   metrics,
+  pBus,
   TYPES,
 } from '../engine'
 import { fmtSI } from './si'
@@ -68,6 +70,8 @@ export function compareRows(
   ]
   for (const [k, label, u] of conv)
     diff(label, fmtParam(a.conv[k], u), fmtParam(b.conv[k], u))
+  diff('Converters', String(converters(a).length), String(converters(b).length))
+  diff('Bus P full', fmtSI(pBus(a, 'full'), 'W'), fmtSI(pBus(b, 'full'), 'W'))
   diff('Rsrc', fmtSI(a.source.R, 'Ω'), fmtSI(b.source.R, 'Ω'))
   diff('Lsrc', fmtSI(a.source.L, 'H'), fmtSI(b.source.L, 'H'))
 

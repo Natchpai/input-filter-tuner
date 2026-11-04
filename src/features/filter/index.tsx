@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { Main } from '@/components/layout/main'
 import { SiteHeader } from '@/components/layout/site-header'
 import { BlockCard } from './components/block-card'
+import { ConvCard } from './components/conv-card'
 import { Corners } from './components/corners'
 import { DesignsCard } from './components/designs'
 import { Emi } from './components/emi'
@@ -129,6 +130,18 @@ export function Tuner() {
           </div>
           <aside className='min-w-0 space-y-2.5 @5xl/content:col-start-1 @5xl/content:row-span-2 @5xl/content:row-start-1'>
             <ConverterCard S={st} />
+            {st.loads.length > 0 && (
+              <div id='convs' className='space-y-2.5'>
+                {st.loads.map((l, i) => (
+                  <ConvCard
+                    key={l.id}
+                    l={l}
+                    index={i}
+                    count={st.loads.length}
+                  />
+                ))}
+              </div>
+            )}
             <SourceCard S={st} />
             <div id='blocks' className='space-y-2.5'>
               {st.blocks.map((b, i) => (

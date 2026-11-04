@@ -859,6 +859,71 @@ try:
                     t4.locator("#pl1").screenshot(path=str(SHOTS / f"m4_time_{v}_{vw}_{theme.lower()}.png"))
                 t4.close()
 
+        # M5: several converters on one bus
+        b5 = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(b5, "m5: ")
+        b5.goto(URL)
+        ready(b5)
+        settle(b5, 300)
+        mchip = lambda: b5.inner_text("#strip [data-chip=margin]").split()[-2]
+        m0 = float(mchip())
+        b5.click("#bAddConv")
+        settle(b5, 400)
+        ok(b5.locator("#convs .conv").count() == 1, "+ Converter adds a converter card")
+        m1 = float(mchip())
+        ok(abs((m0 - m1) - 6.02) < 0.1, f"a second equal converter halves |Rn|: margin {m0} -> {m1} dB")
+        ok("2 converters" in b5.inner_text("#sch"), "schematic box says 2 converters")
+        cid = b5.eval_on_selector("#convs .conv", "e => e.id.slice(5)")
+        commit(b5, f"#ld-{cid}-fcheck", "1k")
+        settle(b5, 400)
+        m2 = float(mchip())
+        ok(m1 < m2 <= m0, f"its f check below f0: margin back up to {m2} dB (bands)")
+        ok("band 10 Hz to 1 kHz" in b5.inner_text("#kpis") or "band " in b5.inner_text("#kpis"),
+           f"margin tile names the limiting band ({b5.inner_text('#kpis').splitlines()[4:6]})")
+        b5.locator("#convs .conv input[type=checkbox]").first.uncheck()
+        settle(b5, 400)
+        ok(abs(float(mchip()) - m0) < 0.05, "turning it off gives the one-converter margin")
+        b5.locator("#convs .conv input[type=checkbox]").first.check()
+        settle(b5, 300)
+        # Undo (history lives in memory, so before any reload).
+        n_undo = 0
+        while b5.locator("#convs").count() and n_undo < 6:
+            b5.click("#bUndo")
+            settle(b5, 200)
+            n_undo += 1
+        ok(b5.locator("#convs").count() == 0 and abs(float(mchip()) - m0) < 0.05,
+           f"undo removes the converter ({n_undo} steps)")
+        b5.click("#bAddConv")
+        settle(b5, 300)
+        cid = b5.eval_on_selector("#convs .conv", "e => e.id.slice(5)")
+        commit(b5, f"#ld-{cid}-fcheck", "1k")
+        settle(b5, 300)
+        b5.reload()
+        ready(b5)
+        settle(b5, 400)
+        ok(b5.locator("#convs .conv").count() == 1 and abs(float(mchip()) - m2) < 0.05,
+           f"the converter survives a reload ({mchip()} dB)")
+        b5.close()
+        for theme in ["Dark", "Light"]:
+            for vw in [1440, 390]:
+                b6 = browser.new_page(viewport={"width": vw, "height": 1000})
+                watch(b6, "m5 shots: ")
+                b6.goto(URL)
+                ready(b6)
+                if theme == "Light":
+                    set_theme(b6, "Light")
+                b6.click("#bAddConv")
+                settle(b6, 300)
+                cid = b6.eval_on_selector("#convs .conv", "e => e.id.slice(5)")
+                commit(b6, f"#ld-{cid}-fcheck", "50k")
+                commit(b6, f"#ld-{cid}-fsw", "2.1M")
+                settle(b6, 400)
+                no_hscroll(b6, vw, f"m5 {theme.lower()} {vw} px")
+                b6.locator("#convs").screenshot(path=str(SHOTS / f"m5_conv_{vw}_{theme.lower()}.png"))
+                b6.locator("#pl1").screenshot(path=str(SHOTS / f"m5_zout_{vw}_{theme.lower()}.png"))
+                b6.locator("#kpis").screenshot(path=str(SHOTS / f"m5_kpis_{vw}_{theme.lower()}.png"))
+                b6.close()
+
         # UI: status strip, collapsible cards, toolbar and schematic fit
         for vw in [1440, 390]:
             u = browser.new_page(viewport={"width": vw, "height": 900})

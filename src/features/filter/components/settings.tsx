@@ -5,13 +5,15 @@ import {
   type BlockType,
   type Conv,
   type Design,
+  MAX_LOADS,
   type PlotSettings,
   type Source,
   TYPES,
 } from '../engine'
 import { fmtSI } from '../lib/si'
-import { mk } from '../state/defaults'
+import { mk, mkLoad } from '../state/defaults'
 import { dispatch } from '../state/store'
+import { CONV_FIELDS, ZERO_OK } from './fields'
 import { LINEAR, selectCls } from './styles'
 import { ToolCard } from './tool-card'
 import { ValueRow } from './value-row'
@@ -22,31 +24,38 @@ const VIN_FIELDS: [keyof Conv, string][] = [
   ['vinNom', 'nom'],
   ['vinMax', 'max'],
 ]
-const CONV_FIELDS: [keyof Conv, string, string, number, number][] = [
-  ['pout', 'Pout', 'W', 0.01, 10e3],
-  ['pLight', 'Light load', 'W', 0.01, 10e3],
-  ['eta', 'Efficiency η', '', 0.3, 1],
-  ['vout', 'Vout', 'V', 0.3, 1000],
-  ['fsw', 'fsw', 'Hz', 1e3, 10e6],
-  ['phases', 'Phases N', '', 1, 8],
-  ['k', 'Margin k', 'dB', 0, 20],
-  ['fcheck', 'f check max', 'Hz', 100, 100e6],
-]
-/** Fields where 0 is a valid value. */
-const ZERO_OK = new Set<keyof Conv>(['pLight'])
 const SRC_FIELDS: [keyof Source, string, string, number, number][] = [
   ['R', 'Rsrc', 'Ω', 1e-4, 100],
   ['L', 'Lsrc', 'H', 1e-9, 100e-6],
 ]
 
+/** Adds a converter on the bus (M5): a copy of converter 1's own fields. */
+function addConv(S: Design) {
+  const names = new Set(S.loads.map((l) => l.name))
+  let n = S.loads.length + 2
+  while (names.has(`Conv ${n}`)) n++
+  const l = mkLoad(S.conv, `Conv ${n}`)
+  dispatch({ t: 'loadAdd', load: l })
+  requestAnimationFrame(() =>
+    document
+      .getElementById('conv-' + l.id)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  )
+}
+
 export function ConverterCard({ S }: { S: Design }) {
+  const many = S.loads.length > 0
   return (
     <ToolCard
-      title='Converter (load)'
+      title={many ? 'Conv 1 (load) and bus' : 'Converter (load)'}
       info={
         <>
-          Converter input is modelled as a negative resistance R<sub>n</sub> =
-          −V<sub>in</sub>²·η/P, valid below the converter loop crossover. Margin
+          Several converters on one bus: Vin and k here are bus fields; each
+          converter has its own power, efficiency, fsw, phases and f check.
+          Below its f check a converter counts in the parallel |R<sub>n</sub>|,
+          above it it drops out, so the check range splits into bands. Converter
+          input is modelled as a negative resistance R<sub>n</sub> = −V
+          <sub>in</sub>²·η/P, valid below the converter loop crossover. Margin
           is checked at V<sub>in,min</sub> up to f<sub>check</sub>. Light load
           only sets the DC current for L-vs-I curves. |R
           <sub>n</sub>| always uses full power. The three Vin fields need not be
@@ -92,6 +101,17 @@ export function ConverterCard({ S }: { S: Design }) {
           int={k === 'phases'}
         />
       ))}
+      <Button
+        id='bAddConv'
+        size='sm'
+        variant='secondary'
+        className='mt-1.5'
+        disabled={S.loads.length >= MAX_LOADS}
+        title='Add a converter on the same bus'
+        onClick={() => addConv(S)}
+      >
+        + Converter
+      </Button>
     </ToolCard>
   )
 }

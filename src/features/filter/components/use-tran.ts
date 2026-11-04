@@ -21,13 +21,14 @@ export function useTran(st: Design): TranState {
       st.tran.on
         ? JSON.stringify({
             conv: st.conv,
+            loads: st.loads,
             source: st.source,
             blocks: st.blocks,
             tran: st.tran,
             emi: st.emi,
           })
         : null,
-    [st.tran, st.conv, st.source, st.blocks, st.emi]
+    [st.tran, st.conv, st.loads, st.source, st.blocks, st.emi]
   )
   const [res, setRes] = useState<{
     key: string | null

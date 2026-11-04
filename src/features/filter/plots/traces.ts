@@ -14,7 +14,7 @@ import {
   limVal,
   type Metrics,
   point,
-  rnOf,
+  bands as busBands,
   sectionOf,
   type Sweep,
   sweepParam,
@@ -129,6 +129,30 @@ function decades(C: PlotColors): Obj {
       ticks: '',
     },
   }
+}
+
+/**
+ * |Rn| over [f0, f1]: flat with one converter, else a staircase over the
+ * check bands (M5); the last band runs on to f1.
+ */
+function stair(
+  bs: { fHi: number; rn: number }[],
+  f0: number,
+  f1: number,
+  div = 1
+): { x: number[]; y: number[] } {
+  const x = [f0],
+    y = [Math.abs(bs[0].rn) / div]
+  bs.forEach((b, i) => {
+    const last = i === bs.length - 1
+    x.push(last ? f1 : b.fHi)
+    y.push(Math.abs(b.rn) / div)
+    if (!last) {
+      x.push(b.fHi)
+      y.push(Math.abs(bs[i + 1].rn) / div)
+    }
+  })
+  return { x, y }
 }
 
 function makeLayout(C: PlotColors, extra: Obj = {}): Obj {
@@ -287,20 +311,17 @@ export function buildPlot(
       ] as const
     ).filter((x, i, a) => a.findIndex((y) => y[1] === x[1]) === i)
     rns.forEach(([, v], i) => {
-      const r = Math.abs(rnOf(cv, v))
+      const st = stair(busBands(S, v, m.fLo), f[0], f[f.length - 1])
       traces.push({
-        x: [f[0], f[f.length - 1]],
-        y: [r, r],
+        ...st,
         name: `|Rn| ${fmtSI(v, 'V')}`,
         mode: 'lines',
         line: { color: C.bad, width: 1.4, dash: i ? 'dashdot' : 'solid' },
         hoverinfo: 'skip',
       })
     })
-    const lim = Math.abs(m.rn.min) / 10 ** (cv.k / 20)
     traces.push({
-      x: [f[0], m.fHi],
-      y: [lim, lim],
+      ...stair(m.bands, f[0], m.fHi, 10 ** (cv.k / 20)),
       name: `|Rn|−${cv.k} dB`,
       mode: 'lines',
       line: { color: C.bad, width: 1, dash: 'dot' },
