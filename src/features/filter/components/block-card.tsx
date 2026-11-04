@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, ChevronRight, Copy, X } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Ellipsis,
+  X,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -9,6 +17,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Textarea } from '@/components/ui/textarea'
 import {
   type Block,
@@ -42,7 +56,7 @@ import { dispatch } from '../state/store'
 import { blockSummary } from './block-summary'
 import { useHintScope } from './hint-scope'
 import { inputCls, LINEAR, selectCls } from './styles'
-import { Hint, HintButton, HintScope } from './tool-card'
+import { Hint, HintButton, HintScope, Note } from './tool-card'
 import { setOpen, useUi } from './ui-store'
 import { ValueRow } from './value-row'
 
@@ -87,57 +101,101 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
     set(Math.max(0, Number((rd - esr).toPrecision(3))))
   }
 
+  // One short line: the closed-form target, and a Cd warning when Cd is
+  // below 10/(2π·f0·Rd). The rest is in the block's hint (InfoLines).
+  const cf = closedFormFor(S, b)
+  const sec = sectionOf(S, b.id)
+  const rTot = isRc ? b.rd + b.esr : 0
+  const cdMin =
+    isRc && sec && rTot > 0 ? 10 / (2 * Math.PI * sec.f0 * rTot) : null
+  const cdLow = isRc && cdMin !== null && b.cd < cdMin * (1 - 1e-6)
+
   return (
-    <div className='my-1.5 flex flex-wrap items-center gap-1.5'>
-      <Button
-        size='sm'
-        variant='secondary'
-        data-h='opt'
-        disabled={off}
-        title={title(
-          'Search Rd for the lowest peak |Zout|, all parasitics included'
+    <div className='my-1.5'>
+      <div className='flex flex-wrap items-center gap-1.5'>
+        {isRc && (
+          <>
+            <label
+              htmlFor={`qv-${b.id}`}
+              className='text-sm text-muted-foreground'
+            >
+              Q
+            </label>
+            <input
+              id={`qv-${b.id}`}
+              data-h='qv'
+              aria-label='Target Q'
+              className={cn(
+                inputCls,
+                'w-14 text-right',
+                qErr && 'border-destructive ring-1 ring-destructive'
+              )}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !off && forQ()}
+            />
+            <Button
+              size='sm'
+              variant='secondary'
+              data-h='q'
+              disabled={off}
+              title={title('Rd for this Q, from Rd = Z0²/(Z0/Q − rL)')}
+              onClick={forQ}
+            >
+              Set Rd for Q
+            </Button>
+          </>
         )}
-        onClick={optimum}
-      >
-        Optimum Rd
-      </Button>
-      {isRc && (
-        <>
-          <Button
-            size='sm'
-            variant='secondary'
-            data-h='q'
-            disabled={off}
-            title={title('Rd for this Q, from Rd = Z0²/(Z0/Q − rL)')}
-            onClick={forQ}
-          >
-            Rd for Q =
-          </Button>
-          <input
-            data-h='qv'
-            aria-label='Target Q'
-            className={cn(
-              inputCls,
-              'w-14 text-right',
-              qErr && 'border-destructive ring-1 ring-destructive'
-            )}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </>
-      )}
-      <Button
-        size='sm'
-        variant='secondary'
-        data-h='cf'
-        disabled={off}
-        title={title(
-          `Set Rd to the closed-form optimum for this ${isRc ? 'Cd/C' : 'Ld/L'}`
-        )}
-        onClick={closed}
-      >
-        Closed-form Rd
-      </Button>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size='sm'
+              variant='secondary'
+              data-h='menu'
+              disabled={off}
+              title={title(isRc ? 'Other ways to set Rd' : 'Set Rd')}
+              aria-label={isRc ? 'Other ways to set Rd' : undefined}
+            >
+              {isRc ? (
+                <Ellipsis />
+              ) : (
+                <>
+                  Set Rd
+                  <ChevronDown />
+                </>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='start'>
+            <DropdownMenuItem
+              data-h='opt'
+              title='Search Rd for the lowest peak |Zout|, all parasitics included'
+              onSelect={optimum}
+            >
+              Optimum (numeric)
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-h='cf'
+              disabled={!cf?.rd}
+              title={`The closed-form optimum for this ${isRc ? 'Cd/C' : 'Ld/L'}`}
+              onSelect={closed}
+            >
+              Closed form
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      {cf?.rd ? (
+        <Note>
+          closed-form Rd {fmtSI(cf.rd, 'Ω')} · peak {fmtSI(cf.peak!, 'Ω')}
+          {cdLow && (
+            <span className='text-status-open'>
+              {' '}
+              · Cd ≥ {fmtSI(cdMin!, 'F')}
+            </span>
+          )}
+        </Note>
+      ) : null}
     </div>
   )
 }
@@ -378,7 +436,8 @@ function ToleranceEditor({ b }: { b: Block }) {
   )
 }
 
-/** Hint lines under a block: effective C, SRF, its LC section, losses. */
+/** Hint lines under a block: effective C, SRF, its LC section, losses. Hidden
+ * unless the block's hints show. */
 function InfoLines({ S, b, m }: { S: Design; b: Block; m: Metrics }) {
   const parts: React.ReactNode[] = []
   if (b.type === 'cap') {
@@ -413,14 +472,15 @@ function InfoLines({ S, b, m }: { S: Design; b: Block; m: Metrics }) {
   const ac = m.ripple.perBlock[b.id]
   if (b.on && ac > 0 && (b.type === 'rc' || key))
     parts.push(`AC loss ${fmtSI(ac, 'W')}`)
+  if (parts.length === 0) return null
   return (
-    <p id={'info-' + b.id} className='mt-1 text-xs text-muted-foreground'>
+    <Hint id={'info-' + b.id}>
       {parts.map((p, i) => (
         <span key={i} className='block'>
           {p}
         </span>
       ))}
-    </p>
+    </Hint>
   )
 }
 

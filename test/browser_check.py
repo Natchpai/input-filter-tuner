@@ -197,17 +197,29 @@ try:
         commit(page, f"#{first_l}", "abc")
         ok(page.get_attribute(f"#{first_l}", "aria-invalid") == "true", "bad text is marked invalid")
         commit(page, f"#{first_l}", "22u")
-        # Optimum Rd and closed-form buttons
-        page.click("button[data-h=opt]")
+        # Optimum Rd and closed form, in the Rd menu
+        page.click("[data-h=menu]")
+        page.click("[data-h=opt]")
         settle(page, 400)
         rd_opt = page.input_value(f"#{first_rc}")
-        page.click("button[data-h=cf]")
+        page.click("[data-h=menu]")
+        page.click("[data-h=cf]")
         settle(page)
         rd_cf = page.input_value(f"#{first_rc}")
         ok(rd_opt != "4.7" and rd_cf, f"optimum Rd = {rd_opt}, closed-form Rd = {rd_cf}")
         page.click("button[data-h=q]")
         settle(page)
         ok(page.input_value(f"#{first_rc}") == "1.06", f"Rd for Q=0.707 gives {page.input_value(f'#{first_rc}')} (D1 report: 1.06)")
+        # One visible line under the control; the Cd warning only when Cd is too small
+        rc_id = first_rc.split("-")[1]
+        line = page.inner_text(f"#card-{rc_id}")
+        first_cd = f"in-{rc_id}-cd"
+        cd0 = page.input_value(f"#{first_cd}")
+        commit(page, f"#{first_cd}", "47u")
+        warn = page.inner_text(f"#card-{rc_id}")
+        commit(page, f"#{first_cd}", cd0)
+        ok("closed-form Rd" in line and "Cd ≥" not in line and "Cd ≥ 140" in warn,
+           f"damping line: closed-form Rd, Cd warning only at Cd = 47u ({cd0} ok)")
         # Slider drag
         block_id = first_l.split("-")[1]
         page.locator(f"#card-{block_id} input[type=range]").first.fill("300")
@@ -343,10 +355,11 @@ try:
         commit(page, "#cv-eta", "0")
         ok(page.input_value("#cv-eta") == "0.3" and "NaN" not in page.inner_text("#kpis"), "efficiency 0 clamps to 0.3, no NaN")
         # Disabled block: helper buttons are disabled
-        rc_card = page.locator(".blk", has=page.locator("[data-h=opt]")).first
+        rc_card = page.locator(".blk", has=page.locator("[data-h=menu]")).first
         rc_card.locator("input[type=checkbox]").first.uncheck()
         settle(page)
-        ok(page.locator(".blk.off [data-h=opt]").first.is_disabled(), "Optimum Rd is disabled on a disabled block")
+        ok(page.locator(".blk.off [data-h=menu]").first.is_disabled() and page.locator(".blk.off [data-h=q]").first.is_disabled(),
+           "the Rd menu and Set Rd for Q are disabled on a disabled block")
         # Method A preset keeps a real capacitor
         page.select_option("#preset", "2")
         settle(page, 250)
@@ -357,8 +370,13 @@ try:
         page.select_option("#preset", "10")
         settle(page, 400)
         unfold(page)
+        no_info = page.locator("[id^=info-]").count()
+        page.click("#bHints")
+        settle(page)
         info = page.eval_on_selector_all("#blocks .blk", "b => b[2].querySelector('[id^=info-]').textContent")
-        ok(info.startswith("L1 section"), f"2-stage Rd1 info uses L1 section: '{info[:40]}'")
+        page.click("#bHints")
+        settle(page)
+        ok(no_info == 0 and info.startswith("L1 section"), f"2-stage Rd1 info (a hint) uses L1 section: '{info[:40]}'")
         # LQRx 02: sweep range covers the e-cap ESR (0.195 ohm)
         page.select_option("#preset", "12")
         settle(page, 250)
