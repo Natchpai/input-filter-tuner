@@ -48,7 +48,9 @@ export function AppSidebar() {
       <SidebarFooter>
         <div className='rounded-md border border-status-open/40 bg-status-open/10 px-3 py-2 text-xs leading-snug group-data-[collapsible=icon]:hidden'>
           <span className='font-semibold text-status-open'>{site.status}</span>
-          <span className='text-muted-foreground'> · {site.statusNote}</span>
+          {site.statusNote && (
+            <span className='text-muted-foreground'> · {site.statusNote}</span>
+          )}
           <a
             href={commitUrl(build.commit)}
             target='_blank'

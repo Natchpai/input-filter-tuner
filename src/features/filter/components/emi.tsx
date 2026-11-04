@@ -31,8 +31,6 @@ export function Emi({ st, data }: { st: Design; data: EmiResult | null }) {
     <ToolCard
       id='emi'
       title='Conducted EMI'
-      collapse='emi'
-      summary={emiSummary(st, data)}
       right={
         <label className='flex items-center gap-1 text-[11px] font-normal tracking-normal normal-case'>
           <input
@@ -57,14 +55,6 @@ export function Emi({ st, data }: { st: Design; data: EmiResult | null }) {
       )}
     </ToolCard>
   )
-}
-
-function emiSummary(st: Design, data: EmiResult | null) {
-  if (!st.emi.on || !data) return 'off'
-  const w = data.worst >= 0 ? data.rows[data.worst] : null
-  return w
-    ? `${data.pass ? 'pass' : 'fail'}, margin ${dB(w.margin!)} dB at ${fmtSI(w.f!, 'Hz')}`
-    : 'no harmonic in a band'
 }
 
 /** Settings, verdict and per-band table. */

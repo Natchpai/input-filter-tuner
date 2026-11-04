@@ -8,19 +8,15 @@ import {
 } from '../engine'
 import { fmtSI } from '../lib/si'
 import { marginTone, type Tone, toneText } from './tone'
+import { goPanel, type Panel } from './ui-store'
 import type { TranState } from './use-tran'
 
-type Chip = { id: string; k: string; v: string; tone?: Tone; to: string }
-
-const go = (id: string) =>
-  document
-    .getElementById(id)
-    ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+type Chip = { id: string; k: string; v: string; tone?: Tone; to: Panel }
 
 /**
- * The key numbers in one row that stays at the top of the window, so the
- * verdict is in view while a slider moves. Same values as the cards below;
- * a click scrolls to the card.
+ * The key numbers in one row that stays at the top of the right pane, so
+ * the verdict is in view while a slider moves. Same values as the analysis
+ * tabs; a click opens the tab.
  */
 export function StatusStrip({
   S,
@@ -41,7 +37,7 @@ export function StatusStrip({
       k: 'Margin',
       v: m.unstableAt ? 'unstable' : `${m.margin.toFixed(1)} dB`,
       tone: marginTone(m),
-      to: 'kpis',
+      to: 'results',
     },
   ]
   if (corners && corners.rows.length > 1) {
@@ -51,22 +47,22 @@ export function StatusStrip({
       k: `Worst corner (${w.label})`,
       v: `${w.margin.toFixed(1)} dB`,
       tone: w.pass ? 'good' : 'bad',
-      to: 'cornersCard',
+      to: 'corners',
     })
   }
   chips.push({
     id: 'peak',
     k: 'Peak |Zout|',
     v: `${fmtSI(m.peak.v, 'Ω')} @ ${fmtSI(m.peak.f, 'Hz')}`,
-    to: 'kpis',
+    to: 'results',
   })
   if (m.qSeries !== undefined && m.qSeries !== null)
-    chips.push({ id: 'q', k: 'Q', v: m.qSeries.toFixed(2), to: 'kpis' })
+    chips.push({ id: 'q', k: 'Q', v: m.qSeries.toFixed(2), to: 'results' })
   chips.push({
     id: 'att',
     k: `Atten @ ${fmtSI(m.ripple.fr, 'Hz')}`,
     v: `${(-db(m.ripple.hfr)).toFixed(1)} dB`,
-    to: 'kpis',
+    to: 'results',
   })
   if (S.emi.on && emi) {
     const w = emi.worst >= 0 ? emi.rows[emi.worst] : null
@@ -96,7 +92,7 @@ export function StatusStrip({
   return (
     <div
       id='strip'
-      className='sticky top-0 z-40 -mx-3 border-b bg-background/90 px-3 py-1.5 backdrop-blur sm:-mx-4 sm:px-4'
+      className='sticky top-0 z-40 -mx-0.5 border-b bg-background/90 px-0.5 py-1.5 backdrop-blur'
     >
       <div className='flex gap-1.5 overflow-x-auto'>
         {chips.map((c) => (
@@ -105,8 +101,8 @@ export function StatusStrip({
             type='button'
             data-chip={c.id}
             data-tone={c.tone || undefined}
-            title={`${c.k}: go to the card`}
-            onClick={() => go(c.to)}
+            title={`${c.k}: open the tab`}
+            onClick={() => goPanel(c.to)}
             className='flex shrink-0 items-baseline gap-1.5 rounded-md border bg-card px-2 py-0.5 text-sm whitespace-nowrap hover:bg-muted'
           >
             <span className='text-xs text-muted-foreground'>{c.k}</span>

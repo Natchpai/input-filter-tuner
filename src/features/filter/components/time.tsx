@@ -47,8 +47,6 @@ export function Time({ st, tr }: { st: Design; tr: TranState }) {
     <ToolCard
       id='time'
       title='Time domain'
-      collapse='time'
-      summary={timeSummary(st, tr)}
       right={
         <label className='flex items-center gap-1 text-[11px] font-normal tracking-normal normal-case'>
           <input
@@ -72,19 +70,6 @@ export function Time({ st, tr }: { st: Design; tr: TranState }) {
         </Hint>
       )}
     </ToolCard>
-  )
-}
-
-function timeSummary(st: Design, tr: TranState) {
-  const d = tr.data
-  if (!st.tran.on) return 'off'
-  if (!d) return 'running…'
-  const h = d.hot[d.hotWorst]
-  const s = d.step[d.stepWorst]
-  const bad = d.step.some((r) => r.status === 'unstable')
-  return (
-    `hot-plug ${fmtSI(h.vPeak, 'V')} (${pct(h.overshoot)})` +
-    (bad ? ', load step unstable' : `, dip ${fmtSI(s.droop, 'V')}`)
   )
 }
 

@@ -21,7 +21,8 @@ export function SiteHeader({ title, fixed }: SiteHeaderProps) {
         variant='outline'
         className='hidden border-status-open/50 bg-status-open/10 text-status-open md:inline-flex'
       >
-        {site.status} · {site.statusNote}
+        {site.status}
+        {site.statusNote && ` · ${site.statusNote}`}
       </Badge>
       <Search placeholder='Search…' />
       <ThemeSwitch />

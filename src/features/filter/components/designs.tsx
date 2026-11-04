@@ -76,8 +76,6 @@ export function DesignsCard({
     <ToolCard
       id='designs'
       title='Designs'
-      collapse='designs'
-      summary={`${library.length} saved, ${nSnap} drawn`}
       right={
         <span className='flex gap-1 tracking-normal normal-case'>
           <Button

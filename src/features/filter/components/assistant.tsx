@@ -56,8 +56,6 @@ export function Assistant({ st }: { st: Design }) {
     <ToolCard
       id='asst'
       title='Design assistant'
-      collapse='asst'
-      summary={st.asst.on ? 'on' : 'off'}
       right={
         <label className='flex items-center gap-1 text-[11px] font-normal tracking-normal normal-case'>
           <input

@@ -23,12 +23,7 @@ const signed = (v: number) =>
 /** Sensitivity card (M3): +10 % in one part at a time. */
 export function Sensitivity({ st }: { st: Design }) {
   return (
-    <ToolCard
-      id='sens'
-      title='Sensitivity'
-      collapse='sens'
-      summary='+10 % per part'
-    >
+    <ToolCard id='sens' title='Sensitivity'>
       <SensBody st={st} />
     </ToolCard>
   )

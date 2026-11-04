@@ -10,7 +10,8 @@ export const site = {
     'Zout against Rn, H and S21, Zin and the Middlebrook check for DC-DC converter input filters.',
   /** Badge in the header and sidebar footer, e.g. DRAFT, BETA, RELEASE */
   status: 'DRAFT',
-  statusNote: 'Vite port (M0)',
+  /** Text after the badge, or '' for none */
+  statusNote: '' as string,
   repoUrl: 'https://github.com/Natchpai/input-filter-tuner',
   /**
    * Small "In co-op with" logo in the sidebar footer, or null for none.

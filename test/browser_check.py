@@ -51,6 +51,24 @@ def settle(page, ms=150):
     page.wait_for_timeout(ms)
 
 
+def area(page, k):
+    """Narrow screens: show one area (inputs, plot, analysis). Wide: no-op."""
+    b = page.locator(f"#areas button[data-t={k}]")
+    if b.is_visible():
+        b.click()
+        settle(page, 150)
+
+
+def tab(page, k):
+    """Show one analysis tab (results, corners, tolerance, sens, emi, time,
+    asst, designs). Panels stay mounted while hidden, so text checks work
+    without this; clicks and screenshots need it."""
+    if not page.locator("#atabs").is_visible():
+        area(page, "plot")
+    page.click(f"#atabs button[data-t={k}]")
+    settle(page, 100)
+
+
 def commit(page, sel, text):
     page.fill(sel, text)
     page.press(sel, "Enter")
@@ -91,6 +109,10 @@ def save_img(page, preset=None, fmt=None, scale=None, w=None, h=None, font=None)
 def no_hscroll(page, width, label):
     sw = page.evaluate("document.documentElement.scrollWidth")
     ok(sw <= width + 1, f"{label}: page scrollWidth {sw} at {width} px")
+    # Each pane scrolls on its own, so check them too (a hidden pane is 0 wide).
+    over = page.evaluate("['inputs', 'right'].filter(id => { const e = document.getElementById(id);"
+                         " return e && e.scrollWidth > e.clientWidth + 1 })")
+    ok(not over, f"{label}: no sideways scroll inside a pane {over}")
 
 
 for need in [ROOT / "dist" / "index.html", ROOT / "dist-single" / "index.html"]:
@@ -221,6 +243,7 @@ try:
         ok(bool(focused) and (focused.startswith("in-") or focused.startswith("src-")), f"schematic click focuses {focused}")
         # Snapshot must work without any dialog (some viewers block prompt()).
         n_dialogs = len(dialogs)
+        tab(page, "designs")
         page.click("#bSnap")
         settle(page)
         names = [t.get("name") or "" for t in page.evaluate("document.getElementById('pl1').data")]
@@ -239,11 +262,11 @@ try:
         # Theme: plots follow it
         set_theme(page, "Light")
         bg_light = page.evaluate("document.getElementById('pl1')._fullLayout.paper_bgcolor")
-        page.screenshot(path=str(SHOTS / "light_after_edits.png"), full_page=True)
+        page.screenshot(path=str(SHOTS / "light_after_edits.png"))
         set_theme(page, "Dark")
         bg_dark = page.evaluate("document.getElementById('pl1')._fullLayout.paper_bgcolor")
         ok(bg_light != bg_dark, f"plot background follows the theme ({bg_light} / {bg_dark})")
-        page.screenshot(path=str(SHOTS / "dark_after_edits.png"), full_page=True)
+        page.screenshot(path=str(SHOTS / "dark_after_edits.png"))
         # Tolerance + S21 mode
         page.check("#ps-tol")
         page.select_option("#ps-xfer", "S21")
@@ -356,6 +379,7 @@ try:
         watch(c, "m1a: ")
         c.goto(URL)
         ready(c)
+        tab(c, "corners")
         names = c.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
 
         def pick(prefix):
@@ -410,6 +434,7 @@ try:
         watch(c, "m1a link: ")
         c.goto(URL + "#d=" + base64.b64encode(json.dumps(d4link).encode()).decode())
         ready(c)
+        tab(c, "corners")
         settle(c, 500)
         ok(len(rows()) == 2 and "167" in rows()[0] and c.input_value("#cv-pLight") == "2",
            f"#d= link keeps pLight and curves {rows()}")
@@ -430,7 +455,7 @@ try:
         fb.locator("textarea[id^=curve-]").press("Tab")
         settle(c, 400)
         ok(len(rows()) == 1 and "pts" not in fb.inner_text(), f"clearing the L box removes the curve and the light rows {rows()}")
-        c.screenshot(path=str(SHOTS / "m1a_corners.png"), full_page=True)
+        c.screenshot(path=str(SHOTS / "m1a_corners.png"))
         c.close()
 
         # ---- M1b: part tolerances ----
@@ -438,6 +463,7 @@ try:
         watch(t, "m1b: ")
         t.goto(URL)
         ready(t)
+        tab(t, "tolerance")
         tnames = t.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
         d1rc = str(next(i for i, n in enumerate(tnames) if n.startswith("D1 · LC + Rd-Cd")))
 
@@ -484,7 +510,9 @@ try:
             for vw in [390, 1440]:
                 t.set_viewport_size({"width": vw, "height": 1000})
                 settle(t, 300)
+                area(t, "plot")
                 t.locator("#tolerance").screenshot(path=str(SHOTS / f"m1b_tolerance_{vw}_{theme.lower()}.png"))
+                area(t, "inputs")
                 t.locator("#blocks .blk").nth(0).screenshot(path=str(SHOTS / f"m1b_editor_{vw}_{theme.lower()}.png"))
         t.close()
         # A #d= link with tolerances (95 % is clamped to 80 %), then an edit and a reload
@@ -502,6 +530,7 @@ try:
         watch(t, "m1b link: ")
         t.goto(URL + "#d=" + base64.b64encode(json.dumps(tlink).encode()).decode())
         ready(t)
+        tab(t, "tolerance")
         settle(t, 500)
         ok("3 tolerances: all 8 extremes" in t.inner_text("#tolerance"), "#d= link keeps tol, drops bad keys")
         c1 = blk_id(t, 1)
@@ -556,6 +585,7 @@ try:
         w.keyboard.press("Control+z")
         settle(w, 300)
         # Saved designs, notes, overlay, compare
+        tab(w, "designs")
         w.fill("#saveName", "My D4")
         w.click("#bSaveAs")
         settle(w)
@@ -664,6 +694,7 @@ try:
         w.keyboard.press("Escape")
         # With the time domain on: three more figures and two LTspice netlists
         settle(w, 300)
+        tab(w, "time")
         w.check("#tran-on")
         settle(w, 300)
         menu(w, "#bExport", "#bReport")
@@ -687,6 +718,7 @@ try:
         watch(e, "m2: ")
         e.goto(URL)
         ready(e)
+        tab(e, "emi")
         enames = e.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
         e.select_option("#preset", str(next(i for i, n in enumerate(enames) if n.startswith("2-stage LC"))))
         settle(e, 300)
@@ -733,6 +765,7 @@ try:
         watch(e, "m2 link: ")
         e.goto(URL + "#d=" + base64.b64encode(json.dumps(elink).encode()).decode())
         ready(e)
+        tab(e, "emi")
         settle(e, 300)
         ok(e.is_checked("#emi-on") and e.input_value("#emi-cls") == "5" and e.input_value("#emi-lines") == "2"
            and e.input_value("#emi-margin") == "3", "#d= link keeps emi, bad class gives class 5")
@@ -748,6 +781,7 @@ try:
         watch(e, "m2 dropout: ")
         e.goto(URL)
         ready(e)
+        tab(e, "emi")
         e.select_option("#preset", str(next(i for i, n in enumerate(enames) if n.startswith("LQRx 03"))))
         settle(e, 300)
         e.check("#emi-on")
@@ -762,6 +796,7 @@ try:
                 watch(e, "m2 shots: ")
                 e.goto(URL)
                 ready(e)
+                tab(e, "emi")
                 if theme == "Light":
                     set_theme(e, "Light")
                 e.locator("#emi").screenshot(path=str(SHOTS / f"m2_emi_off_{vw}_{theme.lower()}.png"))
@@ -785,6 +820,7 @@ try:
         watch(t4, "m4: ")
         t4.goto(URL)
         ready(t4)
+        tab(t4, "time")
         ok(t4.locator("#tran-rows").count() == 0 and not t4.is_checked("#tran-on")
            and t4.locator("#tabs button[data-t=time]").count() == 0, "Time card off by default, no Time tab")
         tnames = t4.eval_on_selector_all("#preset option", "os => os.map(o => o.text)")[1:]
@@ -828,6 +864,7 @@ try:
         watch(t4, "m4 link: ")
         t4.goto(URL + "#d=" + base64.b64encode(json.dumps(tlink).encode()).decode())
         ready(t4)
+        tab(t4, "time")
         tran_ready(t4)
         keep = lambda: (t4.is_checked("#tran-on") and t4.input_value("#tran-rc") in ("50m", "0.05")
                         and t4.eval_on_selector("#tabs button[aria-selected=true]", "b => b.dataset.t") == "time"
@@ -844,6 +881,7 @@ try:
                 watch(t4, "m4 shots: ")
                 t4.goto(URL)
                 ready(t4)
+                tab(t4, "time")
                 if theme == "Light":
                     set_theme(t4, "Light")
                 t4.locator("#time").screenshot(path=str(SHOTS / f"m4_time_off_{vw}_{theme.lower()}.png"))
@@ -912,6 +950,7 @@ try:
                 ready(b6)
                 if theme == "Light":
                     set_theme(b6, "Light")
+                area(b6, "inputs")
                 b6.click("#bAddConv")
                 settle(b6, 300)
                 cid = b6.eval_on_selector("#convs .conv", "e => e.id.slice(5)")
@@ -920,6 +959,7 @@ try:
                 settle(b6, 400)
                 no_hscroll(b6, vw, f"m5 {theme.lower()} {vw} px")
                 b6.locator("#convs").screenshot(path=str(SHOTS / f"m5_conv_{vw}_{theme.lower()}.png"))
+                area(b6, "plot")
                 b6.locator("#pl1").screenshot(path=str(SHOTS / f"m5_zout_{vw}_{theme.lower()}.png"))
                 b6.locator("#kpis").screenshot(path=str(SHOTS / f"m5_kpis_{vw}_{theme.lower()}.png"))
                 b6.close()
@@ -929,6 +969,7 @@ try:
         watch(a3, "m3: ")
         a3.goto(URL)
         ready(a3)
+        tab(a3, "asst")
         a3.select_option("#preset", "0")  # D1 LC undamped: margin < 0
         settle(a3, 400)
         def mchip3():
@@ -977,8 +1018,10 @@ try:
         # EMI target on D4 (CISPR 25 class 5), 2 stages: timing of one Propose.
         a3.select_option("#preset", "8")
         settle(a3, 400)
+        tab(a3, "emi")
         a3.check("#emi-on")
         settle(a3, 400)
+        tab(a3, "asst")
         a3.check("#asst-on")  # a preset is a whole design, assistant inputs too
         settle(a3, 200)
         a3.select_option("#asst-stages", "2")
@@ -996,6 +1039,7 @@ try:
                 watch(a4, f"m3 {theme} {vw}: ")
                 a4.goto(URL)
                 ready(a4)
+                tab(a4, "asst")
                 if theme == "Light":
                     set_theme(a4, "Light")
                 a4.select_option("#preset", "1")
@@ -1007,10 +1051,11 @@ try:
                 settle(a4, 400)
                 no_hscroll(a4, vw, f"m3 {theme.lower()} {vw} px")
                 a4.locator("#asst").screenshot(path=str(SHOTS / f"m3_asst_{vw}_{theme.lower()}.png"))
+                tab(a4, "sens")
                 a4.locator("#sens").screenshot(path=str(SHOTS / f"m3_sens_{vw}_{theme.lower()}.png"))
                 a4.close()
 
-        # UI: status strip, collapsible cards, toolbar and schematic fit
+        # UI: status strip, analysis tabs, two panes, toolbar and schematic fit
         for vw in [1440, 390]:
             u = browser.new_page(viewport={"width": vw, "height": 900})
             watch(u, f"ui {vw}: ")
@@ -1021,6 +1066,7 @@ try:
             m_chip = chip("margin").split()[-2:]
             m_chip = " ".join(m_chip)
             ok(m_chip in u.inner_text("#kpis"), f"{vw} px: strip margin '{m_chip}' matches the Results tile")
+            area(u, "inputs")
             pout = u.input_value("#cv-pout")
             commit(u, "#cv-pout", "10k")
             settle(u, 300)
@@ -1029,26 +1075,38 @@ try:
             commit(u, "#cv-pout", pout)
             settle(u, 300)
             top = lambda sel: u.eval_on_selector(sel, "e => e.getBoundingClientRect().top")
-            u.locator("#designs").scroll_into_view_if_needed()
+            bottom = lambda sel: u.eval_on_selector(sel, "e => e.getBoundingClientRect().bottom")
+            # The inputs pane scrolls on its own; the page does not scroll.
+            u.eval_on_selector("#inputs", "e => e.scrollTop = e.scrollHeight")
+            settle(u, 200)
+            ok(u.evaluate("document.scrollingElement.scrollTop") == 0 and u.eval_on_selector("#inputs", "e => e.scrollTop") > 0,
+               f"{vw} px: the inputs pane scrolls, the page does not")
+            # A chip opens its tab and brings the tab bar up under the strip.
+            area(u, "plot")
+            u.click("#strip [data-chip=margin]")
+            settle(u, 900)
+            sel_tab = u.eval_on_selector("#atabs button[aria-selected=true]", "b => b.dataset.t")
+            ok(sel_tab == "results" and abs(top("#atabs-bar") - bottom("#strip")) < 3,
+               f"{vw} px: margin chip opens Results under the strip ({sel_tab}, {top('#atabs-bar') - bottom('#strip'):.0f} px)")
+            tab(u, "designs")
+            u.eval_on_selector("#right", "e => e.scrollTop = e.scrollHeight")
             settle(u, 300)
-            ok(abs(top("#strip")) < 2, f"{vw} px: strip stays at the top when scrolled ({top('#strip'):.0f} px)")
+            ok(abs(top("#strip") - top("#right")) < 2 and abs(top("#atabs-bar") - bottom("#strip")) < 3,
+               f"{vw} px: strip and tab bar stay at the pane top when scrolled ({top('#strip') - top('#right'):.0f} px)")
             ok(abs(top("#preset") - top("#bExport")) < 4, f"{vw} px: toolbar is one row")
             sw = u.eval_on_selector("#sch svg", "e => e.getBoundingClientRect().width")
             cw = u.eval_on_selector("#sch", "e => e.clientWidth")
             ok(sw <= cw + 1, f"{vw} px: schematic fits the card ({sw:.0f} <= {cw} px)")
-            # Collapse Corners, reload, still closed with a summary; then reopen.
-            u.click("#cornersCard h2 button[aria-expanded]")
-            settle(u, 200)
+            # The analysis tab is kept across a reload.
+            tab(u, "corners")
             u.reload()
             ready(u)
             settle(u, 300)
-            closed = u.locator("#corners").count() == 0
-            summ = u.inner_text("#cornersCard .summary") if closed else ""
-            ok(closed and "dB" in summ, f"{vw} px: Corners stays closed after reload, summary '{summ}'")
-            u.click("#cornersCard h2 button[aria-expanded]")
-            settle(u, 200)
-            ok(u.locator("#corners tbody tr").count() >= 1, f"{vw} px: Corners opens again")
+            sel_tab = u.eval_on_selector("#atabs button[aria-selected=true]", "b => b.dataset.t")
+            ok(sel_tab == "corners" and u.locator("#corners tbody tr").first.is_visible(),
+               f"{vw} px: the Corners tab is kept after a reload ({sel_tab})")
             # The (i) note on the Converter card
+            area(u, "inputs")
             n0 = u.locator("text=negative resistance").count()
             u.locator("button[aria-label='About this card']").first.click()
             settle(u, 100)
@@ -1067,6 +1125,7 @@ try:
                 u.get_by_role("button", name="Toggle Sidebar").first.click()
                 settle(u, 800)
                 ok(abs(pw() - w0) < 3, f"sidebar back: plot width {pw():.0f} px")
+            tab(u, "tolerance")
             u.locator("#tolerance").scroll_into_view_if_needed()
             settle(u, 300)
             u.screenshot(path=str(SHOTS / f"ui_scrolled_{vw}_dark.png"), full_page=False)
@@ -1088,9 +1147,17 @@ try:
                     ok(top("#pl1") < top("#kpis") and top("#pl1") < h,
                        f"{theme.lower()} 1440 px: plot above Results, in the first screen ({top('#pl1'):.0f} px)")
                 else:
-                    ok(top("#sch") < top("#pl1") < top("#cv-vinMin"),
-                       f"{theme.lower()} 390 px: circuit, then plot, then the inputs")
+                    ok(top("#sch") < top("#pl1") < top("#atabs") and v.locator("#inputs").is_hidden(),
+                       f"{theme.lower()} 390 px: Plot area shows circuit, plot, then the analysis tabs")
                 v.screenshot(path=str(SHOTS / f"layout_{w}_{theme.lower()}.png"), full_page=False)
+                if w == 390:
+                    area(v, "inputs")
+                    ok(v.locator("#cv-vinMin").is_visible() and v.locator("#right").is_hidden(),
+                       f"{theme.lower()} 390 px: Inputs area shows the inputs only")
+                    area(v, "analysis")
+                    ok(v.locator("#atabs").is_visible() and v.locator("#pl1").is_hidden(),
+                       f"{theme.lower()} 390 px: Analysis area shows the tabs without the plot")
+                    no_hscroll(v, w, f"{theme.lower()} 390 px analysis")
                 v.close()
 
         # ---- Part 2: single-file build over file:// ----
@@ -1110,9 +1177,11 @@ try:
         # The tolerance run uses an inline worker; check it works over file://.
         s.select_option("#preset", d1rc)
         settle(s, 300)
+        tab(s, "tolerance")
         r = tol_run(s, "100")
         ok(len(r) == 1 and "0.48 to 0.99" in r[0], f"single file: tolerance run in the worker {r}")
         # The time-domain worker is inline too.
+        tab(s, "time")
         s.check("#tran-on")
         tran_ready(s)
         ok("V peak" in s.inner_text("#tran-summary"), "single file: time-domain run in the worker")
