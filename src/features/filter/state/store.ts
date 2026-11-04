@@ -3,23 +3,21 @@
 import { useSyncExternalStore } from 'react'
 import type { Design } from '../engine'
 import { emptyHistory, type History, record, redo, undo } from './history'
+import {
+  cleanName,
+  loadLibrary,
+  newSavedId,
+  type SavedDesign,
+  saveLibrary,
+  withItem,
+} from './library'
 import { initialDesign, saveLocal } from './persist'
 import { type Action, reducer } from './reducer'
 
-/** Frozen curves, drawn grey as a reference. Session only. */
-export type Snapshot = {
-  label: string
-  f: number[]
-  zout: number[]
-  h: number[]
-  s21: number[]
-  zin: number[]
-  tm: number[]
-}
-
 type TunerState = {
   st: Design
-  snapshots: Snapshot[]
+  /** Saved designs and snapshots, kept in localStorage. */
+  library: SavedDesign[]
   /** Undo history, in memory only. */
   hist: History
   /** Message for the first render, e.g. a broken link. */
@@ -32,7 +30,7 @@ const listeners = new Set<() => void>()
 function get(): TunerState {
   if (!state) {
     const { st, warning } = initialDesign()
-    state = { st, snapshots: [], hist: emptyHistory(), warning }
+    state = { st, library: loadLibrary(), hist: emptyHistory(), warning }
   }
   return state
 }
@@ -62,13 +60,54 @@ export function redoDesign() {
   if (r) set({ ...s, ...r })
 }
 
-export function addSnapshot(snap: Snapshot) {
-  const s = get()
-  set({ ...s, snapshots: [...s.snapshots, snap] })
+/** Store the new list; false (and no change) when the browser refused. */
+function setLibrary(library: SavedDesign[]) {
+  if (!saveLibrary(library)) return false
+  set({ ...get(), library })
+  return true
 }
 
-export function clearSnapshots() {
-  set({ ...get(), snapshots: [] })
+export type SaveResult = 'ok' | 'full' | 'storage'
+
+/** Save the current design. Snapshots (auto) start with the overlay on. */
+export function saveDesign(name: string, auto: boolean): SaveResult {
+  const s = get()
+  const list = withItem(s.library, {
+    id: newSavedId(),
+    name: cleanName(name) || s.st.name,
+    savedAt: Date.now(),
+    overlay: auto,
+    auto,
+    design: s.st,
+  })
+  if (!list) return 'full'
+  return setLibrary(list) ? 'ok' : 'storage'
+}
+
+const mapSaved = (id: string, fn: (x: SavedDesign) => SavedDesign) =>
+  setLibrary(get().library.map((x) => (x.id === id ? fn(x) : x)))
+
+export const renameSaved = (id: string, name: string) =>
+  mapSaved(id, (x) => ({ ...x, name: cleanName(name) || x.name }))
+
+export const toggleOverlay = (id: string) =>
+  mapSaved(id, (x) => ({ ...x, overlay: !x.overlay }))
+
+export const deleteSaved = (id: string) =>
+  setLibrary(get().library.filter((x) => x.id !== id))
+
+/** Delete the snapshots and hide every overlay. */
+export const clearSnapshots = () =>
+  setLibrary(
+    get()
+      .library.filter((x) => !x.auto)
+      .map((x) => (x.overlay ? { ...x, overlay: false } : x))
+  )
+
+/** Load a saved design as one undoable step. */
+export function loadSaved(id: string) {
+  const x = get().library.find((y) => y.id === id)
+  if (x) dispatch({ t: 'replace', st: x.design })
 }
 
 /** Returns the start-up warning once. */

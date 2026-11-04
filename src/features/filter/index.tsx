@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { Main } from '@/components/layout/main'
 import { SiteHeader } from '@/components/layout/site-header'
 import { BlockCard } from './components/block-card'
+import { DesignsCard } from './components/designs'
 import { PlotCard } from './components/plot-card'
 import { Results } from './components/results'
 import { Schematic } from './components/schematic'
@@ -15,7 +16,7 @@ import {
 import { ToolCard } from './components/tool-card'
 import { Toolbar } from './components/toolbar'
 import { metrics } from './engine'
-import { curveSets } from './plots/curves'
+import { curveSets, overlaysOf } from './plots/curves'
 import { readColors } from './plots/theme-colors'
 import { takeWarning, useTuner } from './state/store'
 
@@ -34,7 +35,8 @@ function useThemeColors() {
 }
 
 export function Tuner() {
-  const { st, snapshots, hist } = useTuner()
+  const { st, library, hist } = useTuner()
+  const snapshots = useMemo(() => overlaysOf(library), [library])
   // Inputs follow st at once; sweeps and metrics follow a deferred copy so
   // slider drags stay smooth.
   const dst = useDeferredValue(st)
@@ -61,6 +63,7 @@ export function Tuner() {
           sets={calc.sets}
           m={calc.m}
           nSnap={snapshots.length}
+          nAuto={library.filter((x) => x.auto).length}
           canUndo={hist.past.length > 0}
           canRedo={hist.future.length > 0}
         />
@@ -106,6 +109,7 @@ export function Tuner() {
                 />
               </>
             )}
+            <DesignsCard S={st} m={calc.m} library={library} />
           </div>
         </div>
       </Main>

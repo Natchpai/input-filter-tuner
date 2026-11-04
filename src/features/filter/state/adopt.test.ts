@@ -74,3 +74,12 @@ test('a saved preset round-trips through JSON', () => {
     expect(strip(back)).toEqual(strip(st))
   }
 })
+
+test('notes: strings kept up to 2000 characters, anything else dropped', () => {
+  const base = JSON.parse(JSON.stringify(hostile))
+  expect(adopt({ ...base, notes: bad }).notes).toBe(bad)
+  expect(adopt({ ...base, notes: 'x'.repeat(5000) }).notes).toHaveLength(2000)
+  for (const v of [{ a: 1 }, 42, null, '', ['x']])
+    expect(adopt({ ...base, notes: v })).not.toHaveProperty('notes')
+  expect(buildPreset(1)).not.toHaveProperty('notes')
+})

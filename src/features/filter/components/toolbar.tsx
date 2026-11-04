@@ -14,17 +14,18 @@ import { Button } from '@/components/ui/button'
 import { abs, argd, db, type Design, type Metrics } from '../engine'
 import { fmtSI } from '../lib/si'
 import type { CurveSets } from '../plots/curves'
-import { SNAPSHOT_TABS, snapshotOf } from '../plots/traces'
+import { SNAPSHOT_TABS } from '../plots/traces'
 import { adopt } from '../state/adopt'
 import { designLink, download, fileName } from '../state/persist'
 import { PRESET_NAMES, buildPreset } from '../state/presets'
 import {
-  addSnapshot,
   clearSnapshots,
   dispatch,
   redoDesign,
+  saveDesign,
   undoDesign,
 } from '../state/store'
+import { saveToast } from './save-toast'
 import { selectCls } from './styles'
 
 export function Toolbar({
@@ -32,6 +33,7 @@ export function Toolbar({
   sets,
   m,
   nSnap,
+  nAuto,
   canUndo,
   canRedo,
 }: {
@@ -39,6 +41,7 @@ export function Toolbar({
   sets: CurveSets | null
   m: Metrics | null
   nSnap: number
+  nAuto: number
   canUndo: boolean
   canRedo: boolean
 }) {
@@ -59,15 +62,15 @@ export function Toolbar({
   }, [])
 
   // No prompt(): some viewers block dialogs. The label carries the key result,
-  // so snapshots can be told apart in the legend.
+  // so snapshots can be told apart in the legend. A snapshot is a saved
+  // design with its overlay on, so it survives a reload.
   const snapshot = () => {
-    if (!sets || !m) return
-    addSnapshot(
-      snapshotOf(
-        `S${nSnap + 1}: ${fmtSI(m.peak.v, 'Ω')} peak, ${m.margin.toFixed(1)} dB`,
-        sets.nom
-      )
+    if (!m) return
+    const r = saveDesign(
+      `S${nAuto + 1}: ${fmtSI(m.peak.v, 'Ω')} peak, ${m.margin.toFixed(1)} dB`,
+      true
     )
+    if (r !== 'ok') return saveToast(r)
     if (!SNAPSHOT_TABS.includes(S.plot.tab))
       dispatch({ t: 'plot', patch: { tab: 'zout' } })
   }
@@ -178,7 +181,8 @@ export function Toolbar({
         id='bClrSnap'
         size='sm'
         variant='secondary'
-        onClick={clearSnapshots}
+        title='Delete the snapshots and hide all overlays'
+        onClick={() => clearSnapshots() || saveToast('storage')}
       >
         <Trash2 />
         Clear snapshots

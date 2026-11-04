@@ -8,6 +8,8 @@ import {
   sweep,
   undamped,
 } from '../engine'
+import type { SavedDesign } from '../state/library'
+import { type Snapshot, snapshotOf } from './traces'
 
 /**
  * Base log grid plus dense points around every local peak of |Zout| and |H|,
@@ -68,4 +70,31 @@ export function curveSets(S: Design): CurveSets {
     )
   }
   return sets
+}
+
+/** Overlay curves per saved design object; designs are never mutated. */
+const overlayCache = new WeakMap<Design, Snapshot | null>()
+
+function overlayCurves(d: Design): Snapshot | null {
+  let c = overlayCache.get(d)
+  if (c === undefined) {
+    try {
+      c = snapshotOf('', sweep(d, undefined, plotGrid(d, [d])))
+    } catch {
+      c = null
+    }
+    overlayCache.set(d, c)
+  }
+  return c
+}
+
+/** Grey curves of the saved designs with the overlay on. */
+export function overlaysOf(library: SavedDesign[]): Snapshot[] {
+  const out: Snapshot[] = []
+  for (const x of library) {
+    if (!x.overlay) continue
+    const c = overlayCurves(x.design)
+    if (c) out.push({ ...c, label: x.name })
+  }
+  return out
 }
