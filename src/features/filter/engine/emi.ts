@@ -287,3 +287,81 @@ export function emiResult(st: Design): EmiResult {
     worstCorner,
   }
 }
+
+/** The judged lines of emiResult, prepared once for many filters (M3b). */
+export type EmiPrep = {
+  /** Per full-load corner: every line, with what the filter does not change. */
+  corners: { f: number; c: number; zLoop: Complex; z: number }[][]
+  /** Per judged line: corner, line index, RBW and limit − user margin. */
+  judged: { ci: number; i: number; rbw: number; lim: number }[]
+}
+
+/**
+ * Everything emiResult(st) needs except the filter: corners, harmonics, AN
+ * impedances and limits. emiMarginOf(prep, blocks) then gives the lowest
+ * band margin of {...st, blocks} with one hPort per line frequency. It
+ * equals emiResult for blocks with no C(V) or L(I) curve (atCorner leaves
+ * those unchanged), which is what the optimizer makes.
+ */
+export function emiPrep(st: Design): EmiPrep {
+  const { std, cls, lines, margin: um } = st.emi
+  const bands = bandsOf(std, cls)
+  const pFull = pBus(st, 'full')
+  const full = corners(st).filter((c) => c.pLoad === pFull)
+  const out: EmiPrep = { corners: [], judged: [] }
+  full.forEach((c, ci) => {
+    // Same line list and order as emiSpectrum(atCorner(st, c)).
+    const pts = emiSpectrum({ ...atCorner(st, c), blocks: [] })
+    out.corners.push(
+      pts.map((p) => {
+        const zl = zLisn(std, p.f)
+        return {
+          f: p.f,
+          c: p.c,
+          zLoop: cx(lines * zl.re, lines * zl.im),
+          z: abs(zl),
+        }
+      })
+    )
+    for (const band of bands)
+      pts.forEach((p, i) => {
+        if (p.f < band.fLo || p.f > band.fHi || p.c === 0) return
+        out.judged.push({
+          ci,
+          i,
+          rbw: band.rbw,
+          lim: bandLimit(band, p.f) - um,
+        })
+      })
+  })
+  return out
+}
+
+/** Lowest EMI band margin of the filter `blocks`, dB; Infinity if none. */
+export function emiMarginOf(prep: EmiPrep, blocks: Block[]): number {
+  const v = prep.corners.map((pts) => {
+    const cache = new Map<number, number>()
+    return pts.map((p) => {
+      let h = cache.get(p.f)
+      if (h === undefined)
+        cache.set(p.f, (h = abs(hPort(blocks, p.f, p.zLoop))))
+      return p.c * h * p.z
+    })
+  })
+  let m = Infinity
+  for (const j of prep.judged) {
+    const pts = prep.corners[j.ci],
+      vv = v[j.ci]
+    let s = vv[j.i]
+    for (let k = j.i - 1; k >= 0 && pts[j.i].f - pts[k].f <= j.rbw / 2; k--)
+      s += vv[k]
+    for (
+      let k = j.i + 1;
+      k < pts.length && pts[k].f - pts[j.i].f <= j.rbw / 2;
+      k++
+    )
+      s += vv[k]
+    m = Math.min(m, j.lim - dbuv(s))
+  }
+  return m
+}

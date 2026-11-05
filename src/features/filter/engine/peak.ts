@@ -1,6 +1,6 @@
-// Peak search on |Zout|.
+// Peak search on |Zout| and |Hopen|.
 import { abs } from './complex'
-import { point } from './ladder'
+import { type Point, point } from './ladder'
 import type { Design, Scale } from './model'
 import { SC1 } from './types'
 
@@ -61,6 +61,32 @@ export function peakZout(
   s: Scale = SC1,
   n = 400
 ): Peak {
+  return peakOf(st, fLo, fHi, s, n, (p) => abs(p.Zout))
+}
+
+/**
+ * Peak of |Hopen| (gain from the source to the converter node, converter
+ * side open) between fLo and fHi, searched as peakZout: the H peak sits at
+ * a resonance of the filter, which the Im(Zout) crossings also mark.
+ */
+export function peakH(
+  st: Design,
+  fLo: number,
+  fHi: number,
+  s: Scale = SC1,
+  n = 400
+): Peak {
+  return peakOf(st, fLo, fHi, s, n, (p) => abs(p.Hopen))
+}
+
+function peakOf(
+  st: Design,
+  fLo: number,
+  fHi: number,
+  s: Scale,
+  n: number,
+  val: (p: Point) => number
+): Peak {
   const la = Math.log10(fLo),
     lb = Math.log10(fHi)
   const lf = (i: number) => la + ((lb - la) * i) / (n - 1)
@@ -68,17 +94,18 @@ export function peakZout(
     v = new Float64Array(n)
   let bi = 0
   for (let i = 0; i < n; i++) {
-    z[i] = point(st, 10 ** lf(i), s).Zout
-    v[i] = abs(z[i])
+    const p = point(st, 10 ** lf(i), s)
+    z[i] = p.Zout
+    v[i] = val(p)
     if (v[i] > v[bi]) bi = i
   }
   let best: Peak = { f: 10 ** lf(bi), v: v[bi], edge: bi === 0 || bi === n - 1 }
   const take = (f: number) => {
-    const val = abs(point(st, f, s).Zout)
-    if (val > best.v) best = { f, v: val, edge: false }
+    const x = val(point(st, f, s))
+    if (x > best.v) best = { f, v: x, edge: false }
   }
   const refine = (a: number, b: number) =>
-    take(10 ** golden((t) => -abs(point(st, 10 ** t, s).Zout), a, b, 40))
+    take(10 ** golden((t) => -val(point(st, 10 ** t, s)), a, b, 40))
   const maxima: number[] = []
   for (let i = 0; i < n; i++) {
     const l = i > 0 ? v[i - 1] : -Infinity,

@@ -381,6 +381,35 @@ for (const mode of ['rc', 'RLpar', 'RLser'] as const) {
   )
 }
 
+// ---- peakH: gain peak of Hopen (M3b Qpeak check) ----
+{
+  // R across C (Cd large), L = C = 1 (Z0 = 1), R = 2: Q = R/Z0 = 2,
+  // |H|max = Q/sqrt(1 − 1/(4Q²)) (second-order low-pass, docs/equations.md).
+  const s = st({ fsw: 1e7, fcheck: 1e7 }, [
+    blk('ind', { L: 1e-6, dcr: 0 }),
+    blk('cap', { c: 1e-6, esr: 0 }),
+    blk('rc', { rd: 2, cd: 1, esr: 0 }),
+  ])
+  near(
+    'peakH: R across C, Q = 2',
+    () => E.peakH(s, 1e3, 1e7).v,
+    2 / Math.sqrt(1 - 1 / 16),
+    0.1
+  )
+  // High-Q stage (1 uH / 1 mOhm / 2 uF): a coarse grid steps over it.
+  const hq = st(d1conv, [
+    blk('ind', { L: 1e-6, dcr: 1e-3 }),
+    blk('cap', { c: 2e-6, esr: 0 }),
+  ])
+  const truth = E.peakH(hq, 10, 1e6, undefined, 40000).v
+  near(
+    'peakH coarse grid (n=160) finds a narrow peak',
+    () => E.peakH(hq, 10, 1e6, undefined, 160).v,
+    truth,
+    1
+  )
+}
+
 // ---- Regression: narrow peaks, Nyquist crossing, stage lookup, check range ----
 {
   // Stage 1 damped (D1), stage 2 high-Q (1 uH / 1 mOhm / 2 uF, f0 = 112.5 kHz).

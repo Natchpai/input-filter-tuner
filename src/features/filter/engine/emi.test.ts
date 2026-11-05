@@ -7,6 +7,8 @@ import { buildPreset, PRESET_NAMES } from '../state/presets'
 import { abs, add, cx, div, TAU } from './complex'
 import {
   dutyOf,
+  emiMarginOf,
+  emiPrep,
   emiResult,
   emiSpectrum,
   harmonicAmp,
@@ -347,5 +349,75 @@ describe('band results', () => {
     expect(f25).toBeLessThanOrEqual(108e6)
     expect(f25).toBeGreaterThan(107e6)
     expect(f32).toBeLessThanOrEqual(30e6)
+  })
+})
+
+describe('emiPrep / emiMarginOf (M3b)', () => {
+  /** Worst band margin of emiResult, Infinity when nothing is judged. */
+  const worst = (s: Design) => {
+    let m = Infinity
+    for (const r of emiResult(s).rows)
+      if (r.margin !== null) m = Math.min(m, r.margin)
+    return m
+  }
+  /** The design with every C(V) and L(I) curve removed (optimizer parts). */
+  const plain = (s: Design): Design => ({
+    ...s,
+    blocks: s.blocks.map((b) => {
+      const c = { ...b } as Record<string, unknown>
+      delete c.cv
+      delete c.li
+      return c as unknown as Block
+    }),
+  })
+  test('equals emiResult on every preset, CISPR 25 and CISPR 32', () => {
+    PRESET_NAMES.forEach((name, pi) => {
+      for (const std of ['cispr25', 'cispr32'] as const)
+        for (const lines of [1, 2] as const) {
+          const p = buildPreset(pi)
+          const s = plain({
+            ...p,
+            emi: {
+              ...p.emi,
+              on: true,
+              std,
+              cls: std === 'cispr25' ? '5' : 'B',
+              lines,
+            },
+          })
+          const got = emiMarginOf(emiPrep(s), s.blocks)
+          const want = worst(s)
+          if (want === Infinity) expect(got).toBe(Infinity)
+          else
+            expect(
+              Math.abs(got - want),
+              `${name} ${std} ${lines}`
+            ).toBeLessThan(1e-9)
+        }
+    })
+  })
+  test('equals emiResult on a 2-converter bus', () => {
+    const p = buildPreset(0)
+    const s = plain({
+      ...p,
+      emi: { ...p.emi, on: true },
+      loads: [
+        {
+          id: 'b1',
+          name: 'B',
+          on: true,
+          pout: 20,
+          pLight: 0,
+          eta: 0.9,
+          vout: 5,
+          fsw: 1.1e6,
+          phases: 1,
+          fcheck: 1e5,
+        },
+      ],
+    })
+    expect(Math.abs(emiMarginOf(emiPrep(s), s.blocks) - worst(s))).toBeLessThan(
+      1e-9
+    )
   })
 })
