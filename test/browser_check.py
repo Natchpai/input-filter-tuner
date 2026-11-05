@@ -1241,6 +1241,83 @@ try:
                 a4.locator("#sens").screenshot(path=str(SHOTS / f"m3_sens_{vw}_{theme.lower()}.png"))
                 a4.close()
 
+        # M3b: design optimizer (worker), least Cd on D1
+        import re
+        import time
+
+        def mchip3_of(pg):
+            # The chip reads "unstable" (no number) when Nyquist fails.
+            t = pg.inner_text("#strip [data-chip=margin]").replace("−", "-")
+            mm = re.search(r"-?\d+(\.\d+)?", t)
+            return float(mm.group()) if mm else float("-inf")
+        o3 = browser.new_page(viewport={"width": 1440, "height": 1000})
+        watch(o3, "m3b: ")
+        o3.goto(URL)
+        ready(o3)
+        tab(o3, "asst")
+        o3.select_option("#preset", "0")
+        settle(o3, 400)
+        nblk3 = lambda: o3.locator("#blocks .blk").count()
+        o3.check("#asst-on")
+        settle(o3, 200)
+        ok(o3.input_value("#asst-goal") == "meet" and o3.locator("#asst-propose").count() == 1,
+           "goal 'Meet the targets' by default: the M3a card")
+        o3.select_option("#asst-goal", "cd")
+        settle(o3, 300)
+        ok(o3.locator("#asst-optimize").count() == 1 and o3.locator("#asst-rule").count() == 0
+           and o3.locator("#asst-qpeak").count() == 1 and o3.locator("#asst-lMax-0").count() == 1,
+           "goal Least Cd: Optimize button, Qpeak, loss limit and L/C ranges; no M3a sizing rule")
+        m3b_before, n3b_before = mchip3_of(o3), nblk3()
+        t0 = time.time()
+        o3.click("#asst-optimize")
+        o3.wait_for_selector("#asst-result", timeout=60000)
+        secs = time.time() - t0
+        ok(o3.get_attribute("#asst-v-rounded", "data-pass") == "true"
+           and "Least Cd" in o3.inner_text("#asst-goal-value"),
+           f"Optimize on D1, least Cd: E-series design passes ({secs:.1f} s, worker)")
+        o3.click("#asst-apply")
+        settle(o3, 500)
+        ok(nblk3() == 3 and mchip3_of(o3) >= 6,
+           f"Apply: 3 blocks, margin {m3b_before} -> {mchip3_of(o3)} dB (k = 6)")
+        o3.click("#bUndo")
+        settle(o3, 400)
+        ok(nblk3() == n3b_before, "one undo brings the old blocks back")
+        # Cancel: 2 stages run for seconds; Cancel stops the worker, no result.
+        o3.select_option("#asst-stages", "2")
+        settle(o3, 300)
+        o3.click("#asst-optimize")
+        o3.wait_for_selector("#asst-cancel", timeout=5000)
+        o3.click("#asst-cancel")
+        settle(o3, 300)
+        ok(o3.locator("#asst-cancel").count() == 0 and o3.locator("#asst-result").count() == 0
+           and not o3.is_disabled("#asst-optimize"), "Cancel stops the optimizer")
+        o3.reload()
+        ready(o3)
+        settle(o3, 400)
+        ok(o3.input_value("#asst-goal") == "cd" and o3.input_value("#asst-stages") == "2",
+           "optimizer inputs survive a reload")
+        o3.close()
+        for theme in ["Dark", "Light"]:
+            for vw in [1440, 390]:
+                o4 = browser.new_page(viewport={"width": vw, "height": 1000})
+                watch(o4, f"m3b {theme} {vw}: ")
+                o4.goto(URL)
+                ready(o4)
+                tab(o4, "asst")
+                if theme == "Light":
+                    set_theme(o4, "Light")
+                o4.select_option("#preset", "1")
+                settle(o4, 300)
+                o4.check("#asst-on")
+                o4.select_option("#asst-goal", "ctot")
+                settle(o4, 200)
+                o4.click("#asst-optimize")
+                o4.wait_for_selector("#asst-result", timeout=60000)
+                settle(o4, 300)
+                no_hscroll(o4, vw, f"m3b {theme.lower()} {vw} px")
+                o4.locator("#asst").screenshot(path=str(SHOTS / f"m3b_opt_{vw}_{theme.lower()}.png"))
+                o4.close()
+
         # UI: status strip, analysis tabs, two panes, toolbar and schematic fit
         for vw in [1440, 390]:
             u = browser.new_page(viewport={"width": vw, "height": 900})

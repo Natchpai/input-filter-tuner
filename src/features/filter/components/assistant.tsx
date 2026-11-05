@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
+  applyOpt,
   ASST_LIM,
   applyProposal,
   type AsstSettings,
@@ -14,8 +15,12 @@ import {
   E_SERIES,
   type ESeries,
   faOf,
+  type OptCheck,
+  type OptGoal,
+  type OptResult,
   propose,
   type Proposal,
+  rangesOf,
   type StageIn,
   type StageOut,
   type StageVals,
@@ -24,6 +29,7 @@ import {
 import { fmtSI } from '../lib/si'
 import { newId } from '../state/defaults'
 import { dispatch } from '../state/store'
+import OptWorker from '../workers/optimize.worker?worker&inline'
 import { selectCls } from './styles'
 import { Hint, Note, ToolCard } from './tool-card'
 import { ValueRow } from './value-row'
@@ -33,6 +39,17 @@ const th =
 const td = 'px-1.5 py-1 text-right whitespace-nowrap first:text-left'
 const dB = (v: number) => v.toFixed(1)
 const set = (patch: Partial<AsstSettings>) => dispatch({ t: 'asst', patch })
+
+const GOALS: { v: OptGoal; label: string }[] = [
+  { v: 'meet', label: 'Meet the targets' },
+  { v: 'cd', label: 'Least Cd' },
+  { v: 'ctot', label: 'Least total C' },
+  { v: 'loss', label: 'Least DC loss' },
+]
+
+/** Goal value with its unit: F for Cd and total C, % for DC loss. */
+const goalText = (g: OptGoal, v: number) =>
+  g === 'loss' ? `${v.toPrecision(3)} %` : fmtSI(v, 'F')
 
 /** What a proposal depends on; a change marks the shown proposal as old. */
 const keyOf = (st: Design) =>
@@ -82,25 +99,79 @@ export function Assistant({ st }: { st: Design }) {
 
 const row = 'my-1.5 flex flex-wrap items-center gap-1.5 text-sm'
 
+type Res = { key: string; p: Proposal; opt: OptResult | null }
+
 function AsstBody({ st }: { st: Design }) {
   const a = st.asst
-  const [res, setRes] = useState<{ key: string; p: Proposal } | null>(null)
+  const opt = a.goal !== 'meet'
+  const [res, setRes] = useState<Res | null>(null)
+  const [running, setRunning] = useState(false)
+  const [pct, setPct] = useState(0)
+  const worker = useRef<Worker | null>(null)
   const key = keyOf(st)
-  const run = () => {
-    try {
-      setRes({ key, p: propose(st) })
-    } catch (e) {
-      toast.error(`Propose failed: ${(e as Error).message}`)
-    }
+  const stop = () => {
+    worker.current?.terminate()
+    worker.current = null
+    setRunning(false)
   }
-  const apply = (p: Proposal) => {
-    dispatch({ t: 'replace', st: applyProposal(st, p, newId) })
+  useEffect(() => () => worker.current?.terminate(), [])
+  const run = () => {
+    if (!opt) {
+      try {
+        setRes({ key, p: propose(st), opt: null })
+      } catch (e) {
+        toast.error(`Propose failed: ${(e as Error).message}`)
+      }
+      return
+    }
+    // The optimizer takes seconds: a worker, with progress and Cancel.
+    worker.current?.terminate()
+    const w = new OptWorker()
+    worker.current = w
+    setPct(0)
+    setRunning(true)
+    w.onmessage = (e: MessageEvent) => {
+      const d = e.data
+      if (d.type === 'progress') setPct(d.pct)
+      else if (d.type === 'done') {
+        setRes({ key, p: d.r, opt: d.r })
+        stop()
+      } else if (d.type === 'error') {
+        toast.error(`Optimize failed: ${d.message}`)
+        stop()
+      }
+    }
+    w.onerror = (e) => {
+      toast.error(`Optimize failed: ${e.message || 'the worker failed.'}`)
+      stop()
+    }
+    w.postMessage({ st })
+  }
+  const apply = (r: Res) => {
+    const next = r.opt
+      ? applyOpt(st, r.opt, newId)
+      : applyProposal(st, r.p, newId)
+    dispatch({ t: 'replace', st: next })
     setRes(null)
     toast.success('Proposal applied. Undo brings the old parts back.')
   }
+  const ranges = opt ? rangesOf(st) : []
   return (
     <>
       <div className={row}>
+        <label htmlFor='asst-goal'>Goal</label>
+        <select
+          id='asst-goal'
+          className={selectCls}
+          value={a.goal}
+          onChange={(ev) => set({ goal: ev.target.value as OptGoal })}
+        >
+          {GOALS.map((g) => (
+            <option key={g.v} value={g.v}>
+              {g.label}
+            </option>
+          ))}
+        </select>
         <label htmlFor='asst-target'>Target</label>
         <select
           id='asst-target'
@@ -123,19 +194,31 @@ function AsstBody({ st }: { st: Design }) {
           <option value='1'>1</option>
           <option value='2'>2</option>
         </select>
-        <label htmlFor='asst-rule'>Damping size</label>
-        <select
-          id='asst-rule'
-          className={selectCls}
-          value={a.rule}
-          onChange={(ev) =>
-            set({ rule: ev.target.value === 'leastCd' ? 'leastCd' : 'q' })
-          }
-        >
-          <option value='q'>Target Q (reports)</option>
-          <option value='leastCd'>Just meet margin k (Erickson)</option>
-        </select>
+        {!opt && (
+          <>
+            <label htmlFor='asst-rule'>Damping size</label>
+            <select
+              id='asst-rule'
+              className={selectCls}
+              value={a.rule}
+              onChange={(ev) =>
+                set({ rule: ev.target.value === 'leastCd' ? 'leastCd' : 'q' })
+              }
+            >
+              <option value='q'>Target Q (reports)</option>
+              <option value='leastCd'>Just meet margin k (Erickson)</option>
+            </select>
+          </>
+        )}
       </div>
+      {opt && (
+        <Hint>
+          The optimizer picks L, C and the least damping that meets every limit,
+          then the E-series values with the lowest goal. DCR follows L at the
+          old inductor&apos;s Ω per µH. Qpeak limits the gain peak max|H|; the
+          loss limit is the filter DC loss in % of the bus power.
+        </Hint>
+      )}
       {a.target === 'db' && a.fa === 0 && (
         <Note>
           f = 0 uses the lowest N·fsw on the bus: {fmtSI(faOf(st), 'Hz')}.
@@ -171,7 +254,7 @@ function AsstBody({ st }: { st: Design }) {
             />
           </>
         )}
-        {a.stages === 2 && (
+        {a.stages === 2 && !opt && (
           <ValueRow
             id='asst-split'
             label='dB split'
@@ -183,7 +266,7 @@ function AsstBody({ st }: { st: Design }) {
             linear
           />
         )}
-        {a.rule === 'q' && (
+        {a.rule === 'q' && !opt && (
           <ValueRow
             id='asst-q'
             label='Target Q'
@@ -195,10 +278,56 @@ function AsstBody({ st }: { st: Design }) {
             linear
           />
         )}
+        {opt && (
+          <>
+            <ValueRow
+              id='asst-qpeak'
+              label='Qpeak'
+              unit=''
+              value={a.qPeak}
+              onChange={(v) => set({ qPeak: v })}
+              min={ASST_LIM.qPeak[0]}
+              max={ASST_LIM.qPeak[1]}
+              linear
+              zero
+            />
+            <ValueRow
+              id='asst-eps'
+              label='DC loss limit'
+              unit='%'
+              value={a.eps}
+              onChange={(v) => set({ eps: v })}
+              min={ASST_LIM.eps[0]}
+              max={ASST_LIM.eps[1]}
+              linear
+              zero
+            />
+          </>
+        )}
       </div>
-      {a.st.slice(0, a.stages).map((s, i) => (
-        <StageRow key={i} a={a} i={i} s={s} />
-      ))}
+      {opt && (a.qPeak === 0 || a.eps === 0) && (
+        <Note>0 turns that limit off.</Note>
+      )}
+      {a.st
+        .slice(0, a.stages)
+        .map((s, i) =>
+          opt ? (
+            <StageOptRow key={i} a={a} i={i} s={s} auto={ranges[i]} />
+          ) : (
+            <StageRow key={i} a={a} i={i} s={s} />
+          )
+        )}
+      {opt && a.goal !== 'cd' && (
+        <label className='my-1 flex items-center gap-1.5 text-sm'>
+          <input
+            id='asst-allforms'
+            type='checkbox'
+            checked={a.allForms}
+            onChange={(ev) => set({ allForms: ev.target.checked })}
+          />
+          Try every damping form
+        </label>
+      )}
       <div className={row}>
         <span>E-series</span>
         {(['L', 'C', 'R'] as const).map((k) => (
@@ -220,19 +349,123 @@ function AsstBody({ st }: { st: Design }) {
             </select>
           </label>
         ))}
-        <Button id='asst-propose' size='sm' className='ml-auto' onClick={run}>
-          Propose
-        </Button>
+        <span className='ml-auto flex items-center gap-2'>
+          {running && (
+            <>
+              <span
+                id='asst-progress'
+                className='text-xs text-muted-foreground tabular-nums'
+              >
+                {pct} %
+              </span>
+              <Button
+                id='asst-cancel'
+                size='sm'
+                variant='outline'
+                onClick={stop}
+              >
+                Cancel
+              </Button>
+            </>
+          )}
+          <Button
+            id={opt ? 'asst-optimize' : 'asst-propose'}
+            size='sm'
+            onClick={run}
+            disabled={running}
+          >
+            {opt ? 'Optimize' : 'Propose'}
+          </Button>
+        </span>
       </div>
       {res && (
         <Result
           st={st}
           p={res.p}
+          opt={res.opt}
           old={res.key !== key}
-          onApply={() => apply(res.p)}
+          onApply={() => apply(res)}
         />
       )}
     </>
+  )
+}
+
+/** One stage of the optimizer: L and C ranges (0 = auto) and the form. */
+function StageOptRow({
+  a,
+  i,
+  s,
+  auto,
+}: {
+  a: AsstSettings
+  i: number
+  s: StageIn
+  auto: AsstSettings['rng'][number]
+}) {
+  const r = a.rng[i]
+  const setR = (patch: Partial<AsstSettings['rng'][number]>) => {
+    const next = [...a.rng] as AsstSettings['rng']
+    next[i] = { ...r, ...patch }
+    set({ rng: next })
+  }
+  const setDamp = (damp: DampForm) => {
+    const next = [...a.st] as AsstSettings['st']
+    next[i] = { ...s, damp }
+    set({ st: next })
+  }
+  const L = TYPES.ind.p[0],
+    C = TYPES.cap.p[0]
+  const name =
+    a.stages === 1 ? 'Stage' : i === 0 ? 'Stage 1 (source side)' : 'Stage 2'
+  const fields = [
+    { k: 'lMin', label: 'L min', unit: 'H', lim: L },
+    { k: 'lMax', label: 'L max', unit: 'H', lim: L },
+    { k: 'cMin', label: 'C min', unit: 'F', lim: C },
+    { k: 'cMax', label: 'C max', unit: 'F', lim: C },
+  ] as const
+  return (
+    <div className='my-1' data-stage={i + 1}>
+      <div className='flex flex-wrap items-center gap-1.5 text-sm'>
+        <span className='text-xs text-muted-foreground'>{name}</span>
+        <label htmlFor={`asst-damp-${i}`} className='sr-only'>
+          Damping
+        </label>
+        <select
+          id={`asst-damp-${i}`}
+          className={selectCls}
+          value={a.goal === 'cd' ? 'rc' : s.damp}
+          disabled={a.goal === 'cd' || a.allForms}
+          onChange={(ev) => setDamp(ev.target.value as DampForm)}
+        >
+          {DAMP_FORMS.map((f) => (
+            <option key={f} value={f}>
+              {DAMP_FORM_LABEL[f]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className='grid gap-x-4 sm:grid-cols-2'>
+        {fields.map((f) => (
+          <ValueRow
+            key={f.k}
+            id={`asst-${f.k}-${i}`}
+            label={f.label}
+            unit={f.unit}
+            value={r[f.k]}
+            onChange={(v) => setR({ [f.k]: v })}
+            min={f.lim.min}
+            max={f.lim.max}
+            zero
+          />
+        ))}
+      </div>
+      <Note>
+        Range used: L {fmtSI(auto.lMin, 'H')} to {fmtSI(auto.lMax, 'H')}, C{' '}
+        {fmtSI(auto.cMin, 'F')} to {fmtSI(auto.cMax, 'F')}. 0 is the part in
+        this place ×0.1 to ×10.
+      </Note>
+    </div>
   )
 }
 
@@ -322,11 +555,13 @@ const PARTS: Part[] = [
 function Result({
   st,
   p,
+  opt,
   old,
   onApply,
 }: {
   st: Design
   p: Proposal
+  opt: OptResult | null
   old: boolean
   onApply: () => void
 }) {
@@ -374,11 +609,13 @@ function Result({
       {p.exact.stages.map((s, i) => (
         <Note key={i}>{stageLine(s, many ? i + 1 : null)}</Note>
       ))}
+      {opt && <OptLines opt={opt} many={many} />}
       <div className='mt-2 grid gap-1.5 sm:grid-cols-2'>
         <Verdict
           id='asst-v-exact'
           title='Exact values'
-          c={p.exact.check}
+          c={opt ? opt.exactX : p.exact.check}
+          x={opt?.exactX ?? null}
           st={st}
           p={p}
           emi={emi}
@@ -386,7 +623,8 @@ function Result({
         <Verdict
           id='asst-v-rounded'
           title='E-series values'
-          c={p.rounded.check}
+          c={opt ? opt.roundedX : p.rounded.check}
+          x={opt?.roundedX ?? null}
           st={st}
           p={p}
           emi={emi}
@@ -407,8 +645,8 @@ function Result({
       )}
       {p.rounded.moved.length > 0 && (
         <Note>
-          * Moved off the nearest E-series value to meet the targets:{' '}
-          {p.rounded.moved.join(', ')}.
+          * Moved off the nearest E-series value to meet the targets
+          {opt ? ' or lower the goal' : ''}: {p.rounded.moved.join(', ')}.
         </Note>
       )}
       {p.warnings.length > 0 && (
@@ -455,6 +693,7 @@ function Verdict({
   id,
   title,
   c,
+  x,
   st,
   p,
   emi,
@@ -462,6 +701,7 @@ function Verdict({
   id: string
   title: string
   c: Check
+  x: OptCheck | null
   st: Design
   p: Proposal
   emi: boolean
@@ -493,6 +733,41 @@ function Verdict({
         {c.unstableAt !== null &&
           `, Nyquist fails at ${fmtSI(c.unstableAt, 'Hz')}`}
       </div>
+      {x && (
+        <div className='tabular-nums'>
+          Gain peak {x.hPeak.toFixed(2)}
+          {st.asst.qPeak > 0 && ` (≤ ${st.asst.qPeak})`}, DC loss{' '}
+          {x.loss.toPrecision(2)} %{st.asst.eps > 0 && ` (≤ ${st.asst.eps} %)`}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Goal, Q window and the limits that hold the goal (M3b). */
+function OptLines({ opt, many }: { opt: OptResult; many: boolean }) {
+  const label = GOALS.find((g) => g.v === opt.goal)?.label ?? opt.goal
+  return (
+    <div id='asst-opt' className='my-1.5 text-sm'>
+      <p id='asst-goal-value' className='tabular-nums'>
+        {label}: {goalText(opt.goal, opt.value.exact)} exact,{' '}
+        <span className='font-medium'>
+          {goalText(opt.goal, opt.value.rounded)}
+        </span>{' '}
+        on E-series.
+      </p>
+      {opt.window.map((w, i) => (
+        <Note key={i}>
+          {many ? `Stage ${i + 1} ` : ''}Q window: Qstab{' '}
+          {w.qStab.toPrecision(3)}
+          {w.qPeak !== null && `, Qpeak ${w.qPeak}`}
+          {w.qLoss !== null && `, Qloss ${w.qLoss.toPrecision(3)}`}. Checked
+          exactly as the margin, the gain peak and the DC loss.
+        </Note>
+      ))}
+      {opt.binding.length > 0 && (
+        <Note>Limits that hold the goal: {opt.binding.join(', ')}.</Note>
+      )}
     </div>
   )
 }
