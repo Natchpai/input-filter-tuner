@@ -15,7 +15,9 @@ import type {
   Design,
   IndBlock,
   RcBlock,
+  OptGoal,
   StageIn,
+  StageRng,
 } from './model'
 import { cornerMetrics } from './oppoint'
 import { type ParamSpec, TYPES } from './types'
@@ -34,7 +36,12 @@ export const ASST_LIM = {
   fa: [1, 1e9],
   split: [10, 90],
   q: [0.3, 20],
+  /** M3b: gain-peak ratio and DC loss %; 0 = off for both. */
+  qPeak: [1, 20],
+  eps: [0.01, 20],
 } as const
+
+export const OPT_GOALS: readonly OptGoal[] = ['meet', 'cd', 'ctot', 'loss']
 
 export const DAMP_FORMS: readonly DampForm[] = ['rc', 'RLpar', 'RLser', 'R']
 
@@ -59,6 +66,23 @@ function clampStage(s: StageIn, def: StageIn): StageIn {
   }
 }
 
+/** 0 (off or auto) stays 0; anything else is clamped to lim. */
+const zeroOr = (v: number, lim: readonly [number, number]) =>
+  !(v > 0) ? 0 : clamp(v, lim, 0)
+
+/** One stage's L and C range: 0 is auto; min and max swap when reversed. */
+function clampRng(r: StageRng): StageRng {
+  const pair = (lo: number, hi: number, lim: ParamSpec<string>) => {
+    let a = zeroOr(lo, [lim.min, lim.max]),
+      b = zeroOr(hi, [lim.min, lim.max])
+    if (a > 0 && b > 0 && a > b) [a, b] = [b, a]
+    return [a, b]
+  }
+  const [lMin, lMax] = pair(r.lMin, r.lMax, L_LIM)
+  const [cMin, cMax] = pair(r.cMin, r.cMax, C_LIM)
+  return { lMin, lMax, cMin, cMax }
+}
+
 /**
  * The assistant inputs within their limits. adopt() and the reducer both
  * use it, so a reload gives back what was typed. `def` fills bad values.
@@ -80,6 +104,11 @@ export function clampAsst(a: AsstSettings, def: AsstSettings): AsstSettings {
       C: isESeries(a.ser.C) ? a.ser.C : def.ser.C,
       R: isESeries(a.ser.R) ? a.ser.R : def.ser.R,
     },
+    goal: OPT_GOALS.includes(a.goal) ? a.goal : def.goal,
+    qPeak: zeroOr(a.qPeak, ASST_LIM.qPeak),
+    eps: zeroOr(a.eps, ASST_LIM.eps),
+    rng: [clampRng(a.rng[0]), clampRng(a.rng[1])],
+    allForms: a.allForms === true,
   }
 }
 

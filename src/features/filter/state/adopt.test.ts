@@ -498,6 +498,11 @@ test('asst: defaults when absent; enums whitelisted; numbers clamped', () => {
     q: 0.3,
     st: [{ fix: 'L', val: 22e-6, damp: 'RLser' }, ASST_DEFAULTS.st[1]],
     ser: { L: 'E96', C: 'E12', R: 'E96' },
+    goal: 'meet',
+    qPeak: 2.5,
+    eps: 1,
+    rng: ASST_DEFAULTS.rng,
+    allForms: false,
   })
   // A value past the range of the fixed part is clamped to it.
   expect(d({ st: [{ fix: 'L', val: 1 }] }).st[0].val).toBe(10e-3)
@@ -505,6 +510,32 @@ test('asst: defaults when absent; enums whitelisted; numbers clamped', () => {
     on: true,
     stages: 2,
     fa: 2.2e6,
+  })
+})
+
+test('asst M3b fields: goal whitelisted, limits clamped, 0 kept as off/auto', () => {
+  const d = (asst: unknown) => adopt({ conv: {}, blocks: [], asst }).asst
+  const evil = { toString: 1, valueOf: 1 }
+  const a = d({
+    goal: '<script>',
+    qPeak: '0.5',
+    eps: evil,
+    rng: [{ lMin: '1e-3', lMax: 1e-6, cMin: -1, cMax: 1e9 }, 'x', { lMin: 1 }],
+    allForms: 'true',
+  })
+  expect(a.goal).toBe('meet')
+  expect(a.qPeak).toBe(1)
+  expect(a.eps).toBe(1)
+  // Reversed min/max swap; a negative or absent value is auto (0); a value
+  // past the part limit is clamped to it.
+  expect(a.rng[0]).toEqual({ lMin: 1e-6, lMax: 1e-3, cMin: 0, cMax: 10e-3 })
+  expect(a.rng[1]).toEqual(ASST_DEFAULTS.rng[1])
+  expect(a.allForms).toBe(false)
+  expect(d({ goal: 'loss', qPeak: 0, eps: 0, allForms: true })).toMatchObject({
+    goal: 'loss',
+    qPeak: 0,
+    eps: 0,
+    allForms: true,
   })
 })
 
@@ -524,6 +555,14 @@ test('asst round-trips through JSON', () => {
       { fix: 'C', val: 22e-6, damp: 'R' },
     ],
     ser: { L: 'E6', C: 'E24', R: 'E24' },
+    goal: 'ctot',
+    qPeak: 3,
+    eps: 0.5,
+    rng: [
+      { lMin: 1e-6, lMax: 47e-6, cMin: 1e-6, cMax: 100e-6 },
+      { lMin: 0, lMax: 10e-6, cMin: 0, cMax: 0 },
+    ],
+    allForms: true,
   }
   expect(adopt(JSON.parse(JSON.stringify(st))).asst).toEqual(st.asst)
 })

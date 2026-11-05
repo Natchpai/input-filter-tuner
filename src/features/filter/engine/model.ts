@@ -184,6 +184,20 @@ export type StageIn = {
   damp: DampForm
 }
 
+/**
+ * What the optimizer minimizes (M3b). 'meet' is the M3a proposal: meet the
+ * targets, minimize nothing.
+ */
+export type OptGoal = 'meet' | 'cd' | 'ctot' | 'loss'
+
+/** L and C range of one stage for the optimizer (M3b), H and F; 0 = auto. */
+export type StageRng = {
+  lMin: number
+  lMax: number
+  cMin: number
+  cMax: number
+}
+
 /** Design assistant inputs (M3). The proposal itself is not state. */
 export type AsstSettings = {
   /** The assistant card is open. Off by default. */
@@ -205,6 +219,16 @@ export type AsstSettings = {
   st: [StageIn, StageIn]
   /** E-series for inductors (L, Ld), capacitors (C, Cd) and resistors. */
   ser: { L: ESeries; C: ESeries; R: ESeries }
+  /** M3b: the goal; 'meet' keeps the M3a proposal. */
+  goal: OptGoal
+  /** M3b: highest gain peak max|Hopen| as a ratio; 0 = no limit. */
+  qPeak: number
+  /** M3b: highest filter DC loss, % of bus Pout; 0 = no limit. */
+  eps: number
+  /** M3b: L and C ranges of stage 1 and 2. */
+  rng: [StageRng, StageRng]
+  /** M3b: try every damping form per stage. */
+  allForms: boolean
 }
 
 export type Design = {

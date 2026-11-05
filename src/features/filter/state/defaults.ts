@@ -117,6 +117,14 @@ export const ASST_DEFAULTS: AsstSettings = {
     { fix: 'C', val: 10e-6, damp: 'rc' },
   ],
   ser: { L: 'E12', C: 'E12', R: 'E96' },
+  goal: 'meet',
+  qPeak: 2.5,
+  eps: 1,
+  rng: [
+    { lMin: 0, lMax: 0, cMin: 0, cMax: 0 },
+    { lMin: 0, lMax: 0, cMin: 0, cMax: 0 },
+  ],
+  allForms: false,
 }
 
 export function baseState(
@@ -138,6 +146,10 @@ export function baseState(
     plot: { ...PLOT_DEFAULTS, ...plot },
     emi: { ...EMI_DEFAULTS, ...emi },
     tran: { ...TRAN_DEFAULTS, ...tran },
-    asst: { ...ASST_DEFAULTS, st: [...ASST_DEFAULTS.st] },
+    asst: {
+      ...ASST_DEFAULTS,
+      st: [...ASST_DEFAULTS.st],
+      rng: [{ ...ASST_DEFAULTS.rng[0] }, { ...ASST_DEFAULTS.rng[1] }],
+    },
   }
 }

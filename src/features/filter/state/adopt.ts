@@ -77,6 +77,16 @@ function asstOf(v: unknown): AsstSettings {
   }
   const st = Array.isArray(o.st) ? o.st : []
   const ser: Obj = isObj(o.ser) ? o.ser : {}
+  const rngIn = (x: unknown) => {
+    const r: Obj = isObj(x) ? x : {}
+    return {
+      lMin: n(r.lMin, 0),
+      lMax: n(r.lMax, 0),
+      cMin: n(r.cMin, 0),
+      cMax: n(r.cMax, 0),
+    }
+  }
+  const rng = Array.isArray(o.rng) ? o.rng : []
   return clampAsst(
     {
       on: o.on === true,
@@ -93,6 +103,11 @@ function asstOf(v: unknown): AsstSettings {
         C: toStr(ser.C) as AsstSettings['ser']['C'],
         R: toStr(ser.R) as AsstSettings['ser']['R'],
       },
+      goal: toStr(o.goal) as AsstSettings['goal'],
+      qPeak: n(o.qPeak, D.qPeak),
+      eps: n(o.eps, D.eps),
+      rng: [rngIn(rng[0]), rngIn(rng[1])],
+      allForms: o.allForms === true,
     },
     D
   )
