@@ -233,3 +233,97 @@ Parity fixture unchanged. Screenshots in `%TEMP%\filter-shots`, looked at.
 - Reused: `closedForm`, `rdForQ`, `sectionOf`, `marginBands`, `checkRange`,
   `point`, `emiResult`, `cornerMetrics`, `applyTol`, `optimizeParam`,
   `converters`, `vinLow`, `newId`.
+
+---
+
+# M3b plan: design optimizer
+
+Status: **planned (2026-11-05)**. Part A (equation audit) runs first; its
+verdict table is `docs/equations.md`.
+
+## Context
+
+ROADMAP M3b: for a chosen goal, propose the E-series design with the lowest
+value of that goal that meets margin k, the attenuation target and the Q
+window. M3a proposes one design that meets the targets; it does not
+minimize anything. The user asked to check the report definitions and the
+engine equations against outside sources first (Part A).
+
+## Decisions (user, 2026-11-05)
+
+- L and C both free per stage, inside ranges (default: the part in that
+  role ×0.1…×10, clipped to the TYPES limits).
+- DCR follows L: DCR = ρ·L, ρ = dcr/L of the old inductor in that role (one
+  footprint, fixed winding window). Datasheets: XAL7070 DCR ∝ L^1.01 above
+  1 µH, SRP7028A ∝ L^0.91. M3a keeps its fixed DCR.
+- Goal "size" is deferred to M8 (parts library). Goals: least Cd, least
+  total C, least DC loss.
+- Q window (NP-DR-26004 §4) as exact checks: Qstab → margin ≥ k; Qloss →
+  DC loss ≤ ε %; Qpeak → max|Hopen| ≤ Qpeak.
+- References are saved in `references/` (index `references/README.md`); the
+  Erickson IEEE paper stays local (`.gitignore`).
+
+## State (`asst`; `clampAsst()`, `adopt.ts`, `adopt.test.ts`)
+
+- `goal`: 'meet' (M3a, default) | 'cd' | 'ctot' | 'loss'.
+- `qPeak`: H gain-peak limit as a ratio, default 2.5 (about 8 dB); 0 = off.
+- `eps`: DC loss limit, % of bus Pout, default 1; 0 = off.
+- `rng: [StageRng, StageRng]`, `StageRng = { lMin, lMax, cMin, cMax }`;
+  0 = auto.
+- `allForms`: try all four damping forms per stage (default off). Goal
+  'cd' fixes the form to rc.
+
+## Definitions
+
+- Goals: Cd = ΣCd of rc stages; total C = Σ(C + Cd); DC loss = I²·ΣDCR_i,
+  I = iBus(vinLow, full), DCR_i = ρ_i·L_i (+ ρ_i·Ld_i for RLser), in % of
+  pBus(full). Rsrc is not counted.
+- Constraints at nominal: attenuation or EMI target, margin ≥ k and
+  Nyquist, max|Hopen| ≤ qPeak over [checkRange lo, max(fcheck, fa)], DC loss
+  ≤ eps, every value in range. Corners are shown, not designed for.
+- Q window per stage, shown for reading: Qstab = Zmax/Z0, Qpeak,
+  Qloss = Z0/(ε·Vin²/Pin).
+
+## Algorithm (`engine/optimize.ts`, pure)
+
+1. Coarse log grid over each stage's L and C (1 stage 24 × 24, 2 stages
+   8⁴); per point and form: closed-form least damping (peak target
+   g·Zmax/Z0, g = 1), exact attenuation or EMI, goal. Keep the best 4.
+2. Exact polish per kept point: bisection on g for margin ≥ k + 0.1 dB,
+   Nyquist and H peak; compass search in log L, log C (×1.26 down to
+   ×1.01) lowering the goal with every exact check holding.
+3. E-series: `roundE`, then a goal descent (one step per part, keep the
+   best passing move). Best rounded result over the 4 points wins.
+4. EMI speed-up: `emiPrep`/`emiMarginOf` in `emi.ts`, equal to
+   `emiResult`'s worst margin (test).
+5. Output: M3a `Proposal` plus goal value, Q window numbers, H peak, DC
+   loss and the binding constraints.
+6. `peakH` in `peak.ts` (as `peakZout`, on |Hopen|).
+
+Runs in `workers/optimize.worker.ts` with progress and cancel; target
+< 3 s for D4, 2 stages, EMI.
+
+## UI
+
+Assistant card: a "Goal" select (Meet the targets | Least Cd | Least total
+C | Least DC loss). Other goals show L/C ranges per stage, Qpeak, ε and
+"Try every damping form", and an Optimize button. Result as M3a plus goal,
+Q window line and binding constraints; Apply as today.
+
+## Ground truth and tests
+
+No report optimizes. Tests: a 200 × 200 brute-force grid on D1 finds no
+feasible design more than 1 % below the optimizer per goal; ±2 E-series
+steps per part find no better passing design; `emiMarginOf` equals
+`emiResult`; `peakH` finds a narrow peak; browser check on D1 goal 'cd'.
+
+## Steps (commit on `main` after each; no push without asking)
+
+0. This section; `docs/equations.md`; references saved.
+1. Part A: comments citing [E99] eq. numbers, the `cdForRd` label, [E99]
+   number tests (Table I, eqs. 26-30, n = 4 Rd-Cd example).
+2. `peakH`; `emiPrep`/`emiMarginOf`.
+3. State fields.
+4. `engine/optimize.ts` + tests.
+5. Worker and UI; screenshots.
+6. Browser check and docs.

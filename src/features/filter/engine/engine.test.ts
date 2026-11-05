@@ -327,6 +327,60 @@ for (const mode of ['rc', 'RLpar', 'RLser'] as const) {
   }
 }
 
+// ---- Erickson, APEC 1999 (references/README.md): the paper's own numbers
+// through the engine, lossless parts, ideal source ----
+{
+  const pk = (blocks: E.Block[]) => {
+    const s = st({ fsw: 1e7, fcheck: 1e7 }, blocks)
+    return E.peakZout(s, 1e3, 1e6, undefined, 2000)
+  }
+  // Table I, design 1: R-Ld parallel, L 5.8 uH, C 11.7 uF, Ld 2.9 uH,
+  // R 0.65 ohm: max |Zo| 1.0 ohm at fm 27.22 kHz (eq. 11, 12).
+  const t1 = lazy(() =>
+    pk([
+      blk('ind', { L: 5.8e-6, dcr: 0, dmode: 'RLpar', dL: 2.9e-6, dR: 0.65 }),
+      blk('cap', { c: 11.7e-6, esr: 0 }),
+    ])
+  )
+  near('Erickson Table I design 1 peak |Zo|', () => t1().v, 1.0, 2)
+  near('Erickson Table I design 1 fm', () => t1().f, 27.22e3, 2)
+  // Eqs. 26-30, section 1: L1 31.2 uH, C1 6.9 uF, n1·L1 15.6 uH, R1 1.9 ohm
+  // for a 3 ohm peak.
+  near(
+    'Erickson eqs. 26-30 section 1 peak |Zo|',
+    () =>
+      pk([
+        blk('ind', {
+          L: 31.2e-6,
+          dcr: 0,
+          dmode: 'RLpar',
+          dL: 15.6e-6,
+          dR: 1.9,
+        }),
+        blk('cap', { c: 6.9e-6, esr: 0 }),
+      ]).v,
+    3.0,
+    2
+  )
+  // Rd-Cd at n = 4, Z0 = 1 ohm (eqs. 18-20): optimum Rd = 0.612 ohm gives
+  // peak 0.866 ohm at fm = f0·sqrt(2/(2+n)).
+  const f0 = 1 / (2 * Math.PI * 1e-6)
+  const rc = (rd: number) =>
+    pk([
+      blk('ind', { L: 1e-6, dcr: 0 }),
+      blk('cap', { c: 1e-6, esr: 0 }),
+      blk('rc', { rd, cd: 4e-6, esr: 0 }),
+    ])
+  near('Erickson Rd-Cd n=4 optimum peak', () => rc(0.612).v, 0.866, 0.5)
+  near('Erickson Rd-Cd n=4 fm', () => rc(0.612).f, f0 * Math.sqrt(1 / 3), 1)
+  // App-note shortcut (SNVA538, Flex AN 323): Rd = Z0 with Cd = 4C is not
+  // the optimum; its peak is higher (docs/equations.md).
+  check(
+    'Rd = Z0, Cd = 4C peaks above the optimum',
+    () => rc(1).v > 1.1 * rc(0.612).v
+  )
+}
+
 // ---- Regression: narrow peaks, Nyquist crossing, stage lookup, check range ----
 {
   // Stage 1 damped (D1), stage 2 high-Q (1 uH / 1 mOhm / 2 uF, f0 = 112.5 kHz).

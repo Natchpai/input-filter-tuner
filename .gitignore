@@ -36,3 +36,6 @@ dist-ssr
 
 # Single-file build
 dist-single
+
+# Licensed IEEE copy: kept local only (public repo); see references/README.md
+references/Erickson_APEC1999_Optimal-Single-Resistor-Damping.pdf

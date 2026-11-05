@@ -38,8 +38,10 @@ Solo repository: direct commits and pushes to the default branch are allowed.
 - `src/features/filter/plots/` and `components/`: the UI.
 - `engine/__fixtures__/legacy-presets.json`: frozen numbers of the old
   single-file tool. Never regenerate it to make a test pass.
-- `references/`: app-note PDFs. Their equations are images, so the text
-  cannot be extracted.
+- `references/`: app notes, a paper and datasheets, indexed in
+  `references/README.md`. Their equations are images: read the pages as
+  images (Read with `pages`). The Erickson IEEE paper is local only
+  (`.gitignore`, public repo).
 
 ## Done means all of these pass
 

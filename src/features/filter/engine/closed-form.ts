@@ -4,8 +4,12 @@ import { TAU } from './complex'
 /**
  * Closed-form optimum damping for a lossless LC section (Middlebrook /
  * Erickson). rc: n = Cd/C. RLpar and RLser: n = Ld/L. Returns Rd and the
- * peak |Zout|, both scaled by Z0. Each form is checked against the numeric
- * optimizer in engine.test.ts.
+ * peak |Zout|, both scaled by Z0. Source: Erickson, "Optimal Single
+ * Resistor Damping of Input Filters", APEC 1999: RLpar eqs. 6 and 12, RLser
+ * eqs. 15 and 16 (there Qopt = R0/R), rc eqs. 19 and 20. Each form is
+ * checked against the numeric optimizer and the paper's own numbers in
+ * engine.test.ts. The app-note rule "Rd = Z0, Cd = 4C" is not this optimum
+ * (docs/equations.md).
  */
 export function closedForm(
   mode: string,
@@ -50,7 +54,11 @@ export function nForPeak(mode: string, r: number): number | null {
   return null
 }
 
-/** NP-DR-26001 §7: Cd with Xcd = Rd/10 at f0, i.e. Cd = 10/(2π·f0·Rd). */
+/**
+ * NP-DR-26001 §7: Cd with Xcd = Rd/10 at f0, i.e. Cd = 10/(2π·f0·Rd). A rule
+ * of thumb from the report (no outside source for the factor 10); about
+ * 10·C at Q = 1, larger than the closed-form optimum.
+ */
 export const cdForRd = (f0: number, rd: number) => 10 / (TAU * f0 * rd)
 
 /**
