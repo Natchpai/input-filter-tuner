@@ -114,8 +114,9 @@ The page has two panes that scroll on their own:
   - Rd-Cd leg: type Q, then "Set Rd for Q" (NP-DR-26001 equation).
   - The Rd menu: "Optimum (numeric)", a search with all parasitics
     included, and "Closed form" (lossless Middlebrook/Erickson optimum).
-  - One line shows the closed-form Rd and peak, and warns when Cd is below
-    10/(2π·f0·Rd). The section details are in the block's hints.
+  - One line shows the closed-form Rd and peak, and warns when Cd is more
+    than one E12 step below 5·C. The section details are in the block's
+    hints.
 - Other tools:
   - Tolerance curves (ΔL, ΔC).
   - Undo and redo (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y). A slider drag is one

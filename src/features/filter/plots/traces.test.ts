@@ -48,14 +48,15 @@ test('time axis uses ns, µs, ms or s with ticks up to 999', () => {
   expect(timeUnit(0.02)).toEqual({ k: 1e-3, unit: 'ms' })
   expect(timeUnit(-1.5e-4)).toEqual({ k: 1e-6, unit: 'µs' })
   expect(timeUnit(3)).toEqual({ k: 1, unit: 's' })
-  // On the plot: D1 Rd-Cd hot-plug runs about 1.8 ms.
+  // On the plot: D1 Rd-Cd hot-plug runs about 0.9 ms since Cd = 47 µF
+  // (NP-DR-26001 rev 0.4), so the axis is in µs.
   const st = buildPreset(1)
   st.tran = { ...st.tran, on: true }
   st.plot = { ...st.plot, tab: 'time', tview: 'hot' }
   const m = metrics(st)
   const p = buildPlot(st, curveSets(st), m, [], C).main
   const xa = p.layout.xaxis as { title: { text: string } }
-  expect(xa.title.text).toBe('Time (ms)')
+  expect(xa.title.text).toBe('Time (µs)')
   const x = p.traces[0].x as number[]
   expect(Math.max(...x)).toBeGreaterThan(1)
   expect(Math.max(...x)).toBeLessThan(1000)

@@ -571,7 +571,7 @@ const PRESETS = [
     [mk('ind', 'L1', { L: 22e-6, dcr: 20e-3 }), mk('cap', 'C1', { c: 10e-6, esr: 0 })]) },
   { name: 'D1 · LC + Rd-Cd, Q = 0.707', make: () => baseState('D1 LC + Rd-Cd',
     { vinMin: 48, vinNom: 48, vinMax: 48, pout: 100, eta: 1, vout: 12, fsw: 500e3, fcheck: 500e3 }, {},
-    [mk('ind', 'L1', { L: 22e-6, dcr: 20e-3 }), mk('cap', 'C1', { c: 10e-6, esr: 0 }), mk('rc', 'Rd1', { rd: 1.06, cd: 150e-6 })]) },
+    [mk('ind', 'L1', { L: 22e-6, dcr: 20e-3 }), mk('cap', 'C1', { c: 10e-6, esr: 0 }), mk('rc', 'Rd1', { rd: 1.06, cd: 47e-6 })]) },
   { name: 'D1 · Method A: R in series with C', make: () => baseState('D1 Method A',
     { vinMin: 48, vinNom: 48, vinMax: 48, pout: 100, eta: 1, vout: 12, fsw: 500e3, fcheck: 500e3 }, {},
     [mk('ind', 'L1', { L: 22e-6, dcr: 20e-3 }), mk('cap', 'C1', { c: 10e-6, esr: 2.08 })]) },

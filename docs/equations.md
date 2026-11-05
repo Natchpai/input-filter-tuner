@@ -29,7 +29,7 @@ Sources:
 | `nForPeak`: inverse of each peak formula | CORRECT | algebra on the rows above |
 | zBlock RLpar = L ∥ (Rd + jωLd); RLser = L + (Rd ∥ jωLd) | CORRECT topology | [E99] Fig. 3(b), 3(c) |
 | [S10] "n = 4 gives Rd = Z0, Cd = 4C" (also quoted by Belfuse) | WRONG in the app note: it uses Erickson's Rd/R0 as ζ. At n = 4, Rd = 0.612·Z0 gives peak 0.866·Z0 at fm = f0·√(2/(2+n)); Rd = Z0 gives more than 1.02·Z0 near 0.7·f0. The code follows [E99]. | [E99], derivation |
-| `cdForRd`: Cd = 10/(2π·f0·Rd), i.e. Xcd = Rd/10 at f0 | RULE from NP-DR-26001; no outside source for "/10". About 10·C at Q = 1, the top of the 3-10× C range app notes give; larger than the optimum. | — |
+| `cdForC`: Cd = 5·C (NP-DR-26001 §7, rev 0.4) | RULE, chosen by the user on 2026-11-05 for practical part sizes. With `rdForQ` it keeps Re Zo(f0)/Z0 = Q; peak 0.81·Z0 at Q = 0.707 with 47 µF (gain peak +3.2 dB on D1), within 5 % of Q·Z0 at Q ≥ 1. [E99] needs n = 5.5 for a 0.707·Z0 peak. It replaced Xcd = Rd/10 at f0 (≈ 10/Q·C, 14·C at Q = 0.707). App notes use 4·C [S10, F17] or ≥ 5·C [TI23], but with Rd = Z0. | NP-TN-26007 §5 |
 | `rdForQ`: Rd = Z0²/(Z0/Q − rL); `drForQ`: Δr = Z0/Q − rL | APPROXIMATE: 1/Q ≈ Z0/Rd + rL/Z0 when rL ≪ Rd and rL ≪ Z0, with Cd ≫ C. Exact for R across C with rL = 0. | derivation |
 | `qSeriesOf`: Q = Re(Zout(f0))/Z0 | Report definition. Equals the pole Q to first order only. Textbooks judge peak |Zout|/Z0, shown as Peak/Z0. | [E99], derivation |
 | Peak |Zout| ≈ Q·Z0 (reports' Qstab = |Rn|/(k·Z0), k as a ratio) | Exact for R across C; for R in series with L the peak is about Z0·√(Q²+1). The tool's margin uses the exact peak. | derivation |

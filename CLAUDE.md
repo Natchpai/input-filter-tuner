@@ -166,7 +166,7 @@ and get approval before changing the fixture.
     Qstab = Zmax/Z0 per stage. Stage 1 is the source side.
   - Per stage the user fixes L or C; f0_i = fa·10^(−A_i/40) starts it, then
     one scale on every f0 is bisected until the exact check holds.
-  - Rule 'q' (reports): Rd = Z0²/(Z0/Q − rL); Rd-Cd adds Cd = 10/(2π·f0·Rd);
+  - Rule 'q' (reports): Rd = Z0²/(Z0/Q − rL); Rd-Cd adds Cd = 5·C (`cdForC`);
     Rd-Ld forms take n from closedForm peak = Q·Z0. Rule 'leastCd'
     (Erickson): peak target Qstab·Z0, then the peak target is lowered until
     the nominal margin is k + 0.1 dB. A DCR that alone gives Q means no

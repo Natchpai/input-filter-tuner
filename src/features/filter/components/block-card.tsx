@@ -27,6 +27,8 @@ import {
   type Block,
   type Bead4Block,
   beadFromDatasheet,
+  CD_PER_C,
+  cdForC,
   closedForm,
   corners,
   type Curve,
@@ -187,13 +189,12 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
   }
 
   // One short line: the closed-form target, and a Cd warning when Cd is
-  // below 10/(2π·f0·Rd). The rest is in the block's hint (InfoLines).
+  // more than one E12 step below 5·C (47 µF for C = 10 µF does not warn).
+  // The rest is in the block's hint (InfoLines).
   const cf = closedFormFor(S, b)
   const sec = sectionOf(S, b.id)
-  const rTot = isRc ? b.rd + b.esr : 0
-  const cdMin =
-    isRc && sec && rTot > 0 ? 10 / (2 * Math.PI * sec.f0 * rTot) : null
-  const cdLow = isRc && cdMin !== null && b.cd < cdMin * (1 - 1e-6)
+  const cdMin = isRc && sec ? 0.9 * cdForC(sec.C) : null
+  const cdLow = isRc && cdMin !== null && b.cd < cdMin
   // Source marks: ¹ closed form, ² the Cd rule. One line open at a time.
   const srcText = dampSources(S, b)
   const marks = [srcText.cf, cdLow ? srcText.cd : null]
@@ -292,7 +293,7 @@ function DampHelpers({ S, b }: { S: Design; b: Block }) {
           {cdLow && (
             <span className='text-status-open'>
               {' '}
-              · Cd ≥ {fmtSI(cdMin!, 'F')}
+              · Cd ≈ {CD_PER_C}·C = {fmtSI(cdForC(sec!.C), 'F')}
             </span>
           )}
           {cdLow && marks[1] && mark(2)}
@@ -569,12 +570,10 @@ function InfoLines({ S, b, m }: { S: Design; b: Block; m: Metrics }) {
           {fmtSI(cf.peak, 'Ω')}
         </>
       )
-    if (b.type === 'rc') {
-      const rTot = b.rd + b.esr
+    if (b.type === 'rc')
       parts.push(
-        `Rd total ${fmtSI(rTot, 'Ω')} · Cd ≥ 10/(2πf0·Rd) = ${rTot > 0 ? fmtSI(10 / (2 * Math.PI * sec.f0 * rTot), 'F') : '–'}`
+        `Rd total ${fmtSI(b.rd + b.esr, 'Ω')} · Cd ≈ ${CD_PER_C}·C = ${fmtSI(cdForC(sec.C), 'F')}`
       )
-    }
   }
   const ac = m.ripple.perBlock[b.id]
   if (b.on && ac > 0 && (b.type === 'rc' || key))

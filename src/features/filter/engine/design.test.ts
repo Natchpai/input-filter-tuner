@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'vitest'
 import { ASST_DEFAULTS, baseState, mk } from '../state/defaults'
 import { buildPreset, PRESET_NAMES } from '../state/presets'
-import { cdForRd, closedForm, nForPeak } from './closed-form'
+import { cdForC, closedForm, nForPeak } from './closed-form'
 import { TAU } from './complex'
 import {
   applyProposal,
@@ -55,10 +55,11 @@ describe('report numbers', () => {
     C = 10e-6,
     f0 = f0Of(L, C)
   test.each([
-    [0.707, 1.06, 140e-6, 150e-6],
-    [1, 1.5, 99e-6, 100e-6],
-    [2, 3.05, 49e-6, 47e-6],
-  ])('NP-DR-26001 Q %d: Rd %d Ω, Cd min %d, E12 %d', (q, rd, cdMin, cdE) => {
+    // §7 rev 0.4: Cd = 5·C = 50 µF at every Q, E12 47 µF.
+    [0.707, 1.06, 50e-6, 47e-6],
+    [1, 1.5, 50e-6, 47e-6],
+    [2, 3.05, 50e-6, 47e-6],
+  ])('NP-DR-26001 Q %d: Rd %d Ω, Cd %d, E12 %d', (q, rd, cdMin, cdE) => {
     const s = sizeStage(
       { fix: 'L', val: L, damp: 'rc' },
       f0,
@@ -129,8 +130,8 @@ describe('report numbers', () => {
     near(s.Z0, 0.84, 1)
     near(s.rd!, 1.1, 1)
   })
-  test('cdForRd is Xcd = Rd/10', () => {
-    near(1 / (TAU * 1e4 * cdForRd(1e4, 2)), 0.2, 1e-9)
+  test('cdForC is Cd = 5·C', () => {
+    near(cdForC(10e-6), 50e-6, 1e-9)
   })
 })
 

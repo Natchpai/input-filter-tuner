@@ -54,12 +54,18 @@ export function nForPeak(mode: string, r: number): number | null {
   return null
 }
 
+/** Blocking capacitor of an Rd-Cd leg, as a multiple of the section's C. */
+export const CD_PER_C = 5
+
 /**
- * NP-DR-26001 §7: Cd with Xcd = Rd/10 at f0, i.e. Cd = 10/(2π·f0·Rd). A rule
- * of thumb from the report (no outside source for the factor 10); about
- * 10·C at Q = 1, larger than the closed-form optimum.
+ * NP-DR-26001 §7 (rev 0.4): Cd = 5·C, a practical rule (user, 2026-11-05).
+ * It replaced Xcd = Rd/10 at f0, which gave about 10/Q·C (14·C at
+ * Q = 0.707). With Rd from rdForQ the series Q = Re Zo(f0)/Z0 stays Q; the
+ * peak |Zo| is about 0.81·Z0 at Q = 0.707 (47 µF) and within 5 % of Q·Z0
+ * at Q ≥ 1.
+ * Erickson's optimum needs n = 5.5 for a 0.707·Z0 peak (docs/equations.md).
  */
-export const cdForRd = (f0: number, rd: number) => 10 / (TAU * f0 * rd)
+export const cdForC = (C: number) => CD_PER_C * C
 
 /**
  * NP-DR-26001 §6.1: the series loss to add for Q, Δr = Z0/Q − rL. Methods A

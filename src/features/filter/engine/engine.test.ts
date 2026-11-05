@@ -101,12 +101,13 @@ const d1conv = {
       st(d1conv, [
         blk('ind', { L: 22e-6, dcr: 20e-3 }),
         blk('cap', { c: 10e-6, esr: 0 }),
-        blk('rc', { rd: 1.06, cd: 150e-6, esr: 0 }),
+        blk('rc', { rd: 1.06, cd: 47e-6, esr: 0 }),
       ])
     )
   )
-  near('D1 Rd-Cd Q=0.707 peak |Zout| (report 1.06)', () => m().peak.v, 1.06, 3)
-  near('D1 Rd-Cd Q=0.707 margin (report 26.8 dB)', () => m().margin, 26.8, 1.5)
+  // NP-DR-26001 rev 0.4 §5: Cd = 47 µF (5·C rule).
+  near('D1 Rd-Cd Q=0.707 peak |Zout| (report 1.20)', () => m().peak.v, 1.2, 3)
+  near('D1 Rd-Cd Q=0.707 margin (report 25.6 dB)', () => m().margin, 25.6, 1.5)
   check('D1 Rd-Cd stable', () => m().unstableAt === null)
 }
 

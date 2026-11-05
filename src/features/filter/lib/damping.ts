@@ -1,5 +1,7 @@
 import {
   type Block,
+  CD_PER_C,
+  cdForC,
   closedForm,
   DAMP_LIM,
   dcR,
@@ -155,12 +157,11 @@ export function dampSources(S: Design, b: Block) {
     `${CF_TEXT[form]}, with Z0 = ${fmtSI(sec.Z0, 'Ω')}, ` +
     `n = ${cf.nLabel} = ${cf.n.toFixed(2)}. ` +
     'Lossless L and C (Middlebrook, Erickson).'
-  const rTot = b.type === 'rc' ? b.rd + b.esr : 0
   const cdText =
-    rTot > 0
-      ? 'Cd = 10/(2π·f0·Rd), so Xcd = Rd/10 at f0 and the leg acts as a ' +
-        `plain R. f0 = ${fmtSI(sec.f0, 'Hz')}, Rd + ESR = ` +
-        `${fmtSI(rTot, 'Ω')}. NP-DR-26001 §7.`
+    b.type === 'rc'
+      ? `Cd ≈ ${CD_PER_C}·C = ${fmtSI(cdForC(sec.C), 'F')} with C = ` +
+        `${fmtSI(sec.C, 'F')}. With Rd for Q it keeps Q = Re Zo(f0)/Z0; ` +
+        'the peak is about 0.8·Z0 at Q = 0.707. NP-DR-26001 §7.'
       : null
   return { cf: cfText, cd: cdText }
 }

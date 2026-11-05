@@ -1,7 +1,7 @@
 // Design assistant (M3): propose L, C and damping from the requirements,
 // round to E-series and check the result with the engine.
 import { bands, converters, vinLow } from './bus'
-import { cdForRd, closedForm, nForPeak, rdForQ } from './closed-form'
+import { cdForC, closedForm, nForPeak, rdForQ } from './closed-form'
 import { abs, db, TAU } from './complex'
 import { emiResult } from './emi'
 import { type ESeries, isESeries, snap, stepE } from './eseries'
@@ -189,7 +189,7 @@ export const dcrOf = (c: Carry) => (c.ind ? c.ind.dcr : TYPES.ind.p[1].def)
 /**
  * Size one stage at f0. r is the peak target as a multiple of Z0 (target Q,
  * or Qstab for the 'leastCd' rule). rc with rule 'q' follows NP-DR-26001:
- * Rd = Z0²/(Z0/Q − rL), Xcd = Rd/10 at f0. The other cases use the
+ * Rd = Z0²/(Z0/Q − rL), Cd = 5·C (§7, rev 0.4). The other cases use the
  * closed-form optimum (Erickson) for that peak.
  */
 export function sizeStage(
@@ -218,7 +218,7 @@ export function sizeStage(
   if (inp.damp === 'rc' && rule === 'q') {
     const rd = rdQ()
     if (rd === null) return { ...out, rd, cd: null, ld: null, n: null }
-    const cd = cdForRd(f0, rd)
+    const cd = cdForC(C)
     return { ...out, rd, cd, ld: null, n: cd / C }
   }
   let rr = r

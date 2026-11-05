@@ -221,7 +221,7 @@ try:
         settle(page)
         m1 = page.get_attribute(f"{card} [data-src='1']", "aria-expanded")
         s1 = page.inner_text(f"#src-{rc_id}-1") if page.locator(f"#src-{rc_id}-1").count() else ""
-        commit(page, f"#{first_cd}", "47u")
+        commit(page, f"#{first_cd}", "30u")
         warn = page.inner_text(card)
         page.click(f"{card} [data-src='2']")
         settle(page)
@@ -230,8 +230,8 @@ try:
         settle(page)
         closed = page.locator(f"#src-{rc_id}-2").count() == 0
         commit(page, f"#{first_cd}", cd0)
-        ok("closed-form Rd" in line and "Cd ≥" not in line and "Cd ≥ 140" in warn,
-           f"damping line: closed-form Rd, Cd warning only at Cd = 47u ({cd0} ok)")
+        ok("closed-form Rd" in line and "Cd ≈" not in line and "Cd ≈ 5·C = 50" in warn,
+           f"damping line: closed-form Rd, Cd warning only at Cd = 30u ({cd0} ok, rule 5·C)")
         ok(m1 == "true" and "Middlebrook" in s1 and "NP-DR-26001" in s2 and closed,
            f"source marks: ¹ closed form, ² Cd rule, a second click closes ({s2[:40]})")
         # Slider drag
@@ -1018,7 +1018,7 @@ try:
         settle(t4, 200)
         t4.check("#tran-on")
         tran_ready(t4)
-        ok("54.6 V" in t4.inner_text("#tran-summary"), f"D1 Rd-Cd hot-plug peak 54.6 V: '{t4.inner_text('#tran-summary')[:50]}'")
+        ok("63.8 V" in t4.inner_text("#tran-summary"), f"D1 Rd-Cd hot-plug peak 63.8 V (Cd 47 µF): '{t4.inner_text('#tran-summary')[:50]}'")
         t4.click("#tabs button[data-t=time]")
         settle(t4, 300)
         drawn, units = {}, {}
@@ -1028,7 +1028,7 @@ try:
             drawn[v] = t4.eval_on_selector("#pl1", "d => (d.data || []).length")
             units[v] = t4.eval_on_selector("#pl1", "d => d._fullLayout.xaxis.title.text")
         ok(all(n >= 2 for n in drawn.values()), f"Time tab draws every view {drawn}")
-        ok(units == {"hot": "Time (ms)", "step": "Time (ms)", "ripple": "Time (µs)"},
+        ok(units == {"hot": "Time (µs)", "step": "Time (ms)", "ripple": "Time (µs)"},
            f"time axis in ms / µs, not plain seconds {units}")
         t4.uncheck("#tran-on")
         settle(t4, 300)

@@ -48,7 +48,8 @@ const PRESETS: Preset[] = [
         // 0.71 / 0.84 / 0.55 / 0.66 in the four cases of its table.
         mk('ind', 'L1', { L: 22e-6, dcr: 20e-3, tol: { L: 30 } }),
         mk('cap', 'C1', { c: 10e-6, esr: 0, tol: { c: 40 } }),
-        mk('rc', 'Rd1', { rd: 1.06, cd: 150e-6 }),
+        // Cd = 5·C = 50 µF, E12 47 µF (NP-DR-26001 §7, rev 0.4).
+        mk('rc', 'Rd1', { rd: 1.06, cd: 47e-6 }),
       ]),
   },
   {

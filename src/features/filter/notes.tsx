@@ -74,9 +74,10 @@ export function Notes() {
               from the closed form (lossless). Series Rd‖Ld needs r &gt; 1.41.
             </li>
             <li>
-              <b>Cd for an Rd-Cd leg</b>: Cd ≥ 10/(2π·f<sub>0</sub>·Rd), so X
-              <sub>Cd</sub> = Rd/10 at f<sub>0</sub> (NP-DR-26001 §7). A smaller
-              Cd also works; check the margin.
+              <b>Cd for an Rd-Cd leg</b>: Cd ≈ 5·C (NP-DR-26001 §7). With Rd for
+              Q it keeps Q; the peak |Z<sub>out</sub>| is about 0.8·Z
+              <sub>0</sub> at Q = 0.707. A larger Cd lowers the peak; the closed
+              form gives the least Cd for a peak.
             </li>
             <li>
               <b>Optimum Rd</b> searches Rd for the lowest peak |Z
