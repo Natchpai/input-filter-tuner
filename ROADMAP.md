@@ -4,8 +4,8 @@ Proposed improvements, grouped into milestones. Each milestone stands alone,
 so you can pick any of them in any order. Effort is S (under a day),
 M (1 to 3 days) or L (more than 3 days).
 
-Order by value to a filter design review: **M3b** (the optimizer) next,
-and the rest as needed.
+Order by value to a filter design review: M5 (frequency-dependent Zin,
+GMPM/ESAC) or M8 (part data) next, as needed.
 
 Status key: `[ ]` not started, `[x]` done.
 
@@ -47,6 +47,13 @@ Details are in the plan docs and the git history.
   part) as a card and a report section.
 - **Dark theme** (2026-11-04): neutral greys around `#191a1b` instead of
   navy.
+- **Equation audit** (2026-11-05, `docs/equations.md`). Each engine
+  equation checked against outside sources (Erickson APEC 1999, app notes,
+  datasheets, derivations); the references are in `references/`.
+- **M3b. Design optimizer** (2026-11-05, `docs/M3-plan.md`). Least Cd,
+  least total C or least DC loss, with L and C free in ranges, DCR ∝ L,
+  margin k, the target, Qpeak (gain peak) and the DC loss limit; E-series
+  result with a goal descent; worker with Cancel.
 
 Still open from done milestones:
 - [ ] Remove `legacy/` and `scripts/legacy-fixture.mjs` (M0), when the user
@@ -54,24 +61,6 @@ Still open from done milestones:
 - [ ] Run the D4 netlist in LTspice by hand and compare (M6).
 - [ ] Check the EMI limit tables and AN impedances in
   `references/emi-limits.md` against the standards (M2).
-
----
-
-## M3b. Design optimizer
-
-**Why:** M3a gives one design that meets the targets. The optimizer finds
-the best one for a chosen goal. Plan it in detail before any code.
-
-- [ ] **Multi-goal optimizer (M).**
-  - Minimize one goal: Cd, total C, DC loss or size.
-  - Subject to: margin ≥ k, attenuation ≥ target, and the Q window
-    (Qpeak, Qloss and Qstab, as in NP-DR-26004 §5).
-  - Can start from the M3a proposal and reuse its E-series rounding.
-- Uses the parts library from M8 when it exists (moved there 2026-11-04).
-
-**Done when:** for a chosen goal, the tool proposes the E-series design with
-the lowest value of that goal that meets margin k, the attenuation target
-and the Q window.
 
 ---
 
@@ -116,6 +105,10 @@ report uses measured data yet, so this needs its own ground truth.
   or Touchstone `.s1p`/`.s2p`, as exported by Murata SimSurfing or Würth
   REDEXPERT. Use that data in place of the R-L-C model. Needs a size limit
   for `#d=` links and localStorage.
+- [ ] **Optimizer on real parts (S, after the library).** Size as an
+  optimizer goal, Isat (it falls about as L^−0.5 in one footprint, see
+  `docs/equations.md`), and a DCR field for Ld (RLser's Ld carries the DC
+  current; today it has 0 Ω).
 
 **Done when:** a design can use a library part and a measured |Z| file, and
 both survive a link and a reload.

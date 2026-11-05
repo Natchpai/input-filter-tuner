@@ -102,6 +102,12 @@ The page has two panes that scroll on their own:
   - Shows exact and E-series values (E6 to E96 per part type), margin,
     attenuation and the worst corner. Apply replaces the filter blocks as
     one undo step.
+  - Optimizer (Goal: least Cd, least total C or least DC loss): L and C
+    free inside ranges per stage, DCR = the old inductor's Ω per µH times
+    L. Limits: the target, margin k, the gain peak max|H| ≤ Qpeak and the
+    DC loss limit (the Q window of NP-DR-26004, checked exactly). Shows the
+    goal, the Q window and the limits that hold the goal. Runs in a worker
+    with Cancel.
 - Sensitivity table: the margin and attenuation change for +10 % in each
   part, largest first. Also in the report.
 - Damping helpers, under each damping part:
@@ -206,8 +212,11 @@ npm run knip
 
 ## References
 
-The `references/` folder holds TI SNVA538, TI SLVAFE0, the Kollman Power
-Tip #4 (input filter damping) and Flex AN323. Their equations are images, so
-the closed forms in the tool were checked against the tool's numeric
-optimizer, not read from these PDFs. `references/emi-limits.md` lists the
-sources of the EMI limits and networks.
+The `references/` folder holds app notes, datasheets and a thesis, indexed
+in `references/README.md`. Erickson's APEC 1999 paper is kept local only
+(IEEE copy); get it from IEEE Xplore. `docs/equations.md` lists each engine
+equation with its verdict and source (audit of 2026-11-05). The closed-form
+damping matches Erickson's equations and his own numbers, and the tool's
+numeric optimizer. Several app notes give "Rd = Z0, Cd = 4C" as the
+optimum; it is not. `references/emi-limits.md` lists the sources of the
+EMI limits and networks.

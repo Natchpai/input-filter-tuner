@@ -19,9 +19,12 @@ except the user's check of the EMI limit tables. M4 is done
 
 M5's "several converters on one bus" item is done (`docs/M5-plan.md`);
 the other two M5 items (frequency-dependent Zin, GMPM/ESAC) are not
-planned yet. M3a is done (`docs/M3-plan.md`): design assistant, E-series
-rounding, sensitivity table. The UX rework is done (`docs/UX-plan.md`).
-M3b (multi-goal optimizer) is next; plan it in detail before any code.
+planned yet. M3a and M3b are done (`docs/M3-plan.md`): design assistant,
+E-series rounding, sensitivity table, and the optimizer (least Cd, total C
+or DC loss). The UX rework is done (`docs/UX-plan.md`). The equation audit
+of 2026-11-05 is `docs/equations.md`; check a new equation against an
+outside source there, not only against the reports. Size as an optimizer
+goal waits for the M8 parts library.
 
 ## Git
 
@@ -173,6 +176,23 @@ and get approval before changing the fixture.
   - Apply replaces `blocks` (one undo step). Parasitics come from the old
     block in the same role counted from the converter side; `cv`, `li`,
     `tol` and `derate` are dropped. Corners are checked, not designed for.
+- Optimizer (`engine/optimize.ts`, `asst.goal` ≠ 'meet', M3b):
+  - Goals: Cd = ΣCd; total C = Σ(C + Cd); DC loss = I²·ΣDCR in % of
+    pBus(full), I = iBus(vinLow, full), DCR_i = ρ_i·L_i (+ ρ_i·Ld for
+    RLser, since the circuit has no Ld DCR). ρ = dcr/L of the old inductor
+    in that place (`rhoOf`); Rsrc is not counted.
+  - L and C free in `asst.rng` per stage (0 = the part in that place
+    ×0.1…×10, `rangesOf`). Damping: least damping for the peak target
+    g·min(Qstab, Qpeak)·Z0 (closed forms), g per stage solved exactly.
+  - Limits at nominal: target, margin ≥ k (+0.1 dB in the search),
+    Nyquist, max|Hopen| ≤ qPeak over [check lo, max(fcheck, fa)], DC loss
+    ≤ eps; 0 turns qPeak or eps off. Corners are shown, not designed for.
+  - Search: coarse grid, then a compass search with diagonal moves along
+    L·C = const, then `roundE` inside the ranges with a goal descent.
+    `optimize.test.ts` checks it against an exact grid and the E-series
+    neighbours. Apply: `applyOpt` (DCR = ρ·L). Runs in
+    `workers/optimize.worker.ts`; the result is UI state, like the M3a
+    proposal.
 - Sensitivity (`engine/sensitivity.ts`): each main value (`TOL_KEYS` in
   use) +10 % alone; Δmargin at Vin min, full power, and ΔA at the ripple fr
   of the converter with the least attenuation. Sensitivity tab and report

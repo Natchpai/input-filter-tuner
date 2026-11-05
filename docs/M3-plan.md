@@ -1,8 +1,8 @@
 # M3 plan: design assistant
 
-Status: **M3a done (2026-11-04)**. Scope: M3a (auto-design, E-series
-rounding, sensitivity table). M3b (multi-goal optimizer) is planned after
-M3a ships.
+Status: **M3a done (2026-11-04), M3b done (2026-11-05)**. Scope: M3a
+(auto-design, E-series rounding, sensitivity table) and M3b (optimizer,
+second half of this file).
 
 Progress (2026-11-04):
 - Done: step 0 plan (`bd9c8ae`), steps 1-6 engine and state (`2e23581`),
@@ -238,8 +238,33 @@ Parity fixture unchanged. Screenshots in `%TEMP%\filter-shots`, looked at.
 
 # M3b plan: design optimizer
 
-Status: **planned (2026-11-05)**. Part A (equation audit) runs first; its
+Status: **done (2026-11-05)**. Part A (equation audit) ran first; its
 verdict table is `docs/equations.md`.
+
+Progress (2026-11-05):
+- Commits: audit and references `46ad66b`, `peakH` and EMI prep `698b425`,
+  state `006ef86`, engine `a6277ea`, UI `aedb1c8`, then these docs.
+- Gates: 518 Vitest passed (3 skipped, the LTspice cases), both builds,
+  browser check 394 passed / 0 failed, lint, prettier and knip clean.
+  Parity unchanged.
+- Audit: no engine equation is wrong. Erickson's own numbers (Table I,
+  eqs. 26-30, Rd-Cd at n = 4) pass through the engine. The app-note rule
+  "Rd = Z0, Cd = 4C" (SNVA538, Flex AN 323, SLVAFE0 with 5C) is not the
+  optimum; Flex AN 323 eq. 2 puts η on the wrong side of |Rn|.
+- Deviations from the plan text below:
+  - Each stage has its own damping factor g (one shared g left stage 1
+    over-damped, and the E-series result beat the continuous one).
+  - The compass search has diagonal moves along L·C = const: with a
+    binding attenuation target, less L needs more C at the same time. Moves
+    stop at the range bounds; results are cached.
+  - Inside the search Nyquist is skipped when margin ≥ k + 0.1 > 0 (it can
+    fail only where |Zout| > |Rn|); the result gets the full check.
+  - `peaksZH` finds the |Zout| and |H| peaks from one grid scan.
+  - Brute-force ground truth is a 10 × 10 exact grid (a 200 × 200 grid
+    takes minutes), plus the loss test with L free down to 0.1 µH and the
+    ±1 E-series neighbours.
+  - Timing (Node): D1 1 stage 1.3-1.5 s, D4 2 stages EMI 2.9 s, 2-stage
+    preset dB 3.8 s; browser on D1 0.3 s.
 
 ## Context
 

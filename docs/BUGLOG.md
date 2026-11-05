@@ -66,7 +66,27 @@ or export code.
     copied a bank's per-part ESR onto a one-part bank of the whole C, so
     the bank ESR became n times larger.
 
+21. **A coordinate search stalls on a binding product constraint.** With
+    attenuation fixing L·C, less L needs more C in the same move; one axis
+    at a time never improves the goal. Add the diagonal moves.
+22. **Every limit of the final check is a limit of the search.** The
+    optimizer's search left out the DC loss limit, so its best point
+    failed after rounding. Use one feasibility test for both, and keep
+    rounding inside the user's ranges too.
+
 ## Entries
+
+### 2026-11-05: M3b optimizer, found by its own tests (not shipped)
+
+- E-series rounding stepped outside the user's L and C ranges (C 0.39 µF
+  below a 1 µF minimum), which also made the rounded goal beat the
+  continuous one. `roundE` now takes an `allowed` test. Lesson 22.
+- The search did not check the DC loss limit; D4 ended at 1.39 % for a
+  1 % limit. Lesson 22.
+- The loss goal stopped at C 82 µF of 100 µF allowed: the compass search
+  had no diagonal move. Lesson 21.
+- One damping factor shared by both stages left stage 1 over-damped; each
+  stage now has its own.
 
 ### 2026-11-05: review of the newer code (23 fixes)
 
