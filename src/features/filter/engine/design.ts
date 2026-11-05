@@ -163,9 +163,13 @@ export type StageOut = StageVals & {
 }
 
 /** Old blocks that give their parasitics to stage i of a new design. */
-type Carry = { ind: IndBlock | null; cap: CapBlock | null; rc: RcBlock | null }
+export type Carry = {
+  ind: IndBlock | null
+  cap: CapBlock | null
+  rc: RcBlock | null
+}
 
-function carryOf(st: Design, stages: number): Carry[] {
+export function carryOf(st: Design, stages: number): Carry[] {
   const on = st.blocks.filter((b) => b.on)
   const inds = on.filter((b): b is IndBlock => b.type === 'ind')
   const caps = on.filter((b): b is CapBlock => b.type === 'cap')
@@ -180,7 +184,7 @@ function carryOf(st: Design, stages: number): Carry[] {
   }))
 }
 
-const dcrOf = (c: Carry) => (c.ind ? c.ind.dcr : TYPES.ind.p[1].def)
+export const dcrOf = (c: Carry) => (c.ind ? c.ind.dcr : TYPES.ind.p[1].def)
 
 /**
  * Size one stage at f0. r is the peak target as a multiple of Z0 (target Q,
@@ -236,11 +240,14 @@ export function sizeStage(
  * Parasitics come from the old block in the same role, else TYPES
  * defaults; curves, tolerances and DC-bias loss belong to the old part and
  * are dropped. The rc leg's Cd ESR counts in Rd, so the part is rd − ESR.
+ * rho (M3b): DCR per henry of each stage's inductor, so DCR = rho·L; null
+ * keeps the old inductor's DCR (M3a).
  */
 export function blocksOf(
   st: Design,
   vals: StageVals[],
-  mkId: () => string
+  mkId: () => string,
+  rho: number[] | null = null
 ): Block[] {
   const carry = carryOf(st, vals.length)
   const out: Block[] = []
@@ -255,7 +262,7 @@ export function blocksOf(
       name: 'L' + tag,
       on: true,
       L: v.L,
-      dcr: dcrOf(c),
+      dcr: rho ? rho[i] * v.L : dcrOf(c),
       cp: c.ind ? c.ind.cp : 0,
       dmode,
       dR: v.rd === null || dmode === 'none' ? (c.ind?.dR ?? 1) : v.rd,
@@ -293,9 +300,13 @@ export function blocksOf(
 let probeId = 0
 const probe = () => 'asst' + probeId++
 
-const withVals = (st: Design, vals: StageVals[]): Design => ({
+export const withVals = (
+  st: Design,
+  vals: StageVals[],
+  rho: number[] | null = null
+): Design => ({
   ...st,
-  blocks: blocksOf(st, vals, probe),
+  blocks: blocksOf(st, vals, probe, rho),
 })
 
 // ---- Checks ----
@@ -370,7 +381,7 @@ export type Proposal = {
 const U_MIN = 1e-4
 
 /** A value out of its TYPES range. */
-function outOfRange(s: StageVals): string | null {
+export function outOfRange(s: StageVals): string | null {
   if (s.L > L_LIM.max) return 'L'
   if (s.C > C_LIM.max) return 'C'
   if (s.cd !== null && s.cd > CD_LIM.max) return 'Cd'
@@ -550,13 +561,18 @@ export function propose(st: Design): Proposal {
 
 type PartRef = { i: number; key: 'L' | 'C' | 'rd' | 'cd' | 'ld'; ser: ESeries }
 
-function partsOf(stages: StageVals[], a: AsstSettings): PartRef[] {
+function partsOf(
+  stages: StageVals[],
+  a: AsstSettings,
+  allFree: boolean
+): PartRef[] {
   const out: PartRef[] = []
   const ser = a.ser
   stages.forEach((s, i) => {
-    // The fixed L or C is the user's part: keep it as typed.
-    if (a.st[i].fix !== 'L') out.push({ i, key: 'L', ser: ser.L })
-    if (a.st[i].fix !== 'C') out.push({ i, key: 'C', ser: ser.C })
+    // The fixed L or C is the user's part: keep it as typed (M3a). The
+    // optimizer (M3b) chooses both.
+    if (allFree || a.st[i].fix !== 'L') out.push({ i, key: 'L', ser: ser.L })
+    if (allFree || a.st[i].fix !== 'C') out.push({ i, key: 'C', ser: ser.C })
     if (s.rd !== null) out.push({ i, key: 'rd', ser: ser.R })
     if (s.cd !== null) out.push({ i, key: 'cd', ser: ser.C })
     if (s.ld !== null) out.push({ i, key: 'ld', ser: ser.L })
@@ -566,17 +582,30 @@ function partsOf(stages: StageVals[], a: AsstSettings): PartRef[] {
 
 export const PART_LABEL = { L: 'L', C: 'C', rd: 'Rd', cd: 'Cd', ld: 'Ld' }
 
+/** Optimizer hooks for roundE (M3b). */
+export type RoundOpt = {
+  /** Exact check of a set of stage values. */
+  check: (s: StageVals[]) => Check
+  /** Goal value to lower once every target passes. */
+  goal: (s: StageVals[]) => number
+  /** Stage i of s is inside the user's L and C ranges. */
+  allowed: (s: StageVals[], i: number) => boolean
+}
+
 /**
  * Snap every value to its series (log-nearest), then, while a target
  * fails, move one part to its other neighbour: each round tries every part
- * and keeps the move that cuts the shortfall most.
+ * and keeps the move that cuts the shortfall most. With opt (M3b), L and C
+ * are both free, and once the design passes, one-step moves that keep it
+ * passing and lower the goal are taken, best first, until none helps.
  */
-function roundE(
+export function roundE(
   st: Design,
   exact: StageVals[],
-  fa: number
+  fa: number,
+  opt: RoundOpt | null = null
 ): { stages: StageVals[]; check: Check; moved: string[] } {
-  const parts = partsOf(exact, st.asst)
+  const parts = partsOf(exact, st.asst, opt !== null)
   const carry = carryOf(st, exact.length)
   // Rd is rounded as the part value: total minus the Cd ESR of the leg.
   const esr = (i: number) =>
@@ -588,18 +617,28 @@ function roundE(
       i !== p.i ? x : { ...x, [p.key]: p.key === 'rd' ? v + esr(i) : v }
     )
   let cur = exact
-  for (const p of parts)
-    cur = setPart(cur, p, snap(partVal(exact, p), p.ser).nearest)
+  for (const p of parts) {
+    const sn = snap(partVal(exact, p), p.ser)
+    cur = setPart(cur, p, sn.nearest)
+    // M3b: the other neighbour when the nearest leaves the user's range.
+    if (opt && !opt.allowed(cur, p.i)) {
+      const v = sn.nearest === sn.lower ? sn.upper : sn.lower
+      const other = setPart(cur, p, v)
+      if (opt.allowed(other, p.i)) cur = other
+    }
+  }
   const nearest = cur
-  let check = checkOf(withVals(st, cur), fa)
+  const checkS = (s: StageVals[]) =>
+    opt ? opt.check(s) : checkOf(withVals(st, s), fa)
+  let check = checkS(cur)
   for (let round = 0; round < parts.length && !check.pass; round++) {
     let best: { s: StageVals[]; c: Check } | null = null
     for (const p of parts) {
       const now = partVal(cur, p)
       for (const v of [stepE(now, p.ser, 1), stepE(now, p.ser, -1)]) {
         const s = setPart(cur, p, v)
-        if (outOfRange(s[p.i])) continue
-        const c = checkOf(withVals(st, s), fa)
+        if (outOfRange(s[p.i]) || (opt && !opt.allowed(s, p.i))) continue
+        const c = checkS(s)
         if (c.short < (best?.c.short ?? check.short)) best = { s, c }
       }
     }
@@ -607,6 +646,26 @@ function roundE(
     cur = best.s
     check = best.c
   }
+  // Goal descent (M3b): at most 4 rounds per part.
+  if (opt && check.pass)
+    for (let round = 0; round < 4 * parts.length; round++) {
+      let best: { s: StageVals[]; c: Check; g: number } | null = null
+      const g0 = opt.goal(cur)
+      for (const p of parts) {
+        const now = partVal(cur, p)
+        for (const v of [stepE(now, p.ser, -1), stepE(now, p.ser, 1)]) {
+          const s = setPart(cur, p, v)
+          if (outOfRange(s[p.i]) || !opt.allowed(s, p.i)) continue
+          const g = opt.goal(s)
+          if (!(g < (best?.g ?? g0) - 1e-15)) continue
+          const c = opt.check(s)
+          if (c.pass) best = { s, c, g }
+        }
+      }
+      if (!best) break
+      cur = best.s
+      check = best.c
+    }
   const moved = parts
     .filter((p) => partVal(cur, p) !== partVal(nearest, p))
     .map((p) => PART_LABEL[p.key] + (exact.length > 1 ? String(p.i + 1) : ''))
